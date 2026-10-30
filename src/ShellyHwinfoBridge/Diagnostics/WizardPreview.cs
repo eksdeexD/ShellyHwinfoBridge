@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
@@ -80,7 +80,7 @@ internal static class WizardPreview
     }
 
     /// <summary>Three Seasonic entries as in the design image (TX-700 is the real seed entry).</summary>
-    private static PsuDatabase Database()
+    internal static PsuDatabase Database()
     {
         var real = PsuDatabaseLoader.LoadEmbedded();
         var tx700 = real.Psus.First(p => p.Id == "seasonic-prime-fanless-tx-700");
@@ -105,7 +105,7 @@ internal static class WizardPreview
         };
     }
 
-    private static HwinfoSnapshot Sensors(bool withBridge)
+    internal static HwinfoSnapshot Sensors(bool withBridge)
     {
         static HwinfoReading W(int sensor, string device, string label, double value) =>
             new(HwinfoReadingType.Power, sensor, 0, device, label, string.Empty, "W", value, value, value, value);
@@ -131,79 +131,5 @@ internal static class WizardPreview
         }
 
         return new HwinfoSnapshot(2, 1, SampleData.NowUtc, [], readings);
-    }
-
-    /// <summary>A runtime stand-in: answers the connection test with the sample reading and accepts Apply.</summary>
-    private sealed class PreviewRuntime : IBridgeRuntime
-    {
-        public event EventHandler? SettingsChanged
-        {
-            add { }
-            remove { }
-        }
-
-        public event EventHandler? StateChanged
-        {
-            add { }
-            remove { }
-        }
-
-        public event EventHandler<PowerReadingEventArgs>? ReadingReceived
-        {
-            add { }
-            remove { }
-        }
-
-        public event EventHandler? SensorKeysCreated
-        {
-            add { }
-            remove { }
-        }
-
-        public AppSettings? Settings { get; private set; }
-
-        public bool HasPassword => false;
-
-        public string? Password => null;
-
-        public PsuDatabase Database { get; } = PsuDatabaseLoader.LoadEmbedded();
-
-        public RuntimeState State => Settings is null ? RuntimeState.Unconfigured : RuntimeState.Running;
-
-        public OnlineState OnlineState => OnlineState.Online;
-
-        public PowerReadingEventArgs? LastReading => SampleData.Reading();
-
-        public void Start()
-        {
-        }
-
-        public Task StopAsync() => Task.CompletedTask;
-
-        public void Pause()
-        {
-        }
-
-        public void Resume()
-        {
-        }
-
-        public ApplyOutcome Apply(AppSettings settings, string? newPassword = null)
-        {
-            Settings = settings;
-            return new ApplyOutcome(true, null, []);
-        }
-
-        public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows) => Apply(draft, password);
-
-        public Task<DatabaseUpdateResult> CheckDatabaseUpdateAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new DatabaseUpdateResult(DatabaseUpdateStatus.AlreadyCurrent, "The database is already up to date.", null, []));
-
-        public void RemoveSensors()
-        {
-        }
-
-        public Task<ConnectionTestResult> TestConnectionAsync(string host, string? password, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConnectionTestResult(true, SampleData.Reading().Raw, new ShellyDeviceInfo("PlugMGen3-2", "S3PL-10112EU", "PlugMG3", 3), null));
     }
 }

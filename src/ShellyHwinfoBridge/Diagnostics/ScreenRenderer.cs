@@ -5,6 +5,7 @@ using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
 using ShellyHwinfoBridge.Windows;
+using ShellyHwinfoBridge.Windows.Wizard;
 
 namespace ShellyHwinfoBridge.Diagnostics;
 
@@ -101,7 +102,50 @@ internal static class ScreenRenderer
             s.GoNextAsync().GetAwaiter().GetResult();
             s.Apply.StartVerify();
         })),
+        ("settings", () => Settings()),
+        ("settings-results", () =>
+        {
+            var form = Settings(out var presenter);
+            presenter.TestConnectionAsync("192.168.1.42", null).GetAwaiter().GetResult();
+            presenter.CheckDatabaseUpdateAsync().GetAwaiter().GetResult();
+            presenter.SetPrice("abc");
+            return form;
+        }),
+        ("settings-short", () =>
+        {
+            var form = Settings();
+            form.SetClientSizeDip(new Size(1000, 560), new Size(900, 480));
+            return form;
+        }),
+        ("step-dialog-psu", () =>
+        {
+            var model = new PsuStepModel(WizardPreview.Database(), SampleData.Culture);
+            model.LoadFrom(SampleData.Settings());
+            model.MeasuredVolts = 226.9;
+            return new StepDialog("Power supply", "Pick it from the database for the most accurate curve. If it is missing, use a generic curve by rating or enter your own.", new PsuStepView(model), () => null);
+        }),
+        ("step-dialog-sensors", () =>
+        {
+            var settings = SampleData.Settings();
+            var model = new SensorStepModel(SampleData.Culture);
+            model.Load(WizardPreview.Sensors(withBridge: false).GetPowerSensors(), settings.Sensors, settings.CustomFormula);
+            return new StepDialog("Sensors and formula", "These HWiNFO power sensors are subtracted from DC power to compute Other Components.", new SensorStepView(model, () => { }), () => null);
+        }),
     ];
+
+    private static SettingsForm Settings() => Settings(out _);
+
+    /// <summary>A settings window over the sample settings (price 0.32 DKK, autostart on, a stored password).</summary>
+    private static SettingsForm Settings(out SettingsPresenter presenter)
+    {
+        var settings = SampleData.Settings();
+        settings.EnergyPricePerKwh = 0.32m;
+        settings.EnergyCurrency = "DKK";
+        settings.StartWithWindows = true;
+        var runtime = new PreviewRuntime(settings, hasPassword: true);
+        presenter = new SettingsPresenter(runtime, SampleData.Culture);
+        return new SettingsForm(presenter, runtime, () => WizardPreview.Sensors(withBridge: false));
+    }
 
     /// <summary>Builds a main window showing <paramref name="state"/> and the sample chart for <paramref name="period"/>.</summary>
     private static MainForm MainWindow(MainViewState state, EnergyPeriod period)

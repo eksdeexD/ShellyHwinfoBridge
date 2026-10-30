@@ -16,7 +16,7 @@ using ShellyHwinfoBridge.Windows.Wizard;
 namespace ShellyHwinfoBridge;
 
 /// <summary>
-/// The app's UI root: tray icon and menu, the main window (and later the wizard and settings windows), one 1 Hz
+/// The app's UI root: tray icon and menu, the main, settings and wizard windows, one 1 Hz
 /// refresh timer that pulls presenter state, and the exit sequence.
 /// </summary>
 /// <remarks>
@@ -43,6 +43,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private IconFactory _icons;
     private MainForm? _mainForm;
     private WizardForm? _wizardForm;
+    private SettingsForm? _settingsForm;
     private TrayIconState? _iconState;
     private bool _hideTrayIcon;
     private volatile bool _dirty = true;
@@ -170,7 +171,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _mainForm.BringToFront();
     }
 
-    /// <summary>Opens the settings window. Agent D replaces the body with the real SettingsForm.</summary>
+    /// <summary>
+    /// Opens the settings window (or activates the open one). Closing it disposes it; the next call builds a fresh one
+    /// with a new presenter.
+    /// </summary>
     public void ShowSettings()
     {
         if (_exiting)
@@ -185,7 +189,45 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        ThemedDialog.Show(VisibleOwner(), "Settings", "The settings window is coming in the next build. Until then, settings.json can be changed through the setup wizard.");
+        if (_settingsForm is null || _settingsForm.IsDisposed)
+        {
+            var runtime = _services.Runtime;
+            var form = new SettingsForm(new SettingsPresenter(runtime), runtime, _services.SharedMemory.TryGetSnapshot);
+            form.WizardRequested += (_, _) => ShowWizard();
+            form.ExitRequested += async (_, _) => await ExitAsync();
+            form.SensorsRemoved += (_, _) =>
+            {
+                _logger.LogInformation("HWiNFO sensors removed from the settings window; polling paused.");
+                RefreshNow();
+            };
+            form.FormClosed += (_, _) =>
+            {
+                if (ReferenceEquals(_settingsForm, form))
+                {
+                    _settingsForm = null;
+                }
+
+                if (!_exiting)
+                {
+                    RefreshNow();
+                }
+            };
+            _settingsForm = form;
+            _logger.LogInformation("Settings window opened.");
+            form.Show();
+        }
+        else
+        {
+            _settingsForm.RefreshState();
+        }
+
+        if (_settingsForm.WindowState == FormWindowState.Minimized)
+        {
+            _settingsForm.WindowState = FormWindowState.Normal;
+        }
+
+        _settingsForm.Activate();
+        _settingsForm.BringToFront();
     }
 
     /// <summary>
@@ -204,6 +246,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             ActivateWizard();
             return;
+        }
+
+        // Settings and the wizard are mutually exclusive. While Settings shows a dialog (PSU, sensors, a confirmation)
+        // it keeps the focus; otherwise it closes (its changes are already applied) and the wizard opens.
+        if (_settingsForm is { IsDisposed: false } settings)
+        {
+            if (settings.IsShowingDialog)
+            {
+                settings.Activate();
+                return;
+            }
+
+            settings.Close();
         }
 
         var runtime = _services.Runtime;
@@ -226,7 +281,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             }
         };
 
-        // Settings closes when the wizard opens (agent D: close or hide the SettingsForm here).
         _wizardForm = form;
         _mainForm?.SetWindowButtonsEnabled(false);
         _logger.LogInformation("Setup wizard opened.");
@@ -273,6 +327,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _timer.Stop();
         _activation.Detach();
         _wizardForm?.Close();
+        _settingsForm?.Close();
         _mainForm?.Hide();
         Unsubscribe();
         _dispatcher.BeginShutdown();
@@ -296,6 +351,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _notifyIcon.Dispose();
             _menu.Dispose();
             _mainForm?.Dispose();
+            _settingsForm?.Dispose();
             _icons.Dispose();
             _dispatcher.Dispose();
         }
@@ -452,6 +508,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _pauseItem.Text = state == RuntimeState.Paused ? "Resume polling" : "Pause polling";
         _pauseItem.Enabled = state is RuntimeState.Running or RuntimeState.Paused;
         _settingsItem.Enabled = _wizardForm is null;
+        _wizardItem.Enabled = _settingsForm is not { IsShowingDialog: true };
     }
 
     private void TogglePause()
@@ -477,7 +534,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
-    private IWin32Window? VisibleOwner() => _mainForm is { Visible: true } form ? form : null;
+    private IWin32Window? VisibleOwner() =>
+        _settingsForm is { IsDisposed: false, Visible: true } settings ? settings : _mainForm is { Visible: true } form ? form : null;
 
     private void OpenFolder(string path)
     {

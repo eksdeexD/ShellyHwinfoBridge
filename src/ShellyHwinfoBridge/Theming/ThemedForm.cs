@@ -88,8 +88,11 @@ internal class ThemedForm : Form, IThemedSurface
             return;
         }
 
+        // A scrolling form anchors the gradient to its content, so scrolled (blitted) pixels and repainted children agree.
+        var top = AutoScroll ? AutoScrollPosition.Y : 0;
+        var height = AutoScroll ? Math.Max(client.Height, DisplayRectangle.Height) : client.Height;
         using var brush = new LinearGradientBrush(
-            new Rectangle(0, -1, Math.Max(1, client.Width), client.Height + 2),
+            new Rectangle(0, top - 1, Math.Max(1, client.Width), height + 2),
             Theme.BgTop,
             Theme.BgBottom,
             LinearGradientMode.Vertical);
