@@ -63,6 +63,9 @@ internal sealed class WizardForm : ThemedForm
     /// <summary>Gets the view of the current step (screen renderer).</summary>
     internal WizardStepView? CurrentView => _view;
 
+    /// <summary>Opens the voltage override on the PSU step (screen renderer).</summary>
+    internal void PreviewOpenVoltage() => (_view as PsuStepView)?.ShowVoltageOverride();
+
     protected override bool ProcessDialogKey(Keys keyData)
     {
         if (keyData == Keys.Escape && _cancel.Visible)

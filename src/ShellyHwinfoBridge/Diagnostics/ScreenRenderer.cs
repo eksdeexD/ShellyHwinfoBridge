@@ -51,6 +51,32 @@ internal static class ScreenRenderer
             s.Psu.SetBrand("Seasonic");
             s.Psu.Select("seasonic-prime-fanless-tx-700");
         })),
+        ("wizard-3-psu-generic", () => WizardPreview.At(WizardStep.Psu, tweak: s =>
+        {
+            s.Psu.Mode = Core.Settings.PsuSelectionMode.Generic;
+            s.Psu.SetGenericWattage("850");
+            s.Psu.SetGenericRating(Core.Curves.EightyPlusRating.Gold);
+        })),
+        ("wizard-3-psu-form", () => WizardPreview.At(WizardStep.Psu, tweak: s =>
+        {
+            s.Psu.Mode = Core.Settings.PsuSelectionMode.Manual;
+            s.Psu.ManualEntry = ManualCurveEntry.EfficiencyForm;
+        })),
+        ("wizard-3-psu-grid", () => WizardPreview.At(WizardStep.Psu, tweak: s =>
+        {
+            s.Psu.Mode = Core.Settings.PsuSelectionMode.Manual;
+            s.Psu.SetManualRows([("77.9", "70"), ("151.9", "141.7"), ("140", "150"), ("741.7", "700")]);
+        })),
+        ("wizard-3-psu-voltage", () =>
+        {
+            var form = WizardPreview.At(WizardStep.Psu, tweak: s =>
+            {
+                s.Psu.Select("seasonic-prime-fanless-tx-700");
+                s.Psu.VoltageMode = Core.Curves.InputVoltageMode.V115;
+            });
+            form.PreviewOpenVoltage();
+            return form;
+        }),
         ("wizard-4-sensors", () => WizardPreview.At(WizardStep.Sensors)),
         ("wizard-5-apply", () => WizardPreview.At(WizardStep.Apply)),
     ];
