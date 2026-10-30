@@ -91,6 +91,16 @@ internal static class ScreenRenderer
             s.Sensors.SetManualName(s.Sensors.AddManual(), "GPU Power");
         })),
         ("wizard-5-apply", () => WizardPreview.At(WizardStep.Apply)),
+        ("wizard-5-applied-could-not-close", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.Desktop, tweak: s =>
+        {
+            s.GoNextAsync().GetAwaiter().GetResult();
+            s.Apply.RestartHwinfoAsync().GetAwaiter().GetResult();
+        })),
+        ("wizard-5-applied-verified", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: s =>
+        {
+            s.GoNextAsync().GetAwaiter().GetResult();
+            s.Apply.StartVerify();
+        })),
     ];
 
     /// <summary>Builds a main window showing <paramref name="state"/> and the sample chart for <paramref name="period"/>.</summary>
