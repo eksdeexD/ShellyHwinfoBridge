@@ -25,6 +25,11 @@ public interface IRegistryBackend
     /// <param name="value">Value data.</param>
     void SetString(string path, string name, string value);
 
+    /// <summary>Deletes a value; does nothing if the key or value does not exist.</summary>
+    /// <param name="path">Key path.</param>
+    /// <param name="name">Value name.</param>
+    void DeleteValue(string path, string name);
+
     /// <summary>Deletes a key and all its subkeys; does nothing if it does not exist.</summary>
     /// <param name="path">Key path.</param>
     void DeleteTree(string path);

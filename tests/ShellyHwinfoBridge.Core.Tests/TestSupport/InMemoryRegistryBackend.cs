@@ -25,6 +25,14 @@ internal sealed class InMemoryRegistryBackend : IRegistryBackend
         Keys[path][name] = value;
     }
 
+    public void DeleteValue(string path, string name)
+    {
+        if (Keys.TryGetValue(path, out var values))
+        {
+            values.Remove(name);
+        }
+    }
+
     public void DeleteTree(string path)
     {
         foreach (var key in Keys.Keys.Where(k => k.Equals(path, StringComparison.OrdinalIgnoreCase) || k.StartsWith(path + "\\", StringComparison.OrdinalIgnoreCase)).ToList())

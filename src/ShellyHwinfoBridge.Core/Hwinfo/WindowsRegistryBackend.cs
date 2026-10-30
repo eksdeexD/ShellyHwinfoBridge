@@ -40,5 +40,12 @@ public sealed class WindowsRegistryBackend : IRegistryBackend
     }
 
     /// <inheritdoc />
+    public void DeleteValue(string path, string name)
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(path, writable: true);
+        key?.DeleteValue(name, throwOnMissingValue: false);
+    }
+
+    /// <inheritdoc />
     public void DeleteTree(string path) => Registry.CurrentUser.DeleteSubKeyTree(path, throwOnMissingSubKey: false);
 }
