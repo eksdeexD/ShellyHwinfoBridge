@@ -18,4 +18,7 @@ public static class AppPaths
 
     /// <summary>Gets <c>%APPDATA%\ShellyHwinfoBridge\logs</c>.</summary>
     public static string LogDirectory => Path.Combine(DataDirectory, "logs");
+
+    /// <summary>Gets <c>%APPDATA%\ShellyHwinfoBridge\energy</c> (hourly CSV files and the counter state).</summary>
+    public static string EnergyDirectory => Path.Combine(DataDirectory, "energy");
 }
