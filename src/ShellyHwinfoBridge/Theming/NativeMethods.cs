@@ -61,6 +61,16 @@ internal static class NativeMethods
         }
     }
 
+    /// <summary>
+    /// Lets the running instance bring its window to the foreground. Called by a second launch (which owns the
+    /// foreground because the user just started it) before it signals the running instance.
+    /// </summary>
+    public static void AllowAnyProcessToSetForeground()
+    {
+        const int asfwAny = -1;
+        _ = AllowSetForegroundWindow(asfwAny);
+    }
+
     private static int ColorRef(Color c) => c.R | (c.G << 8) | (c.B << 16);
 
     private static void SetInt(IntPtr hwnd, int attribute, int value)
@@ -84,4 +94,8 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyIcon(IntPtr handle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllowSetForegroundWindow(int processId);
 }

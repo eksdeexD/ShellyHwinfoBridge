@@ -4,7 +4,7 @@ namespace ShellyHwinfoBridge.Core.Startup;
 
 /// <summary>
 /// Enforces a single instance per Windows session and lets a second launch ask the running instance to show its
-/// settings window (the way back in when the tray icon is hidden).
+/// main window (the way back in when the tray icon is hidden).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -51,14 +51,14 @@ public sealed class SingleInstanceCoordinator : IDisposable
             executeOnlyOnce: false);
     }
 
-    /// <summary>Raised in the primary instance when another launch asks it to show its settings window.</summary>
+    /// <summary>Raised in the primary instance when another launch asks it to show its main window.</summary>
     public event EventHandler? ActivationRequested;
 
     /// <summary>Gets whether this is the first (primary) instance.</summary>
     public bool IsPrimary { get; }
 
     /// <summary>
-    /// Asks the primary instance to show its settings window. Call this from a secondary instance before exiting.
+    /// Asks the primary instance to show its main window. Call this from a secondary instance before exiting.
     /// </summary>
     /// <returns><c>true</c> if the primary's event was found and set.</returns>
     public bool SignalPrimary()

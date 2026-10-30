@@ -20,6 +20,7 @@ internal static class ScreenRenderer
         ("gallery-3", () => new ControlGalleryForm(3)),
         ("gallery-4", () => new ControlGalleryForm(4)),
         ("gallery-5", () => new ControlGalleryForm(5)),
+        ("tray-icons", () => new IconPreviewForm()),
     ];
 
     /// <summary>Renders every screen into <paramref name="directory"/>; returns the process exit code.</summary>

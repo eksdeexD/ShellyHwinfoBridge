@@ -6,7 +6,7 @@ namespace ShellyHwinfoBridge.Core.Startup;
 /// <remarks>
 /// <list type="bullet">
 /// <item><c>--autostart</c>: started by the Windows Run key at logon. Implies <c>--minimized</c>.</item>
-/// <item><c>--minimized</c>: start in the tray only; do not open the settings window or wizard on its own.</item>
+/// <item><c>--minimized</c>: start in the tray only; do not open the main window or wizard on its own.</item>
 /// </list>
 /// Switches are case-insensitive and may also be written with a leading <c>/</c>. Unknown arguments are ignored.
 /// </remarks>
