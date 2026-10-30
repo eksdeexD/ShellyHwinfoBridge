@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test -c Release
+
+      - name: Publish
+        run: >
+          dotnet publish src/ShellyHwinfoBridge/ShellyHwinfoBridge.csproj
+          -c Release -r win-x64 --self-contained false
+          -p:PublishSingleFile=true -p:DebugType=None -p:GenerateDocumentationFile=false
+          -o publish
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $zip = "ShellyHwinfoBridge-${{ github.ref_name }}-win-x64.zip"
+          Compress-Archive -Path publish/ShellyHwinfoBridge.exe, publish/psu-database.json -DestinationPath $zip
+          "ZIP_NAME=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true
