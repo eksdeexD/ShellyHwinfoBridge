@@ -4,40 +4,40 @@ using System.Runtime.InteropServices;
 
 namespace ShellyHwinfoBridge.Theming;
 
-/// <summary>Text roles of the type scale.</summary>
+/// <summary>Text roles of the type scale (sizes and weights: <see cref="ThemeFonts.Spec"/>).</summary>
 internal enum FontRole
 {
-    /// <summary>Window title ("ShellyHwinfoBridge", "Setup wizard", "Settings"): 20 pt semibold.</summary>
+    /// <summary>Window title ("ShellyHwinfoBridge", "Setup wizard", "Settings").</summary>
     AppTitle,
 
-    /// <summary>Wizard page title: 24 pt semibold.</summary>
+    /// <summary>Wizard page title.</summary>
     PageTitle,
 
-    /// <summary>Wizard page subtitle: 12 pt.</summary>
+    /// <summary>Wizard page subtitle.</summary>
     Subtitle,
 
-    /// <summary>Card title ("Energy", "Shelly device"): 15 pt semibold.</summary>
+    /// <summary>Card title ("Energy", "Shelly device").</summary>
     CardTitle,
 
-    /// <summary>Large stat value ("312.4 W"): 26 pt semibold.</summary>
+    /// <summary>Large stat value ("312.4 W").</summary>
     StatValue,
 
-    /// <summary>Energy totals ("2.41 kWh"): 20 pt semibold.</summary>
+    /// <summary>Energy totals ("2.41 kWh").</summary>
     TotalValue,
 
-    /// <summary>Body text: 11 pt.</summary>
+    /// <summary>Body text.</summary>
     Body,
 
-    /// <summary>Body text, semibold (selected segment, primary button, list titles): 11 pt.</summary>
+    /// <summary>Body text, semibold (selected segment, primary button, list titles).</summary>
     BodySemibold,
 
-    /// <summary>Small text (footnotes, chart labels): 10 pt.</summary>
+    /// <summary>Small text (footnotes, chart labels).</summary>
     Small,
 
-    /// <summary>Uppercase tracked caption ("AC POWER (WALL)"): 8.5 pt.</summary>
+    /// <summary>Uppercase tracked caption ("AC POWER (WALL)").</summary>
     Caption,
 
-    /// <summary>Monospace (formula): 11 pt.</summary>
+    /// <summary>Monospace (formula).</summary>
     Mono,
 }
 
@@ -92,15 +92,12 @@ internal sealed class ThemeFontSet
 internal static class ThemeFonts
 {
     private static readonly ConcurrentDictionary<int, ThemeFontSet> Cache = new();
-    private static readonly Lazy<(string Regular, string Semibold, string Display, string Mono)> Families = new(PickFamilies);
+    private static readonly Lazy<(string Regular, string Display, string Mono)> Families = new(PickFamilies);
 
-    /// <summary>Gets the regular text family.</summary>
+    /// <summary>Gets the text family (regular; "semibold" roles use it with Bold, because GDI cannot select weight 600).</summary>
     public static string RegularFamily => Families.Value.Regular;
 
-    /// <summary>Gets the semibold text family.</summary>
-    public static string SemiboldFamily => Families.Value.Semibold;
-
-    /// <summary>Gets the semibold display family (titles and large numbers).</summary>
+    /// <summary>Gets the display family (titles and large numbers, drawn Bold).</summary>
     public static string DisplayFamily => Families.Value.Display;
 
     /// <summary>Gets the monospace family.</summary>
@@ -115,23 +112,28 @@ internal static class ThemeFonts
     /// <summary>The application default font (Body, in points so WinForms scales it per monitor).</summary>
     public static Font CreateApplicationDefault() => new(RegularFamily, 11f, FontStyle.Regular, GraphicsUnit.Point);
 
+    /// <remarks>
+    /// Sizes were measured from the accepted design images (text widths at the 1100 × 740 DIP client size). The
+    /// "semibold" roles render Bold: GDI (TextRenderer) maps System.Drawing fonts to weight 400 or 700 only, and the
+    /// Segoe UI Variable "Semibold" named instances render at 400 through GDI.
+    /// </remarks>
     internal static (string Family, float Points, FontStyle Style) Spec(FontRole role) => role switch
     {
-        FontRole.AppTitle => (DisplayFamily, 20f, FontStyle.Regular),
-        FontRole.PageTitle => (DisplayFamily, 24f, FontStyle.Regular),
-        FontRole.Subtitle => (RegularFamily, 12f, FontStyle.Regular),
-        FontRole.CardTitle => (DisplayFamily, 15f, FontStyle.Regular),
-        FontRole.StatValue => (DisplayFamily, 26f, FontStyle.Regular),
-        FontRole.TotalValue => (DisplayFamily, 20f, FontStyle.Regular),
+        FontRole.AppTitle => (DisplayFamily, 21f, FontStyle.Bold),
+        FontRole.PageTitle => (DisplayFamily, 25f, FontStyle.Bold),
+        FontRole.Subtitle => (RegularFamily, 12.5f, FontStyle.Regular),
+        FontRole.CardTitle => (DisplayFamily, 17f, FontStyle.Bold),
+        FontRole.StatValue => (DisplayFamily, 30f, FontStyle.Bold),
+        FontRole.TotalValue => (DisplayFamily, 21f, FontStyle.Bold),
         FontRole.Body => (RegularFamily, 11f, FontStyle.Regular),
-        FontRole.BodySemibold => (SemiboldFamily, 11f, FontStyle.Regular),
+        FontRole.BodySemibold => (RegularFamily, 11f, FontStyle.Bold),
         FontRole.Small => (RegularFamily, 10f, FontStyle.Regular),
-        FontRole.Caption => (RegularFamily, 8.5f, FontStyle.Regular),
+        FontRole.Caption => (RegularFamily, 9.5f, FontStyle.Regular),
         FontRole.Mono => (MonoFamily, 11f, FontStyle.Regular),
         _ => (RegularFamily, 11f, FontStyle.Regular),
     };
 
-    private static (string, string, string, string) PickFamilies()
+    private static (string, string, string) PickFamilies()
     {
         HashSet<string> installed;
         try
@@ -146,10 +148,6 @@ internal static class ThemeFonts
 
         string First(params string[] candidates) => candidates.FirstOrDefault(installed.Contains) ?? candidates[^1];
 
-        var regular = First("Segoe UI Variable Text", "Segoe UI");
-        var semibold = First("Segoe UI Variable Text Semibold", "Segoe UI Variable Text Semib", "Segoe UI Semibold");
-        var display = First("Segoe UI Variable Display Semibold", "Segoe UI Variable Display Semib", "Segoe UI Semibold");
-        var mono = First("Cascadia Mono", "Consolas");
-        return (regular, semibold, display, mono);
+        return (First("Segoe UI Variable Text", "Segoe UI"), First("Segoe UI Variable Display", "Segoe UI"), First("Cascadia Mono", "Consolas"));
     }
 }

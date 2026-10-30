@@ -13,6 +13,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // Developer switches (render windows to PNG, control gallery) never touch the running instance.
+        if (Diagnostics.DiagnosticsSwitches.TryRun(args, out var diagnosticsExit))
+        {
+            return diagnosticsExit;
+        }
+
         using var instance = new SingleInstanceCoordinator();
         using var loggerFactory = LoggerFactory.Create(builder => builder
             .SetMinimumLevel(LogLevel.Information)

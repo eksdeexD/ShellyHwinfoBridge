@@ -37,6 +37,9 @@ internal static class Theme
     public const int Gap = 16;
     public const int CardPadding = 20;
 
+    /// <summary>Letter spacing of uppercase captions, in DIP per character.</summary>
+    public const float CaptionTracking = 1.5f;
+
     /// <summary>Converts DIP to device pixels for a DPI.</summary>
     public static int Scale(float dip, int dpi) => (int)Math.Round(dip * dpi / 96f, MidpointRounding.AwayFromZero);
 
