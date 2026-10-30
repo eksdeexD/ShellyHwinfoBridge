@@ -78,6 +78,18 @@ internal static class ScreenRenderer
             return form;
         }),
         ("wizard-4-sensors", () => WizardPreview.At(WizardStep.Sensors)),
+        ("wizard-4-sensors-warning", () => WizardPreview.At(WizardStep.Sensors, tweak: s =>
+            s.Sensors.SetChecked(s.Sensors.Groups[0].Rows.Single(r => r.Name == "IA Cores Power").Id, true))),
+        ("wizard-4-sensors-advanced", () =>
+        {
+            var form = WizardPreview.At(WizardStep.Sensors, tweak: s => s.Sensors.SetCustomFormula("\"DC Power (Est.)\" - \"CPU Package Power\" - \"GPU Power\" - 15"));
+            return form;
+        }),
+        ("wizard-4-sensors-manual", () => WizardPreview.At(WizardStep.Sensors, snapshot: WizardPreview.Snapshot.None, tweak: s =>
+        {
+            s.Sensors.SetManualName(s.Sensors.AddManual(), "CPU Package Power");
+            s.Sensors.SetManualName(s.Sensors.AddManual(), "GPU Power");
+        })),
         ("wizard-5-apply", () => WizardPreview.At(WizardStep.Apply)),
     ];
 

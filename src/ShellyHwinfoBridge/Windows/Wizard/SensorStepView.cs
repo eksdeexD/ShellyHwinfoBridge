@@ -1,19 +1,381 @@
-﻿using ShellyHwinfoBridge.Controls;
+using ShellyHwinfoBridge.Controls;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
+using ShellyHwinfoBridge.Core.Sensors;
+using ShellyHwinfoBridge.Theming;
 
 namespace ShellyHwinfoBridge.Windows.Wizard;
 
-/// <summary>Step 4 (placeholder until the step view is built).</summary>
+/// <summary>
+/// Step 4 (design/final/wizard-step4-sensors.png), also hosted by the Settings "Edit…" dialog: a scrollable card of
+/// HWiNFO device groups with a checkbox, value and category per power sensor; the warnings; and the formula preview
+/// with "Advanced: edit formula". Without shared memory: a notice with "Check again" and typed rows with "Add sensor".
+/// </summary>
 internal sealed class SensorStepView : WizardStepView
 {
+    private const float RowHeight = 36;
+    private const float HeaderHeight = 30;
+    private const float CategoryWidth = 155;
+
+    private static readonly IReadOnlyList<WizardOption<SensorCategory?>> ManualCategories =
+        SensorStepModel.CategoryOptions.Where(o => o.Value is not null).ToList();
+
+    private readonly SensorStepModel _model;
+    private readonly Action _reload;
+    private readonly InfoLine _notice = new() { Tone = InfoTone.Warning, Text = SensorStepModel.SharedMemoryOffText, LinkText = "Check again" };
+    private readonly CardPanel _card = new() { PaddingDip = 0, AccessibleName = "Sensors" };
+    private readonly RowsPanel _rows = new();
+    private readonly List<InfoLine> _warnings = [];
+    private readonly CardPanel _formulaCard = new() { AccessibleName = "Formula preview" };
+    private readonly TextLabel _formulaCaption = new() { Text = "Formula preview", Caption = true, Tone = UiTone.Secondary };
+    private readonly TextLabel _formula = new() { Role = FontRole.Mono, AccessibleName = "Formula" };
+    private readonly TextLink _advanced = new() { Text = "Advanced: edit formula" };
+    private readonly ThemedTextBox _editor = new() { Multiline = true, Monospace = true, AccessibleName = "Formula" };
+    private readonly TextLink _reset = new() { Text = "Reset to generated" };
+    private readonly List<(Control Control, float X, float Y, float Width, float Height)> _placed = [];
+    private readonly Dictionary<int, (ThemedCheckBox Box, TextLabel Value, ThemedDropDown Category)> _sensorControls = [];
+    private readonly Dictionary<int, (ThemedTextBox Name, ThemedDropDown Category)> _manualControls = [];
+    private PillButton? _addSensor;
+    private string? _structure;
+    private float _contentHeight;
+    private bool _editorOpen;
+
+    /// <summary>Creates the view.</summary>
+    /// <param name="model">The step model.</param>
+    /// <param name="reload">Reads HWiNFO's shared memory again and reloads the model ("Check again").</param>
     public SensorStepView(SensorStepModel model, Action reload)
     {
-        ArgumentNullException.ThrowIfNull(model);
-        ArgumentNullException.ThrowIfNull(reload);
-        Controls.Add(new TextLabel { Text = "Step 4", Dock = DockStyle.Top, Height = 40 });
+        _model = model ?? throw new ArgumentNullException(nameof(model));
+        _reload = reload ?? throw new ArgumentNullException(nameof(reload));
+        _card.Controls.Add(_rows);
+        _formulaCard.Controls.AddRange([_formulaCaption, _formula, _advanced, _editor, _reset]);
+        Controls.AddRange([_notice, _card, _formulaCard]);
+        _editorOpen = _model.IsCustomFormula;
+
+        _notice.LinkClicked += (_, _) => _reload();
+        _advanced.Click += (_, _) =>
+        {
+            _editorOpen = !_editorOpen;
+            RefreshView();
+            if (_editorOpen)
+            {
+                _editor.Focus();
+            }
+        };
+        _reset.Click += (_, _) =>
+        {
+            _model.ResetFormula();
+            _editor.SetText(_model.EffectiveFormula);
+        };
+        _editor.TextChanged += (_, _) =>
+        {
+            if (!IsRefreshing)
+            {
+                _model.SetCustomFormula(_editor.Text);
+            }
+        };
+        _rows.Layout += (_, _) => LayoutRows();
+        _model.Changed += OnModelChanged;
+        RefreshView();
     }
 
     protected override void OnRefreshView()
     {
+        var structure = Structure();
+        if (structure != _structure)
+        {
+            _structure = structure;
+            BuildRows();
+        }
+
+        foreach (var row in _model.Groups.SelectMany(g => g.Rows))
+        {
+            if (_sensorControls.TryGetValue(row.Id, out var c))
+            {
+                c.Box.Checked = row.Checked;
+                c.Value.Text = row.ValueText;
+                c.Category.SelectedIndex = IndexOf(SensorStepModel.CategoryOptions, row.Category);
+            }
+        }
+
+        foreach (var row in _model.ManualRows)
+        {
+            if (_manualControls.TryGetValue(row.Id, out var c))
+            {
+                SetTextIfChanged(c.Name, row.Name);
+                c.Category.SelectedIndex = IndexOf(ManualCategories, row.Category);
+                c.Name.HasError = !string.IsNullOrEmpty(row.Name) && !HwinfoFormula.IsValidSensorName(row.Name);
+            }
+        }
+
+        _notice.Visible = _model.IsManual;
+
+        var warnings = _model.Warnings;
+        while (_warnings.Count < warnings.Count)
+        {
+            var line = new InfoLine { Tone = InfoTone.Warning };
+            _warnings.Add(line);
+            Controls.Add(line);
+        }
+
+        for (var i = 0; i < _warnings.Count; i++)
+        {
+            _warnings[i].Visible = i < warnings.Count;
+            if (i < warnings.Count)
+            {
+                _warnings[i].Text = warnings[i];
+            }
+        }
+
+        _formula.Text = _model.EffectiveFormula;
+        _formula.Visible = !_editorOpen;
+        _editor.Visible = _editorOpen;
+        _reset.Visible = _editorOpen;
+        _reset.Enabled = _model.IsCustomFormula;
+        _advanced.Text = _editorOpen ? "Hide formula editor" : "Advanced: edit formula";
+        if (!_editor.InnerTextBox.Focused || !_editorOpen)
+        {
+            SetTextIfChanged(_editor, _model.EffectiveFormula);
+        }
+    }
+
+    protected override void OnLayout(LayoutEventArgs levent)
+    {
+        base.OnLayout(levent);
+        var w = WidthDip;
+        var h = HeightDip;
+        const float gap = 16;
+
+        var formulaHeight = _editorOpen ? 150f : 84f;
+        var formulaTop = h - formulaHeight;
+        _formulaCard.Bounds = Dip(0, formulaTop, w, formulaHeight);
+        _formulaCaption.Bounds = Dip(30, 16, 300, 22);
+        var linkSize = _advanced.GetPreferredSize(Size.Empty);
+        _advanced.Bounds = new Rectangle(_formulaCard.Width - Px(30) - linkSize.Width, Px(14), linkSize.Width, linkSize.Height);
+        _formula.Bounds = Dip(30, 44, w - 60, 28);
+        _editor.Bounds = Dip(30, 46, w - 60, formulaHeight - 46 - 20);
+        var resetSize = _reset.GetPreferredSize(Size.Empty);
+        _reset.Bounds = new Rectangle(_advanced.Left - Px(24) - resetSize.Width, Px(14), resetSize.Width, resetSize.Height);
+
+        var widthPx = Px(w);
+        var bottom = _formulaCard.Top - Px(gap);
+        var visibleWarnings = _warnings.Where(l => l.Visible).ToList();
+        for (var i = visibleWarnings.Count - 1; i >= 0; i--)
+        {
+            var line = visibleWarnings[i];
+            var height = Math.Max(Px(28), line.GetPreferredHeight(widthPx - Px(8)));
+            line.Bounds = new Rectangle(Px(8), bottom - height, widthPx - Px(8), height);
+            bottom -= height + Px(6);
+        }
+
+        if (visibleWarnings.Count > 0)
+        {
+            bottom -= Px(gap - 6);
+        }
+
+        var top = 0;
+        if (_notice.Visible)
+        {
+            var height = _notice.GetPreferredHeight(widthPx);
+            _notice.Bounds = new Rectangle(0, 0, widthPx, height);
+            top = height + Px(12);
+        }
+
+        _card.Bounds = new Rectangle(0, top, widthPx, Math.Max(Px(80), bottom - top));
+        var inset = Px(2);
+        _rows.Bounds = new Rectangle(inset, Px(10), _card.Width - (2 * inset), _card.Height - Px(20));
+        LayoutRows();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _model.Changed -= OnModelChanged;
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private static int IndexOf(IReadOnlyList<WizardOption<SensorCategory?>> options, SensorCategory? value)
+    {
+        for (var i = 0; i < options.Count; i++)
+        {
+            if (options[i].Value == value)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private void OnModelChanged(object? sender, EventArgs e) => RefreshView();
+
+    private string Structure() => _model.IsManual
+        ? "manual:" + string.Join(",", _model.ManualRows.Select(r => r.Id))
+        : "groups:" + string.Join("|", _model.Groups.Select(g => g.Device + ":" + string.Join(",", g.Rows.Select(r => r.Id))));
+
+    /// <summary>Creates the row controls for the current groups or manual rows (positions in DIP inside the scroll panel).</summary>
+    private void BuildRows()
+    {
+        _rows.SuspendLayout();
+        foreach (var (control, _, _, _, _) in _placed)
+        {
+            _rows.Controls.Remove(control);
+            control.Dispose();
+        }
+
+        _placed.Clear();
+        _sensorControls.Clear();
+        _manualControls.Clear();
+        _addSensor = null;
+        var y = 10f;
+        const float left = 22;
+
+        if (_model.IsManual)
+        {
+            foreach (var row in _model.ManualRows)
+            {
+                var id = row.Id;
+                var name = new ThemedTextBox { Placeholder = "Sensor name as shown in HWiNFO, e.g. GPU Power", AccessibleName = "Sensor name" };
+                name.SetText(row.Name);
+                name.TextChanged += (_, _) =>
+                {
+                    if (!IsRefreshing)
+                    {
+                        _model.SetManualName(id, name.Text);
+                    }
+                };
+                var category = new ThemedDropDown { AccessibleName = "Category" };
+                category.SetItems(ManualCategories.Select(o => new DropDownItem(o.Value, o.Text)), IndexOf(ManualCategories, row.Category));
+                category.SelectionChanged += (_, _) =>
+                {
+                    if (!IsRefreshing && category.SelectedValue is SensorCategory c)
+                    {
+                        _model.SetManualCategory(id, c);
+                    }
+                };
+                var remove = new TextLink { Text = "×", Tone = LinkTone.Ink, AccessibleName = "Remove sensor" };
+                remove.Click += (_, _) => BeginInvoke(() => _model.RemoveManual(id));
+
+                Place(name, left, y, -1, 40);
+                Place(category, -CategoryWidth - 56, y + 2, CategoryWidth, 36);
+                Place(remove, -40, y + 6, 20, 28);
+                _manualControls[id] = (name, category);
+                y += 52;
+            }
+
+            _addSensor = new PillButton { Text = "Add sensor" };
+            _addSensor.Click += (_, _) => BeginInvoke(() => _model.AddManual());
+            Place(_addSensor, left, y + 4, 150, 40);
+            y += 56;
+        }
+        else
+        {
+            for (var g = 0; g < _model.Groups.Count; g++)
+            {
+                var group = _model.Groups[g];
+                if (g > 0)
+                {
+                    Place(new Panel { BackColor = Theme.Border }, left + 8, y + 4, -2, 1);
+                    y += 18;
+                }
+
+                Place(new TextLabel { Text = group.Device, Caption = true, Tone = UiTone.Secondary }, left + 8, y, -1, 24);
+                y += HeaderHeight;
+                foreach (var row in group.Rows)
+                {
+                    var id = row.Id;
+                    var box = new ThemedCheckBox { Text = row.Name, Checked = row.Checked, AccessibleName = row.Name };
+                    box.CheckedChanged += (_, _) =>
+                    {
+                        if (!IsRefreshing)
+                        {
+                            _model.SetChecked(id, box.Checked);
+                        }
+                    };
+                    var value = new TextLabel { Text = row.ValueText, Tone = UiTone.Secondary };
+                    var category = new ThemedDropDown { AccessibleName = row.Name + " category" };
+                    category.SetItems(SensorStepModel.CategoryOptions.Select(o => new DropDownItem(o.Value, o.Text)), IndexOf(SensorStepModel.CategoryOptions, row.Category));
+                    category.SelectionChanged += (_, _) =>
+                    {
+                        if (!IsRefreshing)
+                        {
+                            _model.SetCategory(id, category.SelectedValue as SensorCategory?);
+                        }
+                    };
+
+                    Place(box, left, y, 520, RowHeight);
+                    Place(value, float.NaN, y, 140, RowHeight);
+                    Place(category, -CategoryWidth - 26, y + 3, CategoryWidth, 30);
+                    _sensorControls[id] = (box, value, category);
+                    y += RowHeight + 2;
+                }
+            }
+        }
+
+        _contentHeight = y;
+        _rows.ResumeLayout(false);
+        LayoutRows();
+    }
+
+    /// <summary>
+    /// Records a row control. X &lt; 0 is measured from the right edge, NaN means "value column" (58 % of the width);
+    /// a width of -1 stretches to the category column, -2 to the right edge.
+    /// </summary>
+    private void Place(Control control, float x, float y, float width, float height)
+    {
+        _rows.Controls.Add(control);
+        _placed.Add((control, x, y, width, height));
+    }
+
+    private void LayoutRows()
+    {
+        if (_rows.Width <= 0)
+        {
+            return;
+        }
+
+        var width = _rows.ClientSize.Width;
+        var scroll = _rows.AutoScrollPosition.Y;
+        _rows.AutoScrollMinSize = new Size(0, Px(_contentHeight));
+        foreach (var (control, x, y, w, h) in _placed)
+        {
+            int left;
+            if (float.IsNaN(x))
+            {
+                left = (int)(width * 0.58f) - Px(22);
+            }
+            else
+            {
+                left = x < 0 ? width + Px(x) : Px(x);
+            }
+
+            var right = w == -2 ? width - Px(26) : width - Px(CategoryWidth + 56 + 12);
+            var controlWidth = w < 0 ? Math.Max(Px(40), right - left) : Px(w);
+            if (!float.IsNaN(x) && x >= 0 && w > 0 && control is ThemedCheckBox)
+            {
+                controlWidth = Math.Min(controlWidth, (int)(width * 0.58f) - Px(22) - left - Px(12));
+            }
+
+            control.Bounds = new Rectangle(left, Px(y) + scroll, controlWidth, Math.Max(1, Px(h)));
+        }
+    }
+
+    /// <summary>The scrollable surface of the sensor card (opaque Surface, dark scrollbar).</summary>
+    private sealed class RowsPanel : Panel
+    {
+        public RowsPanel()
+        {
+            AutoScroll = true;
+            BackColor = Theme.Surface;
+            DoubleBuffered = true;
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            NativeMethods.UseDarkExplorerTheme(this);
+        }
     }
 }
