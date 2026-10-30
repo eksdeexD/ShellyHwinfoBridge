@@ -3,7 +3,8 @@ namespace ShellyHwinfoBridge.Core.Hwinfo;
 /// <summary>
 /// Writes the custom sensors under <c>HKCU\Software\HWiNFO64\Sensors\Custom\Shelly Power</c>:
 /// Power0 AC Power (Wall), Power1 DC Power (Est.), Power2 PSU Loss, Power3 Other Components (formula),
-/// Other0 Shelly Online. Every value is REG_SZ with Name, Unit and Value entries.
+/// Other0 Shelly Online, Other1 Energy Today (kWh), Other2 Energy This Month (kWh). Every value is REG_SZ with
+/// Name, Unit and Value entries.
 /// </summary>
 public sealed class HwinfoSensorRegistry : IHwinfoSensorRegistry
 {
@@ -22,6 +23,12 @@ public sealed class HwinfoSensorRegistry : IHwinfoSensorRegistry
     /// <summary>Subkey of the online sensor.</summary>
     public const string OnlineSubkey = "Other0";
 
+    /// <summary>Subkey of the energy-today sensor.</summary>
+    public const string EnergyTodaySubkey = "Other1";
+
+    /// <summary>Subkey of the energy-this-month sensor.</summary>
+    public const string EnergyMonthSubkey = "Other2";
+
     private const string NameValue = "Name";
     private const string UnitValue = "Unit";
     private const string ValueValue = "Value";
@@ -33,6 +40,8 @@ public sealed class HwinfoSensorRegistry : IHwinfoSensorRegistry
         (LossSubkey, HwinfoSensorNames.PsuLoss, "W", "0.0"),
         (OtherSubkey, HwinfoSensorNames.OtherComponents, "W", "0.0"),
         (OnlineSubkey, HwinfoSensorNames.ShellyOnline, string.Empty, "0"),
+        (EnergyTodaySubkey, HwinfoSensorNames.EnergyToday, "kWh", "0.00"),
+        (EnergyMonthSubkey, HwinfoSensorNames.EnergyThisMonth, "kWh", "0.00"),
     ];
 
     private readonly IRegistryBackend _backend;
@@ -86,6 +95,13 @@ public sealed class HwinfoSensorRegistry : IHwinfoSensorRegistry
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(formula);
         _backend.SetString(PathOf(OtherSubkey), ValueValue, formula);
+    }
+
+    /// <inheritdoc />
+    public void WriteEnergy(double todayKwh, double monthKwh)
+    {
+        _backend.SetString(PathOf(EnergyTodaySubkey), ValueValue, SensorValueFormatter.FormatKwh(todayKwh));
+        _backend.SetString(PathOf(EnergyMonthSubkey), ValueValue, SensorValueFormatter.FormatKwh(monthKwh));
     }
 
     /// <inheritdoc />

@@ -17,6 +17,18 @@ public static class SensorValueFormatter
         return value.ToString("0.0", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Formats kilowatt-hours with two decimals, e.g. <c>2.41</c>. Non-finite and negative values become <c>0.00</c>.</summary>
+    /// <param name="value">The value.</param>
+    public static string FormatKwh(double value)
+    {
+        if (!double.IsFinite(value) || value < 0.005)
+        {
+            value = 0;
+        }
+
+        return value.ToString("0.00", CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Formats a boolean flag as <c>1</c> or <c>0</c>.</summary>
     /// <param name="value">The flag.</param>
     public static string FormatFlag(bool value) => value ? "1" : "0";

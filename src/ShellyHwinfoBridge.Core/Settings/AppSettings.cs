@@ -43,6 +43,21 @@ public sealed class AppSettings
     /// <summary>Gets or sets whether the app starts with Windows.</summary>
     public bool StartWithWindows { get; set; }
 
+    /// <summary>The longest accepted currency text.</summary>
+    public const int MaxCurrencyLength = 8;
+
+    /// <summary>The highest accepted price per kWh.</summary>
+    public const decimal MaxPricePerKwh = 1000m;
+
+    /// <summary>Gets or sets whether hourly energy is logged (default on; also on for settings files written before it existed).</summary>
+    public bool EnergyLoggingEnabled { get; set; } = true;
+
+    /// <summary>Gets or sets the optional price per kWh used to show cost; <c>null</c> hides cost.</summary>
+    public decimal? EnergyPricePerKwh { get; set; }
+
+    /// <summary>Gets or sets the optional currency text shown after costs (e.g. <c>DKK</c>), at most <see cref="MaxCurrencyLength"/> characters.</summary>
+    public string? EnergyCurrency { get; set; }
+
     /// <summary>The built-in database update URL (the project's GitHub raw URL).</summary>
     public const string DefaultDatabaseUpdateUrl = "https://raw.githubusercontent.com/eksdeexD/ShellyHwinfoBridge/main/psu-database.json";
 
@@ -77,7 +92,23 @@ public sealed class AppSettings
         {
             VoltageMode = InputVoltageMode.Auto;
         }
+
+        if (EnergyPricePerKwh is decimal price)
+        {
+            EnergyPricePerKwh = Math.Clamp(price, 0m, MaxPricePerKwh);
+        }
+
+        EnergyCurrency = string.IsNullOrWhiteSpace(EnergyCurrency) ? null : EnergyCurrency.Trim();
+        if (EnergyCurrency is { Length: > MaxCurrencyLength })
+        {
+            EnergyCurrency = EnergyCurrency[..MaxCurrencyLength];
+        }
     }
+
+    /// <summary>Returns a deep copy (a JSON round-trip with the settings file's options), for editing without side effects.</summary>
+    public AppSettings Clone() =>
+        System.Text.Json.JsonSerializer.Deserialize<AppSettings>(
+            System.Text.Json.JsonSerializer.Serialize(this, SettingsStore.JsonOptions), SettingsStore.JsonOptions)!;
 }
 
 /// <summary>The Shelly device.</summary>

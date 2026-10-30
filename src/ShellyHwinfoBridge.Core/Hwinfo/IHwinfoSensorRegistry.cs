@@ -23,7 +23,12 @@ public interface IHwinfoSensorRegistry
     /// <param name="formula">The HWiNFO formula.</param>
     void WriteFormula(string formula);
 
-    /// <summary>Sets Online = 0 and writes 0 to AC, DC and Loss. Keys are kept.</summary>
+    /// <summary>Writes the energy totals ("Energy Today", "Energy This Month") in kWh with two decimals.</summary>
+    /// <param name="todayKwh">Energy used today.</param>
+    /// <param name="monthKwh">Energy used this month.</param>
+    void WriteEnergy(double todayKwh, double monthKwh);
+
+    /// <summary>Sets Online = 0 and writes 0 to AC, DC and Loss. Keys and the energy totals are kept.</summary>
     void SetOffline();
 
     /// <summary>Deletes the whole base key (used when uninstalling).</summary>

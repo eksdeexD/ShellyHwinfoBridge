@@ -87,6 +87,67 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void OldSettingsFileWithoutEnergyFieldsEnablesEnergyLogging()
+    {
+        Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, "settings.json");
+        File.WriteAllText(path, """{"schemaVersion": 1, "device": {"host": "192.168.1.50"}, "pollIntervalMs": 1000}""");
+
+        var loaded = new SettingsStore(path, new ReversingProtector()).Load()!;
+
+        Assert.True(loaded.EnergyLoggingEnabled);
+        Assert.Null(loaded.EnergyPricePerKwh);
+        Assert.Null(loaded.EnergyCurrency);
+    }
+
+    [Fact]
+    public void EnergySettingsRoundTripAndNormalize()
+    {
+        var store = new SettingsStore(Path.Combine(_dir, "settings.json"), new ReversingProtector());
+        store.Save(new AppSettings { EnergyLoggingEnabled = false, EnergyPricePerKwh = 0.32m, EnergyCurrency = " DKK " });
+
+        var loaded = store.Load()!;
+        Assert.False(loaded.EnergyLoggingEnabled);
+        Assert.Equal(0.32m, loaded.EnergyPricePerKwh);
+        Assert.Equal("DKK", loaded.EnergyCurrency);
+
+        var odd = new AppSettings { EnergyPricePerKwh = -1m, EnergyCurrency = "VeryLongCurrency" };
+        odd.Normalize();
+        Assert.Equal(0m, odd.EnergyPricePerKwh);
+        Assert.Equal("VeryLong", odd.EnergyCurrency);
+
+        var blank = new AppSettings { EnergyPricePerKwh = 5000m, EnergyCurrency = "  " };
+        blank.Normalize();
+        Assert.Equal(AppSettings.MaxPricePerKwh, blank.EnergyPricePerKwh);
+        Assert.Null(blank.EnergyCurrency);
+    }
+
+    [Fact]
+    public void CloneIsADeepCopy()
+    {
+        var settings = new AppSettings
+        {
+            Device = { Host = "192.168.1.50", ProtectedPassword = "enc:x" },
+            Psu = { Mode = PsuSelectionMode.Manual, ManualCurve = [new CurvePoint(100, 80)] },
+            Sensors = [new SensorSelection { Name = "GPU Power", Category = SensorCategory.Gpu }],
+            EnergyPricePerKwh = 0.32m,
+            VoltageMode = InputVoltageMode.V115,
+        };
+
+        var clone = settings.Clone();
+        clone.Device.Host = "10.0.0.9";
+        clone.Sensors.Add(new SensorSelection { Name = "CPU Package Power" });
+        clone.Psu.ManualCurve!.Add(new CurvePoint(200, 180));
+
+        Assert.Equal("192.168.1.50", settings.Device.Host);
+        Assert.Single(settings.Sensors);
+        Assert.Single(settings.Psu.ManualCurve!);
+        Assert.Equal("enc:x", clone.Device.ProtectedPassword);
+        Assert.Equal(0.32m, clone.EnergyPricePerKwh);
+        Assert.Equal(InputVoltageMode.V115, clone.VoltageMode);
+    }
+
+    [Fact]
     public void CorruptFileThrowsInvalidData()
     {
         Directory.CreateDirectory(_dir);

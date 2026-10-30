@@ -224,6 +224,10 @@ public class PollingServiceTests
         {
         }
 
+        public void WriteEnergy(double todayKwh, double monthKwh)
+        {
+        }
+
         public void SetOffline() => WriteReadings(0, 0, 0, false);
 
         public void RemoveAll()

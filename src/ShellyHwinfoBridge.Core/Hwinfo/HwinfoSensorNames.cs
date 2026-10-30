@@ -20,4 +20,10 @@ public static class HwinfoSensorNames
 
     /// <summary>Name of the online indicator sensor.</summary>
     public const string ShellyOnline = "Shelly Online";
+
+    /// <summary>Name of the energy-today sensor (kWh).</summary>
+    public const string EnergyToday = "Energy Today";
+
+    /// <summary>Name of the energy-this-month sensor (kWh).</summary>
+    public const string EnergyThisMonth = "Energy This Month";
 }

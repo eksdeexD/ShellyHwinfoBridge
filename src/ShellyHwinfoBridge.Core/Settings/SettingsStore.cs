@@ -8,7 +8,8 @@ namespace ShellyHwinfoBridge.Core.Settings;
 /// <summary>Loads and saves <see cref="AppSettings"/> as JSON and handles the protected password.</summary>
 public sealed class SettingsStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    /// <summary>The JSON options of the settings file (also used by <see cref="AppSettings.Clone"/>).</summary>
+    internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true,
