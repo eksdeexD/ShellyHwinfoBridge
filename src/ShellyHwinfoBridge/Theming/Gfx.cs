@@ -154,8 +154,8 @@ internal static class Gfx
         using var pen = new Pen(color, width) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         var cx = box.Left + (box.Width / 2f);
         var cy = box.Top + (box.Height / 2f);
-        var w = box.Width / 2f;
-        var h = w / 2f;
+        var w = box.Width * 0.42f;
+        var h = box.Width * 0.46f;
         g.DrawLines(pen, new[] { new PointF(cx - w, cy - (h / 2)), new PointF(cx, cy + (h / 2)), new PointF(cx + w, cy - (h / 2)) });
     }
 

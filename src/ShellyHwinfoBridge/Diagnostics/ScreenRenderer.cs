@@ -17,21 +17,40 @@ internal static class ScreenRenderer
     [
         ("gallery-1", () => new ControlGalleryForm(1)),
         ("gallery-2", () => new ControlGalleryForm(2)),
+        ("gallery-3", () => new ControlGalleryForm(3)),
+        ("gallery-4", () => new ControlGalleryForm(4)),
+        ("gallery-5", () => new ControlGalleryForm(5)),
     ];
 
     /// <summary>Renders every screen into <paramref name="directory"/>; returns the process exit code.</summary>
     public static int Run(string directory)
     {
         Directory.CreateDirectory(directory);
+        var errors = new List<string>();
         foreach (var (name, create) in Screens)
         {
-            using var form = create();
-            var path = Path.Combine(directory, name + ".png");
-            using var bitmap = Render(form);
-            bitmap.Save(path, ImageFormat.Png);
-            Console.WriteLine(path);
+            try
+            {
+                using var form = create();
+                var path = Path.Combine(directory, name + ".png");
+                using var bitmap = Render(form);
+                bitmap.Save(path, ImageFormat.Png);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{name}: {ex}");
+            }
         }
 
+        // A WinExe has no console: failures go to a file next to the PNGs.
+        var errorFile = Path.Combine(directory, "render-errors.txt");
+        if (errors.Count > 0)
+        {
+            File.WriteAllLines(errorFile, errors);
+            return 1;
+        }
+
+        File.Delete(errorFile);
         return 0;
     }
 

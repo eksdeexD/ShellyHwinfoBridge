@@ -5,12 +5,12 @@ namespace ShellyHwinfoBridge.Diagnostics;
 
 /// <summary>
 /// Shows every themed control with the design brief's example data, for visual checks (<c>--gallery</c> in DEBUG,
-/// and rendered to PNG by <c>--render-screens</c>). Page 1 mimics the main window's frame; page 2 shows the
-/// remaining controls and states.
+/// and rendered to PNG by <c>--render-screens</c>). Page 1 mimics the main window, page 3 the wizard's PSU step and
+/// page 4 the settings window; pages 2 and 5 show the remaining controls and states.
 /// </summary>
 internal sealed class ControlGalleryForm : ThemedForm
 {
-    public const int PageCount = 2;
+    public const int PageCount = 5;
 
     private readonly DipLayout _layout = new();
     private readonly int _page;
@@ -19,16 +19,26 @@ internal sealed class ControlGalleryForm : ThemedForm
     public ControlGalleryForm(int page)
     {
         _page = Math.Clamp(page, 1, PageCount);
-        _title = _page == 1 ? "ShellyHwinfoBridge" : "Control gallery";
+        _title = _page switch { 1 => "ShellyHwinfoBridge", 3 => "Setup wizard", 4 => "Settings", _ => "Control gallery" };
         Text = $"Control gallery ({_page}/{PageCount})";
         SuspendLayout();
-        if (_page == 1)
+        switch (_page)
         {
-            BuildPage1();
-        }
-        else
-        {
-            BuildPage2();
+            case 1:
+                BuildPage1();
+                break;
+            case 2:
+                BuildPage2();
+                break;
+            case 3:
+                BuildPage3();
+                break;
+            case 4:
+                BuildPage4();
+                break;
+            default:
+                BuildPage5();
+                break;
         }
 
         ResumeLayout(false);
@@ -50,6 +60,15 @@ internal sealed class ControlGalleryForm : ThemedForm
         var logoWidth = AppAssets.DrawLogo(g, new Point(this.Px(34), top), logoHeight);
         var titleLeft = this.Px(34) + logoWidth + this.Px(18);
         Gfx.Text(g, _title, Fonts.AppTitle, new Rectangle(titleLeft, this.Px(24), this.Px(600), this.Px(44)), Theme.Ink);
+        if (_page == 3)
+        {
+            Gfx.Text(g, "Choose your power supply", Fonts.PageTitle, new Rectangle(this.Px(30), this.Px(104), this.Px(1000), this.Px(48)), Theme.Ink);
+            Gfx.Text(g, "Pick it from the database for the most accurate curve. If it is missing, use a generic curve by rating or enter your own.", Fonts.Subtitle, new Rectangle(this.Px(30), this.Px(152), this.Px(1040), this.Px(30)), Theme.InkSecondary);
+        }
+        else if (_page == 4)
+        {
+            Gfx.Text(g, "Changes apply immediately.", Fonts.Small, new Rectangle(this.Px(26), this.Px(700), this.Px(400), this.Px(24)), Theme.InkSecondary);
+        }
     }
 
     private void BuildPage1()
@@ -74,6 +93,11 @@ internal sealed class ControlGalleryForm : ThemedForm
         var energy = _layout.Place(this, new CardPanel { Title = "Energy" }, 24, 236, 1052, 300);
         var segmented = _layout.Place(energy, new SegmentedControl(), 1052 - 20 - 290, 14, 290, 40);
         segmented.SetItems(["Hours", "Days", "Months"], 0);
+        var chart = _layout.Place(energy, new BarChart(), 20, 74, 1012, 140);
+        chart.SetData(SampleHours(), 0.4, ["0", "0.2", "0.4 kWh"]);
+        var readout = _layout.Place(energy, new InfoLine { Text = "Hover a bar" }, 300, 20, 420, 26);
+        chart.HoveredIndexChanged += (_, _) => readout.Text = chart.HoveredTooltip ?? "Hover a bar";
+        energy.Paint += (_, e) => PaintTotals(energy, e.Graphics);
 
         var config = _layout.Place(this, new CardPanel(), 24, 552, 756, 150);
         _layout.Place(config, new InfoLine { Text = "PSU  Seasonic Prime Fanless TX-700 · 230 V curve · Cybenetics" }, 24, 24, 700, 26);
@@ -129,5 +153,181 @@ internal sealed class ControlGalleryForm : ThemedForm
         placeholder.Apply("Other Components", "Enable Shared Memory in HWiNFO to see this", string.Empty, UiTone.Ink, placeholder: true);
         var selected = _layout.Place(this, new CardPanel { Title = "Selected", Selected = true }, 827, 514, 249, 128);
         _layout.Place(selected, new InfoLine { Text = "Accent border 1.5 px" }, 20, 60, 200, 26);
+    }
+
+    private static List<ChartBar> SampleHours()
+    {
+        var values = new[]
+        {
+            0.05, 0.04, 0.03, 0.03, 0.02, 0.02, 0.02, 0.02, 0.03, 0.05, 0.08, 0.10, 0.12, 0.13, 0.15, 0.14, 0.16, 0.18, 0.21, 0.24, 0.27, 0.30, 0.33, 0.34,
+            0.23, 0.16, 0.12, 0.09, 0.07, 0.06, 0.05, 0.04, 0.04, 0.04, 0.04, 0.04, 0.06, 0.08, 0.08, 0.10, 0.12, 0.14, 0.15, 0.17, 0.19, 0.23, 0.28, 0.34,
+        };
+        var bars = new List<ChartBar>();
+        var start = new DateTime(2026, 10, 28, 20, 0, 0);
+        for (var i = 0; i < values.Length; i++)
+        {
+            var hour = start.AddHours(i);
+            var label = i % 4 == 0 ? hour.ToString("HH", System.Globalization.CultureInfo.InvariantCulture) : null;
+            bars.Add(new ChartBar(values[i], label, $"{hour:ddd HH:mm} · {values[i]:0.00} kWh · PC est. {values[i] * 0.92:0.00} kWh"));
+        }
+
+        return bars;
+    }
+
+    private static void PaintTotals(CardPanel card, Graphics g)
+    {
+        var f = ThemeFonts.For(card.DeviceDpi);
+        var y = card.Px(232);
+        var x = card.Px(24);
+        foreach (var (value, caption) in new[] { ("2.41 kWh", "TODAY"), ("48.7 kWh", "THIS MONTH") })
+        {
+            Gfx.Text(g, value, f.TotalValue, new Rectangle(x, y, card.Px(200), card.Px(32)), Theme.Ink);
+            Gfx.DrawTracked(g, caption, f.Caption, new Point(x, y + card.Px(36)), Theme.InkSecondary, card.PxF(Theme.CaptionTracking));
+            x += card.Px(217);
+            if (caption == "TODAY")
+            {
+                using var pen = new Pen(Theme.Border, Math.Max(1, card.Px(1)));
+                g.DrawLine(pen, x - card.Px(1), y + card.Px(2), x - card.Px(1), y + card.Px(46));
+                x += card.Px(42);
+            }
+        }
+    }
+
+    private void BuildPage3()
+    {
+        var steps = _layout.Place(this, new StepIndicator(), 345, 26, 410, 66);
+        steps.SetSteps(["HWiNFO", "Shelly", "PSU", "Sensors", "Apply"]);
+        steps.SetState(2, [0, 1]);
+
+        var x = 24f;
+        foreach (var (title, description, isChecked) in new[]
+        {
+            ("From database", "Measured efficiency curves from Cybenetics reports", true),
+            ("Generic by rating", "Approximate curve from the 80 Plus minimum requirements", false),
+            ("Manual curve", "Enter your own AC/DC points or import a CSV", false),
+        })
+        {
+            var card = _layout.Place(this, new RadioCard { Title = title, Description = description, Group = "mode" }, x, 196, 340, 94);
+            card.Checked = isChecked;
+            x += 340 + 16;
+        }
+
+        x = 24f;
+        foreach (var (prefix, value) in new[] { ("Brand", "Seasonic"), ("Wattage", "700 W"), ("Rating", "Titanium") })
+        {
+            var dropDown = _layout.Place(this, new ThemedDropDown { Prefix = prefix }, x, 308, 251, 46);
+            dropDown.SetItems([new DropDownItem(null, "Any"), new DropDownItem(value, value)], 1);
+            x += 251 + 16;
+        }
+
+        _layout.Place(this, new ThemedTextBox { Placeholder = "Search model…" }, x, 308, 253, 46);
+        var list = _layout.Place(this, new SelectableList(), 24, 372, 1052, 213);
+        list.RowHeightDip = 71;
+        list.SetRows(
+        [
+            new SelectableRow("Prime Fanless TX-700", "80 Plus Titanium · Cybenetics ETA Titanium", "report 21PS1872A ↗"),
+            new SelectableRow("Prime TX-750", "80 Plus Titanium · Cybenetics ETA Titanium", "report 20PS1620A ↗"),
+            new SelectableRow("Prime PX-750", "80 Plus Platinum · Cybenetics ETA Platinum", "report 20PS1588A ↗"),
+        ], 0);
+        _layout.Place(this, new InfoLine { Text = "Input voltage: 230 V curve (plug measured 226.9 V)", LinkText = "Change" }, 28, 606, 700, 28);
+        _layout.Place(this, new TextLink { Text = "Cancel", Tone = LinkTone.Ink }, 30, 664, 70, 32);
+        _layout.Place(this, new PillButton { Text = "Back" }, 846, 660, 108, 42);
+        _layout.Place(this, new PillButton { Text = "Next", Variant = PillVariant.Primary }, 968, 660, 108, 42);
+    }
+
+    private void BuildPage4()
+    {
+        _layout.Place(this, new PillButton { Text = "Re-run setup wizard" }, 876, 30, 200, 40);
+
+        var shelly = _layout.Place(this, new CardPanel { Title = "Shelly device" }, 24, 86, 518, 160);
+        _layout.Place(shelly, new InfoLine { Text = "Host" }, 20, 52, 200, 22);
+        _layout.Place(shelly, new InfoLine { Text = "Password" }, 268, 52, 200, 22);
+        _layout.Place(shelly, new ThemedTextBox { Text = "192.168.1.42" }, 20, 76, 232, 36);
+        _layout.Place(shelly, new ThemedTextBox { Text = "password", UseSystemPasswordChar = true }, 268, 76, 230, 36);
+        _layout.Place(shelly, new PillButton { Text = "Test connection" }, 20, 118, 174, 36);
+
+        var psu = _layout.Place(this, new CardPanel { Title = "Power supply" }, 558, 86, 518, 160);
+        _layout.Place(psu, new InfoLine { Text = "Seasonic Prime Fanless TX-700" }, 20, 54, 380, 24);
+        _layout.Place(psu, new TextLink { Text = "Change…", Semibold = true }, 418, 52, 80, 28);
+        _layout.Place(psu, new InfoLine { Text = "700 W · Titanium · Cybenetics 21PS1872A" }, 20, 80, 380, 24);
+        _layout.Place(psu, new InfoLine { Text = "Input voltage" }, 20, 116, 120, 30);
+        _layout.Place(psu, new SegmentedControl(), 134, 112, 364, 38).SetItems(["Auto", "115 V", "230 V"], 0);
+
+        var sensors = _layout.Place(this, new CardPanel { Title = "Sensors and formula" }, 24, 262, 518, 155);
+        _layout.Place(sensors, new ThemedTextBox
+        {
+            Multiline = true,
+            Monospace = true,
+            ReadOnly = true,
+            Text = "\"DC Power (Est.)\"\r\n - \"CPU Package Power\"\r\n - \"GPU Power\"\r\n - \"DIMM1 Power\"\r\n - \"DIMM3 Power\"",
+        }, 20, 50, 410, 96);
+        _layout.Place(sensors, new TextLink { Text = "Edit…", Semibold = true }, 446, 50, 60, 28);
+
+        var polling = _layout.Place(this, new CardPanel { Title = "Polling" }, 558, 262, 518, 155);
+        _layout.Place(polling, new InfoLine { Text = "Interval" }, 20, 62, 90, 28);
+        _layout.Place(polling, new ThemedSlider { Minimum = 500, Maximum = 5000, SmallChange = 100, Value = 1000 }, 112, 62, 300, 28);
+        _layout.Place(polling, new InfoLine { Text = "1000 ms" }, 426, 62, 80, 28);
+        _layout.Place(polling, new InfoLine { Text = "Smoothing" }, 20, 106, 90, 28);
+        _layout.Place(polling, new ThemedSlider { Minimum = 1, Maximum = 30, Value = 1 }, 112, 106, 300, 28);
+        _layout.Place(polling, new InfoLine { Text = "1 sample" }, 426, 106, 80, 28);
+
+        var energy = _layout.Place(this, new CardPanel { Title = "Energy" }, 24, 433, 518, 144);
+        _layout.Place(energy, new ToggleSwitch { Text = "Log energy use", Checked = true }, 20, 52, 220, 28);
+        _layout.Place(energy, new InfoLine { Text = "Price per kWh" }, 20, 94, 110, 36);
+        _layout.Place(energy, new ThemedTextBox { Text = "0.32" }, 134, 92, 170, 38);
+        _layout.Place(energy, new InfoLine { Text = "Currency" }, 320, 94, 70, 36);
+        _layout.Place(energy, new ThemedTextBox { Text = "DKK" }, 390, 92, 108, 38);
+
+        var startup = _layout.Place(this, new CardPanel { Title = "Startup and tray" }, 558, 433, 518, 144);
+        _layout.Place(startup, new ToggleSwitch { Text = "Start with Windows", Checked = true }, 20, 56, 260, 28);
+        _layout.Place(startup, new ToggleSwitch { Text = "Show tray icon", Checked = true }, 20, 96, 260, 28);
+
+        var database = _layout.Place(this, new CardPanel { Title = "PSU database" }, 24, 593, 518, 95);
+        _layout.Place(database, new InfoLine { Text = "Last updated 2026-10-29 · 1 entry" }, 20, 52, 280, 28);
+        _layout.Place(database, new PillButton { Text = "Check for update" }, 318, 26, 180, 40);
+
+        var maintenance = _layout.Place(this, new CardPanel { Title = "Maintenance" }, 558, 593, 518, 95);
+        _layout.Place(maintenance, new PillButton { Text = "Open log folder" }, 20, 50, 168, 36);
+        _layout.Place(maintenance, new TextLink { Text = "Remove HWiNFO sensors", Tone = LinkTone.Danger }, 206, 53, 180, 30);
+    }
+
+    private void BuildPage5()
+    {
+        var sensors = _layout.Place(this, new CardPanel(), 24, 84, 1052, 270);
+        var y = 20f;
+        foreach (var (name, value, isChecked, category) in new[]
+        {
+            ("CPU Package Power", "142.3 W", true, "CPU"),
+            ("IA Cores Power", "118.0 W", false, "—"),
+            ("GPU Power", "88.6 W", true, "GPU"),
+            ("DIMM1 Power", "8.1 W", true, "RAM"),
+        })
+        {
+            _layout.Place(sensors, new ThemedCheckBox { Text = name, Checked = isChecked }, 20, y, 400, 36);
+            _layout.Place(sensors, new InfoLine { Text = value }, 610, y, 120, 36);
+            var dropDown = _layout.Place(sensors, new ThemedDropDown(), 877, y, 155, 32);
+            dropDown.SetItems(new[] { "—", "CPU", "GPU", "RAM", "Other measured" }.Select(c => new DropDownItem(c, c)), Array.IndexOf(new[] { "—", "CPU", "GPU", "RAM", "Other measured" }, category));
+            y += 50;
+        }
+
+        _layout.Place(sensors, new ThemedCheckBox { Text = "Disabled", Enabled = false }, 20, y, 200, 36);
+        _layout.Place(sensors, new ToggleSwitch { Text = "Off", Checked = false }, 240, y, 200, 36);
+        _layout.Place(sensors, new ToggleSwitch { Text = "Disabled", Enabled = false }, 460, y, 200, 36);
+
+        var grid = _layout.Place(this, new DataGridView(), 24, 370, 516, 318);
+        grid.Columns.Add("ac", "AC W");
+        grid.Columns.Add("dc", "DC W");
+        grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        foreach (var (ac, dc) in new[] { (77.9, 70.0), (151.9, 141.7), (370.7, 350.0), (741.7, 700.0) })
+        {
+            grid.Rows.Add(ac.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture), dc.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture));
+        }
+
+        GridStyler.Apply(grid);
+
+        var empty = _layout.Place(this, new SelectableList { EmptyText = "Searching…" }, 560, 370, 516, 108);
+        empty.SetRows([]);
+        var devices = _layout.Place(this, new SelectableList { RowHeightDip = 56 }, 560, 494, 516, 194);
+        devices.SetRows(Enumerable.Range(1, 6).Select(i => new SelectableRow($"PlugMGen3-{i}", $"S3PL-10112EU · 192.168.1.{40 + i}")), 1);
     }
 }

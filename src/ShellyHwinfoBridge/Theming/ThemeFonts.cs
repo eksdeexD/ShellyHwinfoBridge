@@ -39,6 +39,9 @@ internal enum FontRole
 
     /// <summary>Monospace (formula).</summary>
     Mono,
+
+    /// <summary>Title of a list row or option card ("Prime Fanless TX-700", "From database").</summary>
+    ItemTitle,
 }
 
 /// <summary>
@@ -85,6 +88,8 @@ internal sealed class ThemeFontSet
 
     public Font Mono => Get(FontRole.Mono);
 
+    public Font ItemTitle => Get(FontRole.ItemTitle);
+
     public Font Get(FontRole role) => _fonts[(int)role];
 }
 
@@ -129,7 +134,8 @@ internal static class ThemeFonts
         FontRole.BodySemibold => (RegularFamily, 11f, FontStyle.Bold),
         FontRole.Small => (RegularFamily, 10f, FontStyle.Regular),
         FontRole.Caption => (RegularFamily, 9.5f, FontStyle.Regular),
-        FontRole.Mono => (MonoFamily, 11f, FontStyle.Regular),
+        FontRole.Mono => (MonoFamily, 10f, FontStyle.Regular),
+        FontRole.ItemTitle => (DisplayFamily, 13f, FontStyle.Bold),
         _ => (RegularFamily, 11f, FontStyle.Regular),
     };
 
