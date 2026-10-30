@@ -71,6 +71,23 @@ internal sealed class ThemedSlider : ThemedControl
 
     public override Size GetPreferredSize(Size proposedSize) => new(Math.Max(this.Px(160), proposedSize.Width), this.Px(28));
 
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
+    {
+        ValueText = () => _value.ToString(System.Globalization.CultureInfo.CurrentCulture),
+        ValueSetter = text =>
+        {
+            if (int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.CurrentCulture, out var parsed))
+            {
+                var before = _value;
+                Value = parsed;
+                if (_value != before)
+                {
+                    ValueCommitted?.Invoke(this, EventArgs.Empty);
+                }
+            }
+        },
+    };
+
     protected override bool IsInputKey(Keys keyData) =>
         keyData is Keys.Left or Keys.Right or Keys.Up or Keys.Down or Keys.Home or Keys.End or Keys.PageUp or Keys.PageDown || base.IsInputKey(keyData);
 
@@ -199,6 +216,10 @@ internal sealed class ThemedSlider : ThemedControl
         _value = value;
         AccessibleDescription = value.ToString(System.Globalization.CultureInfo.CurrentCulture);
         Invalidate();
+        if (IsHandleCreated)
+        {
+            AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
+        }
         if (raise)
         {
             ValueChanged?.Invoke(this, EventArgs.Empty);

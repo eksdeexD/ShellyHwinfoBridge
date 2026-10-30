@@ -137,7 +137,8 @@ internal sealed class ApplyStepView : WizardStepView
             var label = VerifyEvaluator.Labels[i];
             var found = result?.Items[i].Found ?? false;
             _checks[i].Text = label;
-            _checks[i].Tone = found ? InfoTone.Success : InfoTone.Info;
+            _checks[i].Tone = found ? InfoTone.Success : InfoTone.Pending;
+            _checks[i].AccessibleDescription = found ? "Found" : "Not found yet";
         }
 
         for (var i = 0; i < _tiles.Length; i++)
@@ -199,22 +200,22 @@ internal sealed class ApplyStepView : WizardStepView
         _restarting.Bounds = new Rectangle(Px(20), buttonTop, inner, Px(40));
 
         _verify.Bounds = Dip(right, hwinfoHeight + gap, rightWidth, h - hwinfoHeight - gap);
+        // Left: the four sensors as one list (tick when found, neutral ring while pending). Right: the tiles, 2 × 2.
         var verifyInner = _verify.Width - Px(40);
-        var half = (verifyInner - Px(12)) / 2;
+        var listWidth = Math.Min(Px(250), (verifyInner - Px(16)) / 2);
         for (var i = 0; i < _checks.Length; i++)
         {
-            // Unchecked items have no icon: indent them so the names line up with the ticked ones.
-            var indent = _checks[i].Tone == InfoTone.Info ? Px(32) : 0;
-            _checks[i].Bounds = new Rectangle(Px(20) + ((i % 2) * (half + Px(12))) + indent, Px(50 + ((i / 2) * 28)), half - indent, Px(26));
+            _checks[i].Bounds = new Rectangle(Px(20), Px(52 + (i * 28)), listWidth, Px(26));
         }
 
-        var tileWidth = (verifyInner - Px(3 * 10)) / 4;
+        var tilesLeft = Px(20) + listWidth + Px(16);
+        var tileWidth = (verifyInner - listWidth - Px(16) - Px(10)) / 2;
         for (var i = 0; i < _tiles.Length; i++)
         {
-            _tiles[i].Bounds = new Rectangle(Px(20) + (i * (tileWidth + Px(10))), Px(112), tileWidth, Px(66));
+            _tiles[i].Bounds = new Rectangle(tilesLeft + ((i % 2) * (tileWidth + Px(10))), Px(50 + ((i / 2) * 64)), tileWidth, Px(56));
         }
 
-        var statusTop = Px(112 + 66 + 10);
+        var statusTop = Px(50 + 56 + 8 + 56 + 10);
         _verifyStatus.Bounds = new Rectangle(Px(20), statusTop, verifyInner, Math.Max(Px(28), Math.Min(_verify.Height - statusTop - Px(10), _verifyStatus.GetPreferredHeight(verifyInner))));
     }
 

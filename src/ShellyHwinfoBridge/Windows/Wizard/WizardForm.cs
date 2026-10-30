@@ -80,6 +80,9 @@ internal sealed class WizardForm : ThemedForm
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+
+        // Start on Next, so Enter moves on at once (a focused button would otherwise take the Enter key).
+        ActiveControl = _next;
         _view?.OnStepShown();
     }
 

@@ -15,6 +15,9 @@ internal abstract class ThemedControl : Control
             ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor,
             true);
         ForeColor = Theme.Ink;
+
+        // Static by default; interactive controls switch TabStop on.
+        TabStop = false;
     }
 
     /// <summary>Gets the fonts for the current DPI.</summary>

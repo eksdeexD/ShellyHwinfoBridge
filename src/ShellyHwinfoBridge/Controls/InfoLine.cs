@@ -16,6 +16,9 @@ internal enum InfoTone
 
     /// <summary>Success tick and Ink text.</summary>
     Success,
+
+    /// <summary>Neutral ring and secondary text (a check that has not passed yet).</summary>
+    Pending,
 }
 
 /// <summary>
@@ -56,6 +59,7 @@ internal sealed class InfoLine : ThemedControl
         {
             _linkText = string.IsNullOrEmpty(value) ? null : value;
             TabStop = _linkText is not null;
+            AccessibleRole = _linkText is null ? AccessibleRole.StaticText : AccessibleRole.Link;
             Invalidate();
         }
     }
@@ -79,6 +83,19 @@ internal sealed class InfoLine : ThemedControl
         AccessibleName = Text;
         base.OnTextChanged(e);
     }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
+    {
+        NameText = () => _linkText is null ? Text : Text + " · " + _linkText,
+        ActionName = () => _linkText,
+        Action = () =>
+        {
+            if (_linkText is not null)
+            {
+                LinkClicked?.Invoke(this, EventArgs.Empty);
+            }
+        },
+    };
 
     protected override bool IsInputKey(Keys keyData) => (_linkText is not null && keyData is Keys.Enter or Keys.Space) || base.IsInputKey(keyData);
 
@@ -195,6 +212,13 @@ internal sealed class InfoLine : ThemedControl
                 using var brush = new SolidBrush(Theme.Error);
                 g.FillEllipse(brush, r);
                 DrawBang(g, r, Theme.BgBottom, r.Top + (r.Height * 0.24f), r.Top + (r.Height * 0.56f), r.Top + (r.Height * 0.74f));
+                break;
+            }
+
+            case InfoTone.Pending:
+            {
+                var ring = Math.Max(1.5f, this.PxF(1.5f));
+                Gfx.DrawRounded(g, Theme.InkDisabled, ring, RectangleF.Inflate(r, -r.Width * 0.08f, -r.Height * 0.08f), r.Width / 2f);
                 break;
             }
 

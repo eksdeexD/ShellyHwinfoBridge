@@ -40,9 +40,29 @@ internal sealed class SegmentedControl : ThemedControl
             _selectedIndex = value;
             AccessibleDescription = value >= 0 ? _items[value] : null;
             Invalidate();
+            if (IsHandleCreated && value >= 0)
+            {
+                AccessibilityNotifyClients(AccessibleEvents.Selection, value);
+            }
+
             SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
+    {
+        ValueText = () => _selectedIndex >= 0 && _selectedIndex < _items.Count ? _items[_selectedIndex] : null,
+        Children = () => Enumerable.Range(0, _items.Count)
+            .Select(i => (AccessibleObject)new ThemedItemAccessibleObject(
+                this,
+                i,
+                AccessibleRole.PageTab,
+                index => index < _items.Count ? _items[index] : string.Empty,
+                index => index == _selectedIndex,
+                index => SelectedIndex = index,
+                index => Rectangle.Round(Segment(index))))
+            .ToList(),
+    };
 
     /// <summary>Replaces the items; keeps the selection when still in range (silently, no event).</summary>
     public void SetItems(IEnumerable<string> items, int selectedIndex = 0)

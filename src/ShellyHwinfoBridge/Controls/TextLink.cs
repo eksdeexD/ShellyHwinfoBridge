@@ -79,6 +79,9 @@ internal sealed class TextLink : ThemedControl
 
     protected override void OnThemeDpiChanged() => AdjustSize();
 
+    protected override AccessibleObject CreateAccessibilityInstance() =>
+        new ThemedAccessibleObject(this) { ActionName = () => "Click", Action = () => OnClick(EventArgs.Empty) };
+
     protected override bool IsInputKey(Keys keyData) => keyData is Keys.Enter or Keys.Space || base.IsInputKey(keyData);
 
     protected override void OnKeyUp(KeyEventArgs e)

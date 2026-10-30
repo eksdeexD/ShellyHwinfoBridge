@@ -63,9 +63,21 @@ internal sealed class RadioCard : CardPanel
             }
 
             Invalidate();
+            if (IsHandleCreated)
+            {
+                AccessibilityNotifyClients(AccessibleEvents.StateChange, -1);
+            }
+
             CheckedChanged?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
+    {
+        ActionName = () => "Select",
+        Action = () => Checked = true,
+        ExtraState = () => Checked ? AccessibleStates.Checked : AccessibleStates.None,
+    };
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -137,6 +149,12 @@ internal sealed class RadioCard : CardPanel
         if (Checked)
         {
             Gfx.FillAndBorder(g, Theme.Surface, Theme.Accent, Math.Max(1.5f, this.PxF(1.5f)), r, radius);
+            if (Focused && ShowFocusCues)
+            {
+                // The accent border already marks the selection; keyboard focus adds an inner Ink ring.
+                var inset = this.PxF(4);
+                Gfx.DrawRounded(g, Theme.Ink, Math.Max(1f, this.PxF(1)), RectangleF.Inflate(r, -inset, -inset), Math.Max(0, radius - inset));
+            }
         }
         else
         {

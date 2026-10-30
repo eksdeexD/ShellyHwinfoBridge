@@ -64,9 +64,29 @@ internal sealed class SelectableList : ThemedControl
             AccessibleDescription = SelectedRow?.Title;
             EnsureVisible(value);
             Invalidate();
+            if (IsHandleCreated && value >= 0)
+            {
+                AccessibilityNotifyClients(AccessibleEvents.Selection, value);
+            }
+
             SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
+    {
+        ValueText = () => SelectedRow?.Title,
+        Children = () => Enumerable.Range(0, _rows.Count)
+            .Select(i => (AccessibleObject)new ThemedItemAccessibleObject(
+                this,
+                i,
+                AccessibleRole.ListItem,
+                index => index < _rows.Count ? string.Join(", ", new[] { _rows[index].Title, _rows[index].Subtitle }.Where(s => !string.IsNullOrEmpty(s))) : string.Empty,
+                index => index == _selectedIndex,
+                index => SelectedIndex = index,
+                index => new Rectangle(0, (index * RowHeight) - _scroll, Width, RowHeight)))
+            .ToList(),
+    };
 
     /// <summary>Replaces the rows and selects <paramref name="selectedIndex"/> without raising the event.</summary>
     public void SetRows(IEnumerable<SelectableRow> rows, int selectedIndex = -1)

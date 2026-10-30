@@ -72,6 +72,9 @@ internal sealed class PillButton : ThemedControl, IButtonControl
         base.OnClick(e);
     }
 
+    protected override AccessibleObject CreateAccessibilityInstance() =>
+        new ThemedAccessibleObject(this) { ActionName = () => "Press", Action = PerformClick };
+
     protected override bool IsInputKey(Keys keyData) => keyData is Keys.Enter or Keys.Space || base.IsInputKey(keyData);
 
     protected override void OnKeyUp(KeyEventArgs e)

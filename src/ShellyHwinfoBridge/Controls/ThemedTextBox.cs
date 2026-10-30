@@ -163,6 +163,10 @@ internal sealed class ThemedTextBox : UserControl, IThemedSurface
     {
         base.OnHandleCreated(e);
         NativeMethods.UseDarkExplorerTheme(_inner);
+
+        // Screen readers land on the inner edit box: give it the field's name (the outer box is only the frame).
+        _inner.AccessibleName ??= AccessibleName;
+        _inner.AccessibleDescription ??= string.IsNullOrEmpty(Placeholder) ? null : Placeholder;
     }
 
     protected override void OnGotFocus(EventArgs e)

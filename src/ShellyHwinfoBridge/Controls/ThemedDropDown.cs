@@ -62,6 +62,11 @@ internal sealed class ThemedDropDown : ThemedControl
             _selectedIndex = value;
             AccessibleDescription = SelectedItem?.Text;
             Invalidate();
+            if (IsHandleCreated)
+            {
+                AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
+            }
+
             SelectionChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -123,6 +128,14 @@ internal sealed class ThemedDropDown : ThemedControl
         var widest = _items.Count == 0 ? Gfx.Measure(Placeholder, Fonts.Body).Width : _items.Max(i => Gfx.Measure(i.Text, Fonts.Body).Width);
         return new Size(this.Px(20) + prefix + widest + this.Px(48), this.Px(44));
     }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
+    {
+        ActionName = () => "Open",
+        Action = OpenList,
+        ValueText = () => SelectedItem?.Text ?? Placeholder,
+        ValueSetter = text => SelectedIndex = _items.FindIndex(i => string.Equals(i.Text, text, StringComparison.CurrentCultureIgnoreCase)) is var index and >= 0 ? index : _selectedIndex,
+    };
 
     protected override void Dispose(bool disposing)
     {

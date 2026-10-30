@@ -506,7 +506,9 @@ internal sealed class SettingsForm : ThemedForm
         _test.Bounds = R(20, 116, 174, 36);
         var resultLeft = 20 + 174 + 16;
         var resultWidth = this.Px(inner - 174 - 16);
-        _testResult.Bounds = new Rectangle(this.Px(resultLeft), this.Px(116) + Math.Max(0, (this.Px(36) - _testResult.GetPreferredHeight(resultWidth)) / 2), resultWidth, Math.Min(this.Px(40), _testResult.GetPreferredHeight(resultWidth)));
+        // Centred on the button; two wrapped lines may extend a little above it.
+        var resultHeight = Math.Min(this.Px(46), _testResult.GetPreferredHeight(resultWidth));
+        _testResult.Bounds = new Rectangle(this.Px(resultLeft), this.Px(116) + ((this.Px(36) - resultHeight) / 2), resultWidth, resultHeight);
 
         // Power supply: model and details with Change…, then the input voltage segments.
         var changeWidth = PrefWidth(_change);

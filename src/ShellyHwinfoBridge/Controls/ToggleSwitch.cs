@@ -31,9 +31,21 @@ internal sealed class ToggleSwitch : ThemedControl
             _checked = value;
             AccessibleDescription = value ? "On" : "Off";
             Invalidate();
+            if (IsHandleCreated)
+            {
+                AccessibilityNotifyClients(AccessibleEvents.StateChange, -1);
+            }
+
             CheckedChanged?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
+    {
+        ActionName = () => Checked ? "Turn off" : "Turn on",
+        Action = () => Checked = !Checked,
+        ExtraState = () => Checked ? AccessibleStates.Checked : AccessibleStates.None,
+    };
 
     public override Size GetPreferredSize(Size proposedSize)
     {

@@ -31,9 +31,21 @@ internal sealed class ThemedCheckBox : ThemedControl
             _checked = value;
             AccessibleDescription = value ? "Checked" : "Not checked";
             Invalidate();
+            if (IsHandleCreated)
+            {
+                AccessibilityNotifyClients(AccessibleEvents.StateChange, -1);
+            }
+
             CheckedChanged?.Invoke(this, EventArgs.Empty);
         }
     }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
+    {
+        ActionName = () => Checked ? "Uncheck" : "Check",
+        Action = () => Checked = !Checked,
+        ExtraState = () => Checked ? AccessibleStates.Checked : AccessibleStates.None,
+    };
 
     public override Size GetPreferredSize(Size proposedSize)
     {

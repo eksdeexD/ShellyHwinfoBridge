@@ -158,6 +158,18 @@ internal sealed class MainForm : ThemedForm
         _energy.Invalidate(ReadoutBounds());
     }
 
+    protected override bool ProcessDialogKey(Keys keyData)
+    {
+        // Esc hides the window like the close button; the app keeps running in the tray.
+        if (keyData == Keys.Escape)
+        {
+            Hide();
+            return true;
+        }
+
+        return base.ProcessDialogKey(keyData);
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         // Closing hides the window; the app keeps running in the tray.
