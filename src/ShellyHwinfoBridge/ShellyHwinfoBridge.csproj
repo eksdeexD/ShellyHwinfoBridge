@@ -11,6 +11,11 @@
     <SelfContained>false</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +28,11 @@
 
   <ItemGroup>
     <None Include="..\..\psu-database.json" Link="psu-database.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\logo.png" LogicalName="ShellyHwinfoBridge.logo.png" />
+    <EmbeddedResource Include="Assets\hwinfo-shared-memory.png" LogicalName="ShellyHwinfoBridge.hwinfo-shared-memory.png" Condition="Exists('Assets\hwinfo-shared-memory.png')" />
   </ItemGroup>
 
 </Project>
