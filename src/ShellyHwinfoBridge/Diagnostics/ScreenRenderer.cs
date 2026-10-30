@@ -3,6 +3,7 @@ using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Energy;
 using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Presentation;
+using ShellyHwinfoBridge.Core.Presentation.Wizard;
 using ShellyHwinfoBridge.Windows;
 
 namespace ShellyHwinfoBridge.Diagnostics;
@@ -37,6 +38,21 @@ internal static class ScreenRenderer
         ("main-window-price-offline-no-shm", () => MainWindow(PriceOfflineNoSharedMemory(), EnergyPeriod.Hours)),
         ("dialog-confirm", () => ThemedDialog.CreateForPreview("Remove HWiNFO sensors?", "This deletes the Shelly Power sensors from HWiNFO and pauses polling. Resume polling to create them again.", "Remove", "Cancel")),
         ("main-window-unconfigured",() => MainWindow(SampleData.MainView(RuntimeState.Unconfigured, OnlineState.Unknown, HwinfoMonitorSnapshot.Unknown), EnergyPeriod.Hours)),
+        ("wizard-1-hwinfo", () => WizardPreview.At(WizardStep.Hwinfo)),
+        ("wizard-1-hwinfo-off", () => WizardPreview.At(WizardStep.Hwinfo, snapshot: WizardPreview.Snapshot.None)),
+        ("wizard-2-shelly", () => WizardPreview.At(WizardStep.Shelly, tweak: s =>
+        {
+            s.Shelly.SelectDevice(s.Shelly.Devices[0]);
+            s.Shelly.TestAsync().GetAwaiter().GetResult();
+        })),
+        ("wizard-2-shelly-empty", () => WizardPreview.At(WizardStep.Shelly)),
+        ("wizard-3-psu", () => WizardPreview.At(WizardStep.Psu, tweak: s =>
+        {
+            s.Psu.SetBrand("Seasonic");
+            s.Psu.Select("seasonic-prime-fanless-tx-700");
+        })),
+        ("wizard-4-sensors", () => WizardPreview.At(WizardStep.Sensors)),
+        ("wizard-5-apply", () => WizardPreview.At(WizardStep.Apply)),
     ];
 
     /// <summary>Builds a main window showing <paramref name="state"/> and the sample chart for <paramref name="period"/>.</summary>

@@ -6,10 +6,12 @@ using Microsoft.Win32;
 using ShellyHwinfoBridge.Core;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Presentation;
+using ShellyHwinfoBridge.Core.Presentation.Wizard;
 using ShellyHwinfoBridge.Core.Startup;
 using ShellyHwinfoBridge.Icons;
 using ShellyHwinfoBridge.Theming;
 using ShellyHwinfoBridge.Windows;
+using ShellyHwinfoBridge.Windows.Wizard;
 
 namespace ShellyHwinfoBridge;
 
@@ -40,6 +42,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly MainWindowPresenter _mainPresenter;
     private IconFactory _icons;
     private MainForm? _mainForm;
+    private WizardForm? _wizardForm;
     private TrayIconState? _iconState;
     private bool _hideTrayIcon;
     private volatile bool _dirty = true;
@@ -151,6 +154,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _mainForm.VisibleChanged += (_, _) => UpdateMonitorActivity();
         }
 
+        _mainForm.SetWindowButtonsEnabled(_wizardForm is null);
         RefreshMainForm(force: true);
         if (!_mainForm.Visible)
         {
@@ -174,10 +178,21 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
+        // The wizard and the settings window are mutually exclusive: while the wizard is open it takes the focus.
+        if (_wizardForm is { IsDisposed: false })
+        {
+            ActivateWizard();
+            return;
+        }
+
         ThemedDialog.Show(VisibleOwner(), "Settings", "The settings window is coming in the next build. Until then, settings.json can be changed through the setup wizard.");
     }
 
-    /// <summary>Opens the setup wizard. Agent C replaces the body with the real WizardForm.</summary>
+    /// <summary>
+    /// Opens the setup wizard (or activates the open one). While it is open the main window's Settings and Setup wizard
+    /// buttons and the tray's Settings… item are disabled. Closing it before Apply changes nothing; a first-run cancel
+    /// leaves the app unconfigured in the tray.
+    /// </summary>
     public void ShowWizard()
     {
         if (_exiting)
@@ -185,7 +200,54 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        ThemedDialog.Show(VisibleOwner(), "Setup wizard", "The setup wizard is coming in the next build.");
+        if (_wizardForm is { IsDisposed: false })
+        {
+            ActivateWizard();
+            return;
+        }
+
+        var runtime = _services.Runtime;
+        var dependencies = WizardDependencies.Create(runtime, _services.Locator, _services.SharedMemory, _services.Discovery);
+        var session = new WizardSession(runtime.Settings, runtime.Password, runtime.Database, dependencies);
+        var form = new WizardForm(session);
+        form.Applied += (_, _) => RefreshNow();
+        form.FormClosed += (_, _) =>
+        {
+            _wizardForm = null;
+            _mainForm?.SetWindowButtonsEnabled(true);
+            if (!_exiting)
+            {
+                if (session.IsApplied)
+                {
+                    ShowMainWindow();
+                }
+
+                RefreshNow();
+            }
+        };
+
+        // Settings closes when the wizard opens (agent D: close or hide the SettingsForm here).
+        _wizardForm = form;
+        _mainForm?.SetWindowButtonsEnabled(false);
+        _logger.LogInformation("Setup wizard opened.");
+        form.Show();
+        ActivateWizard();
+    }
+
+    private void ActivateWizard()
+    {
+        if (_wizardForm is not { IsDisposed: false } form)
+        {
+            return;
+        }
+
+        if (form.WindowState == FormWindowState.Minimized)
+        {
+            form.WindowState = FormWindowState.Normal;
+        }
+
+        form.Activate();
+        form.BringToFront();
     }
 
     /// <summary>Marks the UI dirty and refreshes it now (call after applying changes from a window).</summary>
@@ -210,6 +272,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _logger.LogInformation("Exiting.");
         _timer.Stop();
         _activation.Detach();
+        _wizardForm?.Close();
         _mainForm?.Hide();
         Unsubscribe();
         _dispatcher.BeginShutdown();
@@ -388,6 +451,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var state = _services.Runtime.State;
         _pauseItem.Text = state == RuntimeState.Paused ? "Resume polling" : "Pause polling";
         _pauseItem.Enabled = state is RuntimeState.Running or RuntimeState.Paused;
+        _settingsItem.Enabled = _wizardForm is null;
     }
 
     private void TogglePause()
