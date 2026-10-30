@@ -1,0 +1,31 @@
+namespace ShellyHwinfoBridge.Core.Hwinfo;
+
+/// <summary>
+/// Minimal string-value registry access, so registry logic can be tested without the Windows registry.
+/// Paths are relative to HKEY_CURRENT_USER.
+/// </summary>
+public interface IRegistryBackend
+{
+    /// <summary>Returns whether a key exists.</summary>
+    /// <param name="path">Key path.</param>
+    bool KeyExists(string path);
+
+    /// <summary>Creates a key (and any missing parents).</summary>
+    /// <param name="path">Key path.</param>
+    void CreateKey(string path);
+
+    /// <summary>Reads a REG_SZ value; returns <c>null</c> when missing or of another type.</summary>
+    /// <param name="path">Key path.</param>
+    /// <param name="name">Value name.</param>
+    string? GetString(string path, string name);
+
+    /// <summary>Writes a REG_SZ value, creating the key if needed.</summary>
+    /// <param name="path">Key path.</param>
+    /// <param name="name">Value name.</param>
+    /// <param name="value">Value data.</param>
+    void SetString(string path, string name, string value);
+
+    /// <summary>Deletes a key and all its subkeys; does nothing if it does not exist.</summary>
+    /// <param name="path">Key path.</param>
+    void DeleteTree(string path);
+}
