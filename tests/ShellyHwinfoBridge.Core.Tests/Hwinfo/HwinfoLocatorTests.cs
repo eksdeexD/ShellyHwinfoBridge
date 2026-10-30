@@ -149,6 +149,24 @@ public class HwinfoLocatorTests
         Assert.Equal(HwinfoRestartResult.RelaunchFailed, await new HwinfoLocator(system).RestartAsync());
     }
 
+    [Fact]
+    public void StartLaunchesOnlyWhenNotRunningAndThePathIsKnown()
+    {
+        var system = new FakeSystem { Files = { Exe } };
+        system.SetValue(RegistryRoot.LocalMachine64, InstallerKey, "DisplayIcon", Exe);
+        Assert.True(new HwinfoLocator(system).Start());
+        Assert.Equal(["start " + Exe], system.Log);
+
+        system.StartWorks = false;
+        Assert.False(new HwinfoLocator(system).Start());
+
+        var running = new FakeSystem();
+        running.Processes.Add(new RunningProcess(7, Exe));
+        Assert.True(new HwinfoLocator(running).Start());
+        Assert.False(new HwinfoLocator(new FakeSystem()).Start());
+        Assert.Empty(running.Log);
+    }
+
     private sealed class FakeSystem : IHwinfoSystem
     {
         private readonly Dictionary<(RegistryRoot, string), Dictionary<string, string>> _keys = [];

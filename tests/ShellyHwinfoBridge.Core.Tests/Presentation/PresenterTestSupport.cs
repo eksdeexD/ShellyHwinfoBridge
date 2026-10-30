@@ -105,7 +105,20 @@ internal sealed class FakeRuntime : IBridgeRuntime
         return new ApplyOutcome(true, null, []);
     }
 
-    public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows) => Apply(draft, password ?? string.Empty);
+    public string? WizardApplyError { get; set; }
+
+    public List<(AppSettings Draft, string? Password, bool StartWithWindows)> WizardApplied { get; } = [];
+
+    public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows)
+    {
+        if (WizardApplyError is not null)
+        {
+            return ApplyOutcome.Failed(WizardApplyError);
+        }
+
+        WizardApplied.Add((draft, password, startWithWindows));
+        return Apply(draft, password ?? string.Empty);
+    }
 
     public Task<DatabaseUpdateResult> CheckDatabaseUpdateAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new DatabaseUpdateResult(DatabaseUpdateStatus.AlreadyCurrent, "The database is already up to date (2026-10-29).", null, []));

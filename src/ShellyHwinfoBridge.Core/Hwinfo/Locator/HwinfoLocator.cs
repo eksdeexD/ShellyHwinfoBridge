@@ -182,6 +182,31 @@ public sealed class HwinfoLocator
         return HwinfoRestartResult.Restarted;
     }
 
+    /// <summary>Starts HWiNFO from its detected path when it is not running.</summary>
+    /// <returns><c>true</c> when HWiNFO is running afterwards (already running, or started).</returns>
+    public bool Start()
+    {
+        var status = Detect();
+        if (status.IsRunning)
+        {
+            return true;
+        }
+
+        if (status.ExecutablePath is null)
+        {
+            return false;
+        }
+
+        if (!_system.Start(status.ExecutablePath))
+        {
+            _logger.LogWarning("Could not start HWiNFO from {Path}.", status.ExecutablePath);
+            return false;
+        }
+
+        _logger.LogInformation("Started HWiNFO from {Path}.", status.ExecutablePath);
+        return true;
+    }
+
     /// <summary>Normalizes a name to lower-case letters and digits ("HWiNFO® 64_is1" → "hwinfo64is1").</summary>
     /// <param name="name">The name.</param>
     internal static string Normalize(string? name) =>
