@@ -43,8 +43,17 @@ public sealed class AppSettings
     /// <summary>Gets or sets whether the app starts with Windows.</summary>
     public bool StartWithWindows { get; set; }
 
-    /// <summary>Gets or sets the URL used by "Check for database update"; <c>null</c> for the built-in default.</summary>
+    /// <summary>The built-in database update URL (the project's GitHub raw URL).</summary>
+    public const string DefaultDatabaseUpdateUrl = "https://raw.githubusercontent.com/eksdeexD/ShellyHwinfoBridge/main/psu-database.json";
+
+    /// <summary>
+    /// Gets or sets the URL used by "Check for database update"; <c>null</c> for <see cref="DefaultDatabaseUpdateUrl"/>.
+    /// </summary>
     public string? DatabaseUpdateUrl { get; set; }
+
+    /// <summary>Gets the database update URL to use: the configured one, or the built-in default.</summary>
+    public string GetEffectiveDatabaseUpdateUrl() =>
+        string.IsNullOrWhiteSpace(DatabaseUpdateUrl) ? DefaultDatabaseUpdateUrl : DatabaseUpdateUrl.Trim();
 
     /// <summary>Returns the formula to write: the custom one if set, otherwise one built from the sensors.</summary>
     public string GetEffectiveFormula() =>
