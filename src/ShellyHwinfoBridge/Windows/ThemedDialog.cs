@@ -12,15 +12,17 @@ internal sealed class ThemedDialog : ThemedForm
     private const int WidthDip = 460;
     private const int PaddingDip = 24;
 
-    private readonly string _title;
-    private readonly string _message;
-    private readonly PillButton _ok;
+    // Created in field initializers: the base constructor already lays out.
+    private readonly PillButton _ok = new() { Variant = PillVariant.Primary, DialogResult = DialogResult.OK };
+    private readonly string _title = string.Empty;
+    private readonly string _message = string.Empty;
     private readonly PillButton? _cancel;
 
     private ThemedDialog(string title, string message, string okText, string? cancelText)
     {
         _title = title;
         _message = message;
+        _ok.Text = okText;
         Text = title;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -29,7 +31,6 @@ internal sealed class ThemedDialog : ThemedForm
         StartPosition = FormStartPosition.CenterScreen;
         KeyPreview = true;
 
-        _ok = new PillButton { Text = okText, Variant = PillVariant.Primary, DialogResult = DialogResult.OK };
         Controls.Add(_ok);
         AcceptButton = _ok;
         if (cancelText is not null)
@@ -43,6 +44,10 @@ internal sealed class ThemedDialog : ThemedForm
             CancelButton = _ok;
         }
     }
+
+    /// <summary>Creates a dialog without showing it (screen renderer).</summary>
+    internal static ThemedDialog CreateForPreview(string title, string message, string okText = "OK", string? cancelText = null) =>
+        new(title, message, okText, cancelText);
 
     /// <summary>Shows a dialog modally and returns OK or Cancel.</summary>
     /// <param name="owner">The owner window, or <c>null</c> (then the dialog shows in the taskbar and on top).</param>

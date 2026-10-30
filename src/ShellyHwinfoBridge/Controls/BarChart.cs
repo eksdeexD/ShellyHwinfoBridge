@@ -57,6 +57,9 @@ internal sealed class BarChart : ThemedControl
         Invalidate();
     }
 
+    /// <summary>Highlights a bar as if hovered (-1 for none); used by the screen renderer.</summary>
+    public void SetHoveredIndex(int index) => SetHovered(index >= 0 && index < _bars.Count ? index : -1);
+
     protected override void OnMouseMove(MouseEventArgs e)
     {
         SetHovered(BarAt(e.Location));
@@ -113,7 +116,8 @@ internal sealed class BarChart : ThemedControl
             {
                 var size = Gfx.Measure(label, labelFont);
                 var cx = plot.Left + (i * slot) + (slot / 2f);
-                var rect = new Rectangle((int)Math.Round(cx - (size.Width / 2f)), plot.Bottom + this.Px(10), size.Width + this.Px(2), size.Height);
+                var left = Math.Min((int)Math.Round(cx - (size.Width / 2f)), Width - size.Width - this.Px(2));
+                var rect = new Rectangle(left, plot.Bottom + this.Px(10), size.Width + this.Px(2), size.Height);
                 Gfx.Text(g, label, labelFont, rect, Theme.InkSecondary, Gfx.SingleLine);
             }
         }

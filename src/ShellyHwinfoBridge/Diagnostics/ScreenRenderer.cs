@@ -1,4 +1,9 @@
 using System.Drawing.Imaging;
+using ShellyHwinfoBridge.Core.App;
+using ShellyHwinfoBridge.Core.Energy;
+using ShellyHwinfoBridge.Core.Polling;
+using ShellyHwinfoBridge.Core.Presentation;
+using ShellyHwinfoBridge.Windows;
 
 namespace ShellyHwinfoBridge.Diagnostics;
 
@@ -21,7 +26,36 @@ internal static class ScreenRenderer
         ("gallery-4", () => new ControlGalleryForm(4)),
         ("gallery-5", () => new ControlGalleryForm(5)),
         ("tray-icons", () => new IconPreviewForm()),
+        ("main-window", () => MainWindow(SampleData.MainView(), EnergyPeriod.Hours)),
+        ("main-window-days", () => MainWindow(SampleData.MainView(), EnergyPeriod.Days)),
+        ("main-window-months-hover", () =>
+        {
+            var form = MainWindow(SampleData.MainView(), EnergyPeriod.Months);
+            form.PreviewHover(22);
+            return form;
+        }),
+        ("main-window-price-offline-no-shm", () => MainWindow(PriceOfflineNoSharedMemory(), EnergyPeriod.Hours)),
+        ("dialog-confirm", () => ThemedDialog.CreateForPreview("Remove HWiNFO sensors?", "This deletes the Shelly Power sensors from HWiNFO and pauses polling. Resume polling to create them again.", "Remove", "Cancel")),
+        ("main-window-unconfigured",() => MainWindow(SampleData.MainView(RuntimeState.Unconfigured, OnlineState.Unknown, HwinfoMonitorSnapshot.Unknown), EnergyPeriod.Hours)),
     ];
+
+    /// <summary>Builds a main window showing <paramref name="state"/> and the sample chart for <paramref name="period"/>.</summary>
+    private static MainForm MainWindow(MainViewState state, EnergyPeriod period)
+    {
+        var form = new MainForm();
+        form.SelectPeriod(period);
+        form.Apply(state);
+        form.ApplyChart(SampleData.Chart(period));
+        return form;
+    }
+
+    private static MainViewState PriceOfflineNoSharedMemory()
+    {
+        var settings = SampleData.Settings();
+        settings.EnergyPricePerKwh = 0.32m;
+        settings.EnergyCurrency = "DKK";
+        return SampleData.MainView(RuntimeState.Running, OnlineState.Offline, new HwinfoMonitorSnapshot(true, true, false, false, null, null), settings);
+    }
 
     /// <summary>Renders every screen into <paramref name="directory"/>; returns the process exit code.</summary>
     public static int Run(string directory)

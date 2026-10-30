@@ -112,9 +112,10 @@ internal static class Program
         {
             ThemedDialog.Show(null, "Something went wrong", e.Exception.Message + "\n\nThe details are in the log. The app keeps running.");
         }
-        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
+        catch (Exception ex)
         {
-            // The UI is not usable; the error is logged.
+            // Never let the error dialog itself bring the app down; both errors are logged.
+            s_logger?.LogError(ex, "Showing the error dialog failed.");
         }
     }
 
