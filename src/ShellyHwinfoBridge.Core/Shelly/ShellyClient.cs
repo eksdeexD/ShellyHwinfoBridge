@@ -101,6 +101,13 @@ public sealed class ShellyClient : IShellyClient, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<ShellyDeviceInfo> GetDeviceInfoAsync(CancellationToken cancellationToken = default)
+    {
+        using var doc = await GetJsonAsync("rpc/Shelly.GetDeviceInfo", cancellationToken).ConfigureAwait(false);
+        return ShellyDeviceInfo.Parse(doc.RootElement);
+    }
+
+    /// <inheritdoc />
     public void Dispose() => _http.Dispose();
 
     internal static ShellyReading ParseReading(JsonElement root)
@@ -112,7 +119,18 @@ public sealed class ShellyClient : IShellyClient, IDisposable
             throw new ShellyException("The status response does not contain 'apower'.");
         }
 
-        return new ShellyReading(apower.GetDouble(), OptionalNumber(root, "voltage"), OptionalNumber(root, "current"));
+        return new ShellyReading(apower.GetDouble(), OptionalNumber(root, "voltage"), OptionalNumber(root, "current"), EnergyTotal(root));
+    }
+
+    private static double? EnergyTotal(JsonElement root)
+    {
+        if (!root.TryGetProperty("aenergy", out var aenergy) || aenergy.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var total = OptionalNumber(aenergy, "total");
+        return total is double t && double.IsFinite(t) && t >= 0 ? t : null;
     }
 
     private static double? OptionalNumber(JsonElement root, string name) =>

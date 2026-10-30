@@ -158,13 +158,14 @@ public sealed class ShellyDiscovery
             return device;
         }
 
+        var parsed = ShellyDeviceInfo.Parse(info);
         return device with
         {
-            Name = String(info, "name") ?? device.Name,
-            Model = String(info, "model") ?? device.Model,
-            App = String(info, "app") ?? device.App,
-            Generation = info.TryGetProperty("gen", out var g) && g.ValueKind == JsonValueKind.Number && g.TryGetInt32(out var gen) ? gen : device.Generation,
-            AuthEnabled = info.TryGetProperty("auth_en", out var a) && a.ValueKind is JsonValueKind.True or JsonValueKind.False ? a.GetBoolean() : device.AuthEnabled,
+            Name = parsed.Name ?? device.Name,
+            Model = parsed.Model ?? device.Model,
+            App = parsed.App ?? device.App,
+            Generation = parsed.Generation ?? device.Generation,
+            AuthEnabled = parsed.AuthEnabled ?? device.AuthEnabled,
         };
     }
 
@@ -189,9 +190,6 @@ public sealed class ShellyDiscovery
 
     private static string? Txt(MdnsServiceInstance instance, string key) =>
         instance.Txt.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v.Trim() : null;
-
-    private static string? String(JsonElement obj, string name) =>
-        obj.TryGetProperty(name, out var e) && e.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(e.GetString()) ? e.GetString()!.Trim() : null;
 
     private static IReadOnlyList<DiscoveredShelly> Sort(IEnumerable<DiscoveredShelly> devices) =>
         devices.OrderBy(d => d.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Address.ToString(), StringComparer.Ordinal).ToList();

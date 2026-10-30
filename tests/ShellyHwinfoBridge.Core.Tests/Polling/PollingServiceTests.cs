@@ -206,6 +206,9 @@ public class PollingServiceTests
 
             return _results.Dequeue() ?? throw new ShellyException("unreachable");
         }
+
+        public Task<ShellyDeviceInfo> GetDeviceInfoAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ShellyDeviceInfo("Fake plug", "TEST-1", "Test", 3, "shellytest-000000"));
     }
 
     private sealed class RecordingRegistry : IHwinfoSensorRegistry

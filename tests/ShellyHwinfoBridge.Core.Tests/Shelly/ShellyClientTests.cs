@@ -34,7 +34,7 @@ public class ShellyClientTests
         var reading = await client.GetReadingAsync();
 
         Assert.Equal(ShellyComponentType.Switch, client.Component);
-        Assert.Equal(new ShellyReading(151.9, 231.4, 0.712), reading);
+        Assert.Equal(new ShellyReading(151.9, 231.4, 0.712, 1234.5), reading);
 
         await client.GetReadingAsync();
         Assert.Single(handler.Requests, r => r.StartsWith("/rpc/Shelly.", StringComparison.Ordinal));
@@ -51,7 +51,69 @@ public class ShellyClientTests
         var reading = await client.GetReadingAsync();
 
         Assert.Equal(ShellyComponentType.PM1, client.Component);
-        Assert.Equal(new ShellyReading(110.3, 118.2, 1.05), reading);
+        Assert.Equal(new ShellyReading(110.3, 118.2, 1.05, 10.0), reading);
+    }
+
+    [Theory]
+    [InlineData("""{"id":0,"apower":12.5,"voltage":230.1}""")]
+    [InlineData("""{"id":0,"apower":12.5,"voltage":230.1,"aenergy":5}""")]
+    [InlineData("""{"id":0,"apower":12.5,"voltage":230.1,"aenergy":{"by_minute":[1,2,3]}}""")]
+    [InlineData("""{"id":0,"apower":12.5,"voltage":230.1,"aenergy":{"total":"12"}}""")]
+    [InlineData("""{"id":0,"apower":12.5,"voltage":230.1,"aenergy":{"total":-1}}""")]
+    public void EnergyTotalIsNullWhenMissingOrMalformed(string json)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var reading = ShellyClient.ParseReading(doc.RootElement);
+
+        Assert.Equal(12.5, reading.ActivePowerWatts);
+        Assert.Null(reading.EnergyTotalWh);
+    }
+
+    [Fact]
+    public async Task ReadsSwitchEnergyTotalWithoutVoltage()
+    {
+        var handler = new StubHttpHandler()
+            .Add("/rpc/Shelly.GetComponents?offset=0", SwitchComponents)
+            .Add("/rpc/Switch.GetStatus?id=0", """{"id":0,"apower":0,"aenergy":{"total":0,"by_minute":[0,0,0]}}""");
+        using var client = new ShellyClient("192.168.1.50", handler);
+
+        var reading = await client.GetReadingAsync();
+
+        Assert.Equal(new ShellyReading(0, null, null, 0), reading);
+    }
+
+    [Fact]
+    public async Task ReadsDeviceInfo()
+    {
+        var handler = new StubHttpHandler().Add("/rpc/Shelly.GetDeviceInfo", """
+            {"name":"PlugMGen3-2","id":"shellyplugmg3-0a1b2c3d4e5f","mac":"0A1B2C3D4E5F","slot":0,"model":"S3PL-10112EU",
+             "gen":3,"fw_id":"20250101-000000/1.5.0-gabcdef","ver":"1.5.0","app":"PlugMG3","auth_en":true,"auth_domain":"shellyplugmg3-0a1b2c3d4e5f"}
+            """);
+        using var client = new ShellyClient("192.168.1.50", handler);
+
+        var info = await client.GetDeviceInfoAsync();
+
+        Assert.Equal(new ShellyDeviceInfo("PlugMGen3-2", "S3PL-10112EU", "PlugMG3", 3, "shellyplugmg3-0a1b2c3d4e5f", true), info);
+    }
+
+    [Fact]
+    public async Task DeviceInfoWithoutNameHasNullFields()
+    {
+        var handler = new StubHttpHandler().Add("/rpc/Shelly.GetDeviceInfo", """{"name":null,"id":"shellypmmini-aabbcc","gen":"x"}""");
+        using var client = new ShellyClient("10.0.0.2", handler);
+
+        var info = await client.GetDeviceInfoAsync();
+
+        Assert.Equal(new ShellyDeviceInfo(null, null, null, null, "shellypmmini-aabbcc", null), info);
+    }
+
+    [Fact]
+    public async Task DeviceInfoUnauthorizedRaisesAuthenticationException()
+    {
+        var handler = new StubHttpHandler().Add("/rpc/Shelly.GetDeviceInfo", "", HttpStatusCode.Unauthorized);
+        using var client = new ShellyClient("10.0.0.2", handler);
+
+        await Assert.ThrowsAsync<ShellyAuthenticationException>(() => client.GetDeviceInfoAsync());
     }
 
     [Fact]
