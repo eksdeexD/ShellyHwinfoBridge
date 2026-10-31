@@ -60,7 +60,7 @@ public sealed record MainViewState(
 public sealed class MainWindowPresenter
 {
     /// <summary>The Other card's hint when shared memory is unavailable (SPEC wording).</summary>
-    public const string EnableSharedMemoryHint = "Enable Shared Memory in HWiNFO to see this";
+    public const string SharedMemoryHint = "Only available with Shared Memory enabled in HWiNFO";
 
     /// <summary>The Other card's hint when shared memory works but HWiNFO does not show the bridge's sensors yet.</summary>
     public const string RestartHwinfoHint = "Restart HWiNFO to see this";
@@ -273,7 +273,7 @@ public sealed class MainWindowPresenter
         const string caption = "Other Components";
         if (!hwinfo.SharedMemoryAvailable)
         {
-            return new StatCardState(caption, EnableSharedMemoryHint, string.Empty, Tone.Ink, true);
+            return new StatCardState(caption, SharedMemoryHint, string.Empty, Tone.Ink, true);
         }
 
         if (!hwinfo.SensorsVisible || hwinfo.OtherWatts is null)

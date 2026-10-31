@@ -69,7 +69,7 @@ public class MainWindowPresenterTests
     public void OtherCardPlaceholders()
     {
         var off = Build(hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, SensorsVisible = false, OtherWatts = null });
-        Assert.Equal(new StatCardState("Other Components", "Enable Shared Memory in HWiNFO to see this", string.Empty, Tone.Ink, true), off.Other);
+        Assert.Equal(new StatCardState("Other Components", "Only available with Shared Memory enabled in HWiNFO", string.Empty, Tone.Ink, true), off.Other);
         Assert.Equal("running · shared memory off", off.HwinfoLine);
 
         var notVisible = Build(hw: BriefExample.Hwinfo() with { SensorsVisible = false, OtherWatts = null });

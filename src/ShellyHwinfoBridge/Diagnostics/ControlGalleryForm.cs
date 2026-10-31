@@ -150,7 +150,7 @@ internal sealed class ControlGalleryForm : ThemedForm
         }
 
         var placeholder = _layout.Place(this, new StatCard(), 560, 514, 251, 128);
-        placeholder.Apply("Other Components", "Enable Shared Memory in HWiNFO to see this", string.Empty, UiTone.Ink, placeholder: true);
+        placeholder.Apply("Other Components", "Only available with Shared Memory enabled in HWiNFO", string.Empty, UiTone.Ink, placeholder: true);
         var selected = _layout.Place(this, new CardPanel { Title = "Selected", Selected = true }, 827, 514, 249, 128);
         _layout.Place(selected, new InfoLine { Text = "Accent border 1.5 px" }, 20, 60, 200, 26);
     }
