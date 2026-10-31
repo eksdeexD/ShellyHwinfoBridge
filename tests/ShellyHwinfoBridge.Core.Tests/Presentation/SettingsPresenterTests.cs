@@ -1,6 +1,8 @@
 using System.Globalization;
 using ShellyHwinfoBridge.Core.Curves;
+using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Presentation;
+using ShellyHwinfoBridge.Core.Tests.TestSupport;
 
 namespace ShellyHwinfoBridge.Core.Tests.Presentation;
 
@@ -13,6 +15,7 @@ public class SettingsPresenterTests
     [Fact]
     public void StateShowsTheBriefExample()
     {
+        _runtime.Database = SyntheticDatabase("2026-10-29", 1);
         var state = new SettingsPresenter(_runtime, EnUs).State;
 
         Assert.Equal("192.168.1.42", state.Host);
@@ -26,6 +29,31 @@ public class SettingsPresenterTests
         Assert.True(state.ShowTrayIcon);
         Assert.True(state.EnergyEnabled);
         Assert.Equal(string.Empty, state.PriceText);
+    }
+
+    [Fact]
+    public void DatabaseTextUsesThePluralForSeveralEntries()
+    {
+        _runtime.Database = SyntheticDatabase("2026-10-31", 6);
+        Assert.Equal("Last updated 2026-10-31 · 6 entries", new SettingsPresenter(_runtime, EnUs).State.DatabaseText);
+    }
+
+    /// <summary>The TX-700 entry first, then copies with other ids, so the count is exact whatever the shipped database holds.</summary>
+    private static PsuDatabase SyntheticDatabase(string updated, int count)
+    {
+        var db = new PsuDatabase { SchemaVersion = 1, Updated = updated };
+        for (var i = 0; i < count; i++)
+        {
+            var entry = TestCurves.Tx700;
+            if (i > 0)
+            {
+                entry.Id += "-copy" + i.ToString(CultureInfo.InvariantCulture);
+            }
+
+            db.Psus.Add(entry);
+        }
+
+        return db;
     }
 
     [Fact]

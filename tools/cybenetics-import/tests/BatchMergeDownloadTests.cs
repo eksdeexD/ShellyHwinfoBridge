@@ -101,11 +101,12 @@ public sealed class BatchMergeDownloadTests : IDisposable
     [Fact]
     public void MergeReplacesByIdSortsAndSetsTheDate()
     {
+        // Start from a synthetic one-entry database so the test does not depend on the shipped file's contents.
         var database = Path.Combine(_dir, "psu-database.json");
-        File.WriteAllText(database, MergeCommand.Format(PsuDatabaseLoader.LoadEmbedded()));
+        var seed = PsuDatabaseLoader.LoadEmbedded().Psus.Single(p => p.Id == "seasonic-prime-fanless-tx-700");
+        File.WriteAllText(database, MergeCommand.Format(new PsuDatabase { SchemaVersion = 1, Updated = "2026-01-01", Psus = [seed] }));
         var entries = Sub("entries");
 
-        var seed = PsuDatabaseLoader.LoadEmbedded().Psus.Single();
         seed.RatingCybenetics = "Diamond";
         File.WriteAllText(Path.Combine(entries, "replaced.json"), EntryWriter.Format(seed));
         File.WriteAllText(Path.Combine(entries, "a.json"), EntryWriter.Format(Entry("zz-unit", "Antec", "NeoECO 650")));

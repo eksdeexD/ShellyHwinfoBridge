@@ -20,13 +20,21 @@ public sealed class PsuDatabaseTests : IDisposable
     {
         var db = PsuDatabaseLoader.LoadEmbedded();
         Assert.Empty(PsuDatabaseValidator.Validate(db));
-        var tx = Assert.Single(db.Psus);
-        Assert.Equal("seasonic-prime-fanless-tx-700", tx.Id);
+        var tx = Assert.Single(db.Psus, p => p.Id == "seasonic-prime-fanless-tx-700");
         Assert.Equal("Cybenetics", tx.Source!.Name);
         Assert.Equal("21PS1872A", tx.Source.ReportId);
         Assert.Equal("https://www.cybenetics.com/evaluations/psus/1872/", tx.Source.Url);
         Assert.Equal(15, tx.GetCurve(InputVoltage.V230)!.Points.Count);
         Assert.Equal(15, tx.GetCurve(InputVoltage.V115)!.Points.Count);
+
+        Assert.All(db.Psus, p =>
+        {
+            Assert.Equal("Cybenetics", p.Source!.Name);
+            Assert.False(string.IsNullOrEmpty(p.Source.Url));
+            Assert.StartsWith("https://www.cybenetics.com/", p.Source.Url, StringComparison.Ordinal);
+            Assert.True(p.GetCurve(InputVoltage.V230)!.Points.Count >= 2, p.Id + " 230 V curve");
+            Assert.True(p.GetCurve(InputVoltage.V115)!.Points.Count >= 2, p.Id + " 115 V curve");
+        });
     }
 
     [Fact]
@@ -114,13 +122,16 @@ public sealed class PsuDatabaseTests : IDisposable
         File.WriteAllText(DbPath, "garbage");
         var loaded = loader.Load();
         Assert.Equal(DatabaseOrigin.Embedded, loaded.Origin);
-        Assert.Single(loaded.Database.Psus);
+        Assert.NotEmpty(loaded.Database.Psus);
+        Assert.Contains(loaded.Database.Psus, p => p.Id == "seasonic-prime-fanless-tx-700");
     }
 
     [Fact]
     public void CascadingFiltersAndSearch()
     {
-        var db = PsuDatabaseLoader.LoadEmbedded();
+        // A synthetic database keeps the cascade deterministic however the shipped database grows.
+        var db = new PsuDatabase { SchemaVersion = 1, Updated = "2026-01-01" };
+        db.Psus.Add(Entry("seasonic-prime-fanless-tx-700", "Seasonic", "Prime Fanless TX", "Prime Fanless TX-700", 700, "Titanium", null));
         db.Psus.Add(Entry("corsair-rm850x-2021", "Corsair", "RMx", "RM850x", 850, "Gold", "2021"));
         db.Psus.Add(Entry("corsair-rm850x-2018", "Corsair", "RMx", "RM850x", 850, "Gold", "2018"));
         db.Psus.Add(Entry("corsair-hx1000i", "Corsair", "HXi", "HX1000i", 1000, "Platinum", null));
