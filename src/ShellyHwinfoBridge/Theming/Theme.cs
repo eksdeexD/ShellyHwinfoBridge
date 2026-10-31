@@ -15,8 +15,9 @@ internal static class Theme
     public static readonly Color Ink = Hex(0xECEFF3);
     public static readonly Color InkSecondary = Hex(0x9AA5B1);
     public static readonly Color InkDisabled = Hex(0x5F6973);
-    public static readonly Color Accent = Hex(0xFF6600);
-    public static readonly Color OnAccent = Hex(0xFFFFFF);
+
+    /// <summary>The default accent (the app's orange, also the colour of the exe's embedded icon).</summary>
+    public static readonly Color DefaultAccent = Hex(0xFF6600);
     public static readonly Color Success = Hex(0x5FB36B);
     public static readonly Color Warning = Hex(0xE0B341);
     public static readonly Color Error = Hex(0xE05A4F);
@@ -24,11 +25,62 @@ internal static class Theme
 
     // Derived values (computed, not invented).
     public static readonly Color Field = BgBottom;
-    public static readonly Color AccentHover = Blend(Accent, Color.White, 0.12f);
-    public static readonly Color AccentPressed = Blend(Accent, Color.Black, 0.12f);
     public static readonly Color SecondaryHover = SurfaceElevated;
-    public static readonly Color FocusBorder = Accent;
     public static readonly Color HoverBorder = InkDisabled;
+
+    /// <summary>
+    /// Raised on the UI thread after <see cref="SetAccent"/> changed the accent: open windows repaint, and the window and
+    /// tray icons are drawn again in the new colour.
+    /// </summary>
+    public static event EventHandler? AccentChanged;
+
+    /// <summary>
+    /// Gets the accent colour: the "Accent colour" from Manage Shellys (settings <c>BaseColour</c>, default
+    /// <see cref="DefaultAccent"/>). Text actions, primary buttons, toggles, selections, focus borders, the PC's chart
+    /// colour and the runtime-drawn icons use it.
+    /// </summary>
+    public static Color Accent { get; private set; } = DefaultAccent;
+
+    /// <summary>Gets the text colour on an accent fill: white, or near-black when the accent is light.</summary>
+    public static Color OnAccent { get; private set; } = Color.White;
+
+    /// <summary>Gets the accent of a hovered control.</summary>
+    public static Color AccentHover { get; private set; } = Blend(DefaultAccent, Color.White, 0.12f);
+
+    /// <summary>Gets the accent of a pressed control.</summary>
+    public static Color AccentPressed { get; private set; } = Blend(DefaultAccent, Color.Black, 0.12f);
+
+    /// <summary>Gets the border of a focused control (the accent).</summary>
+    public static Color FocusBorder => Accent;
+
+    /// <summary>Sets the accent colour; raises <see cref="AccentChanged"/> when it changed. Call on the UI thread.</summary>
+    /// <param name="accent">The new accent (alpha is ignored).</param>
+    public static void SetAccent(Color accent)
+    {
+        accent = Color.FromArgb(255, accent.R, accent.G, accent.B);
+        if (accent.ToArgb() == Accent.ToArgb())
+        {
+            return;
+        }
+
+        Accent = accent;
+        AccentHover = Blend(accent, Color.White, 0.12f);
+        AccentPressed = Blend(accent, Color.Black, 0.12f);
+        OnAccent = RelativeLuminance(accent) > 0.5 ? BgBottom : Color.White;
+        AccentChanged?.Invoke(null, EventArgs.Empty);
+    }
+
+    /// <summary>Returns the WCAG relative luminance of a colour (0 black … 1 white).</summary>
+    public static double RelativeLuminance(Color c)
+    {
+        static double Channel(int v)
+        {
+            var s = v / 255.0;
+            return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+        }
+
+        return (0.2126 * Channel(c.R)) + (0.7152 * Channel(c.G)) + (0.0722 * Channel(c.B));
+    }
 
     // Metrics in DIP (the compact scale: every window, page and card uses these instead of its own numbers).
     public const int CardRadius = 10;
@@ -59,10 +111,10 @@ internal static class Theme
     public const int LineHeight = 22;
 
     /// <summary>Width of the main window's client area (fixed).</summary>
-    public const int MainWindowWidth = 720;
+    public const int MainWindowWidth = 900;
 
     /// <summary>Height of the main window's client area (fixed).</summary>
-    public const int MainWindowHeight = 520;
+    public const int MainWindowHeight = 640;
 
     /// <summary>Letter spacing of uppercase captions, in DIP per character.</summary>
     public const float CaptionTracking = 1.5f;

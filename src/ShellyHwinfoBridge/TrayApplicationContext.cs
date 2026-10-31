@@ -27,7 +27,7 @@ namespace ShellyHwinfoBridge;
 [SupportedOSPlatform("windows")]
 internal sealed class TrayApplicationContext : ApplicationContext
 {
-    private const string BalloonTitle = "ShellyHwinfoBridge";
+    private const string BalloonTitle = AppInfo.ProductName;
 
     private readonly AppServices _services;
     private readonly ActivationLatch _activation;
@@ -44,6 +44,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private IconFactory _icons;
     private MainForm? _mainForm;
     private WizardForm? _wizardForm;
+    private AboutWindow? _aboutWindow;
     private TrayIconState? _iconState;
     private bool _hideTrayIcon;
     private volatile bool _dirty = true;
@@ -57,7 +58,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         ArgumentNullException.ThrowIfNull(startup);
         _dispatcher = new UiDispatcher();
         _mainPresenter = new MainWindowPresenter(services.Runtime);
+        ApplyAccent();
         _icons = new IconFactory();
+        Theme.AccentChanged += OnAccentChanged;
 
         _menu = new ContextMenuStrip();
         DarkMenuRenderer.Apply(_menu);
@@ -153,6 +156,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _mainForm.SettingsRequested += (_, _) => ShowSettings();
             _mainForm.WizardRequested += (_, _) => ShowWizard();
             _mainForm.PauseToggleRequested += (_, _) => TogglePause();
+            _mainForm.AboutRequested += (_, _) => ShowAbout();
+            _mainForm.ManageShellysRequested += (_, _) => ShowManageShellys();
+            _mainForm.CreateGadgetModel = CreateGadgetModel;
             _mainForm.PeriodChanged += (_, _) => RefreshMainForm(force: true);
             _mainForm.ChartModeChanged += (_, _) => SetChartMode();
             _mainForm.VisibleChanged += (_, _) => UpdateMonitorActivity();
@@ -212,9 +218,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         var runtime = _services.Runtime;
-        var page = new SettingsPage(new SettingsPresenter(runtime), runtime, _services.SharedMemory.TryGetSnapshot, ct => _services.Discovery.DiscoverAsync(cancellationToken: ct));
+        var page = new SettingsPage(new SettingsPresenter(runtime), runtime, _services.SharedMemory.TryGetSnapshot, ct => _services.Discovery.DiscoverAsync(cancellationToken: ct), CreateGadgetModel);
         page.WizardRequested += (_, _) => ShowWizard();
-        page.ExitRequested += async (_, _) => await ExitAsync();
         page.SensorsRemoved += (_, _) =>
         {
             _logger.LogInformation("HWiNFO sensors removed from the settings page; polling paused.");
@@ -224,15 +229,46 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _mainForm.OpenSettings(page);
     }
 
-    /// <summary>"About…": opens the main window on the settings page scrolled to the About section.</summary>
+    /// <summary>"About" (main window) and "About…" (tray): shows the About window (or activates the open one).</summary>
     public void ShowAbout()
+    {
+        if (_exiting)
+        {
+            return;
+        }
+
+        if (_aboutWindow is { IsDisposed: false } open)
+        {
+            open.Activate();
+            return;
+        }
+
+        var owner = VisibleOwner();
+        var about = new AboutWindow();
+        about.ShowInTaskbar = owner is null;
+
+        // A modeless window disposes itself when closed.
+        about.FormClosed += (_, _) => _aboutWindow = null;
+        _aboutWindow = about;
+        about.Show(owner);
+    }
+
+    /// <summary>The status pill on the dashboard: opens the settings page, then Manage Shellys over it.</summary>
+    public void ShowManageShellys()
     {
         ShowSettings();
         if (_mainForm is { IsDisposed: false } form && _wizardForm is null && form.SettingsPage is not null && !form.IsShowingDialog)
         {
-            // After the page has been laid out in the shown window.
-            form.BeginInvoke(new Action(form.ScrollSettingsToAbout));
+            form.OpenManageShellysFromSettings();
         }
+    }
+
+    /// <summary>Creates the gadget how-to model over the HWiNFO monitor, loaded with the selected component sensors.</summary>
+    private Core.Presentation.Wizard.GadgetStepModel CreateGadgetModel()
+    {
+        var model = new Core.Presentation.Wizard.GadgetStepModel(_services.Monitor.ReadGadgetExport);
+        model.Load(_services.Runtime.Settings?.Sensors ?? []);
+        return model;
     }
 
     /// <summary>Stores the main window's Combined / Per device choice and redraws the chart.</summary>
@@ -279,7 +315,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         var runtime = _services.Runtime;
-        var dependencies = WizardDependencies.Create(runtime, _services.Locator, _services.SharedMemory, _services.Discovery);
+        var dependencies = WizardDependencies.Create(runtime, _services.Locator, _services.SharedMemory, _services.Discovery, readGadgetExport: _services.Monitor.ReadGadgetExport);
         var session = new WizardSession(runtime.Settings, runtime.Password, runtime.Database, dependencies);
         var form = new WizardForm(session);
         form.Applied += (_, _) => RefreshNow();
@@ -344,6 +380,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _timer.Stop();
         _activation.Detach();
         _wizardForm?.Close();
+        _aboutWindow?.Close();
         _mainForm?.Hide();
         Unsubscribe();
         _dispatcher.BeginShutdown();
@@ -404,6 +441,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _services.Runtime.SensorKeysCreated -= OnSensorKeysCreated;
         _services.Monitor.Changed -= OnBackgroundChange;
         _services.Energy.Updated -= OnBackgroundChange;
+        Theme.AccentChanged -= OnAccentChanged;
         SystemEvents.SessionEnding -= OnSessionEnding;
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
     }
@@ -415,6 +453,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _dirty = true;
         _dispatcher.Post(() =>
         {
+            ApplyAccent();
             var hide = _services.Runtime.Settings?.HideTrayIcon ?? false;
             if (hide == _hideTrayIcon)
             {
@@ -426,7 +465,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             UpdateMonitorActivity();
             if (hide)
             {
-                ThemedDialog.Show(VisibleOwner(), "Tray icon hidden", "The app keeps running. Start ShellyHwinfoBridge again to open it.");
+                ThemedDialog.Show(VisibleOwner(), "Tray icon hidden", "The app keeps running. Start " + AppInfo.ProductName + " again to open it.");
             }
         });
     }
@@ -460,16 +499,34 @@ internal sealed class TrayApplicationContext : ApplicationContext
         FinishExit();
     }
 
-    private void OnDisplaySettingsChanged(object? sender, EventArgs e) => _dispatcher.Post(() =>
+    // Icon sizes may have changed: rebuild the tray icons.
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) => _dispatcher.Post(RebuildTrayIcons);
+
+    // The online icon is drawn in the accent colour: rebuild the tray icons (windows redraw their own icon).
+    private void OnAccentChanged(object? sender, EventArgs e) => RebuildTrayIcons();
+
+    /// <summary>Builds a new icon factory, swaps the tray icon, then frees the old handles.</summary>
+    private void RebuildTrayIcons()
     {
-        // Icon sizes may have changed: build a new factory, swap the icon, then free the old handles.
+        if (_exiting)
+        {
+            return;
+        }
+
         var old = _icons;
         _icons = new IconFactory();
         _iconState = null;
         _dirty = true;
         Refresh();
         old.Dispose();
-    });
+    }
+
+    /// <summary>Makes the settings' accent colour (Manage Shellys "Accent colour") the theme's accent.</summary>
+    private void ApplyAccent()
+    {
+        var text = _services.Runtime.Settings?.BaseColour;
+        Theme.SetAccent(DeviceColours.TryParse(text, out var rgb) ? Color.FromArgb(rgb.R, rgb.G, rgb.B) : Theme.DefaultAccent);
+    }
 
     private void Refresh()
     {
@@ -524,7 +581,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _pauseItem.Enabled = state is RuntimeState.Running or RuntimeState.Paused;
         _settingsItem.Enabled = _wizardForm is null;
         _wizardItem.Enabled = _mainForm?.IsShowingDialog != true;
-        _aboutItem.Enabled = _wizardForm is null;
+        _aboutItem.Enabled = true;
     }
 
     private void TogglePause()

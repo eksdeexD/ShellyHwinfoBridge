@@ -13,14 +13,14 @@ namespace ShellyHwinfoBridge.Windows;
 internal sealed class StepDialog : ThemedForm
 {
     /// <summary>The client width in DIP (as the wizard window).</summary>
-    public const int WidthDip = 760;
+    public const int WidthDip = 900;
 
     private const int Pad = Theme.WindowPadding;
-    private const int TitleTop = 12;
-    private const int TitleHeight = 32;
-    private const int SubtitleTop = 44;
-    private const int SubtitleHeight = 20;
-    private const int HostTop = 72;
+    private const int TitleTop = 14;
+    private const int TitleHeight = 30;
+    private const int SubtitleTop = TitleTop + TitleHeight + 4;
+    private const int SubtitleHeight = 22;
+    private const int HostTop = SubtitleTop + SubtitleHeight + 12;
     private const int FooterHeight = 56;
     private const int ButtonWidth = 84;
     private const int ButtonHeight = Theme.ButtonHeight;
@@ -35,17 +35,18 @@ internal sealed class StepDialog : ThemedForm
     private readonly Func<string?> _validate = () => null;
 
     /// <summary>Creates the dialog.</summary>
-    /// <param name="title">The page title (also the window caption).</param>
+    /// <param name="title">The page title.</param>
     /// <param name="subtitle">The subtitle.</param>
     /// <param name="view">The step view (disposed with the dialog).</param>
     /// <param name="validate">Returns why Save is not possible, or <c>null</c> when it is.</param>
-    public StepDialog(string title, string subtitle, WizardStepView view, Func<string?> validate)
+    /// <param name="windowTitle">The brief window title ("Add a Shelly"); <c>null</c> uses <paramref name="title"/>.</param>
+    public StepDialog(string title, string subtitle, WizardStepView view, Func<string?> validate, string? windowTitle = null)
     {
         _title = title;
         _subtitle = subtitle;
         _view = view ?? throw new ArgumentNullException(nameof(view));
         _validate = validate ?? throw new ArgumentNullException(nameof(validate));
-        Text = title + " · ShellyHwinfoBridge";
+        Text = windowTitle ?? title;
         ShowInTaskbar = false;
         MinimizeBox = false;
         KeyPreview = true;

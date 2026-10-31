@@ -268,6 +268,51 @@ public sealed class HwinfoMonitor : IComponentSensorSource, IDisposable
             : new ComponentReadings(OtherSource.None, found, true, missing);
     }
 
+    /// <summary>
+    /// Reads HWiNFO's gadget export now (for the live markers of the gadget how-to), or <c>null</c> while HWiNFO does not
+    /// run (the export stays in the registry after HWiNFO exits and would be stale) or no export reader exists.
+    /// </summary>
+    public IReadOnlyList<GadgetReading>? ReadGadgetExport()
+    {
+        bool running;
+        lock (_gate)
+        {
+            running = _running;
+        }
+
+        if (!running || _gadget is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return _gadget.ReadAll();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            _logger.LogDebug(ex, "Reading the gadget export failed.");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Returns whether HWiNFO's gadget export reports a selected sensor: matched by label, and, when the sensor's device
+    /// is known, only by a value of that device (so one of two "Total Power" DIMM sensors does not count for the other).
+    /// </summary>
+    /// <param name="exported">The exported values.</param>
+    /// <param name="sensor">The selected sensor.</param>
+    public static bool IsReportedToGadget(IReadOnlyList<GadgetReading> exported, SensorSelection sensor)
+    {
+        ArgumentNullException.ThrowIfNull(exported);
+        ArgumentNullException.ThrowIfNull(sensor);
+        var name = sensor.Name.Trim();
+        return exported.Any(r =>
+            string.Equals(r.Label, name, StringComparison.OrdinalIgnoreCase) &&
+            !IsBridgeDevice(r.Sensor) &&
+            (sensor.Device is not { } device || r.Sensor is null || DeviceMatches(r.Sensor, device)));
+    }
+
     private static double? FindShared(HwinfoSnapshot snapshot, SensorSelection sensor)
     {
         var reading = (sensor.Device is { } device ? snapshot.FindReading(sensor.Name, device) : null) ?? snapshot.FindReading(sensor.Name);
@@ -278,10 +323,30 @@ public sealed class HwinfoMonitor : IComponentSensorSource, IDisposable
     {
         var name = sensor.Name.Trim();
         var matches = exported.Where(r => string.Equals(r.Label, name, StringComparison.OrdinalIgnoreCase) && !IsBridgeDevice(r.Sensor)).ToList();
-        var exact = sensor.Device is { } device
-            ? matches.FirstOrDefault(r => r.Sensor is not null && (string.Equals(r.Sensor, device.Trim(), StringComparison.OrdinalIgnoreCase) || device.Trim().EndsWith(": " + r.Sensor, StringComparison.OrdinalIgnoreCase) || r.Sensor.EndsWith(": " + device.Trim(), StringComparison.OrdinalIgnoreCase)))
-            : null;
-        return (exact ?? matches.FirstOrDefault())?.Value;
+        if (sensor.Device is not { } device)
+        {
+            return matches.FirstOrDefault()?.Value;
+        }
+
+        // With a known device, only a value of that device counts (or one the export does not name a device for), so
+        // the "Total Power" of one DIMM never stands in for another's.
+        var exact = matches.FirstOrDefault(r => r.Sensor is not null && DeviceMatches(r.Sensor, device));
+        return (exact ?? matches.FirstOrDefault(r => r.Sensor is null))?.Value;
+    }
+
+    /// <summary>
+    /// Whether an exported sensor (device) name is the selected device: equal, one ends with ": " + the other, or one is
+    /// the other's short form before ": " ("DDR5 DIMM [#1]" for "DDR5 DIMM [#1]: Patriot Memory …").
+    /// </summary>
+    private static bool DeviceMatches(string exportedSensor, string device)
+    {
+        var d = device.Trim();
+        var s = exportedSensor.Trim();
+        return string.Equals(s, d, StringComparison.OrdinalIgnoreCase) ||
+               d.EndsWith(": " + s, StringComparison.OrdinalIgnoreCase) ||
+               s.EndsWith(": " + d, StringComparison.OrdinalIgnoreCase) ||
+               d.StartsWith(s + ": ", StringComparison.OrdinalIgnoreCase) ||
+               s.StartsWith(d + ": ", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsBridgeDevice(string? device)

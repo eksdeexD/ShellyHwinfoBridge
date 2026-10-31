@@ -3,13 +3,13 @@ namespace ShellyHwinfoBridge.Core.Energy;
 /// <summary>The energy chart's period.</summary>
 public enum EnergyPeriod
 {
-    /// <summary>The last 48 hours, one bar per hour.</summary>
+    /// <summary>The last 24 hours, one bar per hour (the per-device chart shows the last 12).</summary>
     Hours,
 
-    /// <summary>The last 60 local days, one bar per day.</summary>
+    /// <summary>The last 30 local days, one bar per day.</summary>
     Days,
 
-    /// <summary>The last 24 local months, one bar per month.</summary>
+    /// <summary>The last 12 local months, one bar per month.</summary>
     Months,
 }
 
@@ -47,13 +47,13 @@ public sealed record EnergyTotals(double TodayAcKwh, double MonthAcKwh, double T
 public static class EnergyAggregator
 {
     /// <summary>Number of hour buckets.</summary>
-    public const int HourBuckets = 48;
+    public const int HourBuckets = 24;
 
     /// <summary>Number of day buckets.</summary>
-    public const int DayBuckets = 60;
+    public const int DayBuckets = 30;
 
     /// <summary>Number of month buckets.</summary>
-    public const int MonthBuckets = 24;
+    public const int MonthBuckets = 12;
 
     /// <summary>Returns the UTC range [from, to) of rows a period needs; it ends after the hour/day/month in progress.</summary>
     /// <param name="period">The period.</param>
@@ -73,7 +73,7 @@ public static class EnergyAggregator
         return (starts[0].Utc, end);
     }
 
-    /// <summary>Buckets the rows for a period: 48 hours, 60 days or 24 months, oldest first, ending with the current one.</summary>
+    /// <summary>Buckets the rows for a period: 24 hours, 30 days or 12 months, oldest first, ending with the current one.</summary>
     /// <param name="rows">Hourly rows (any order; rows outside the range are ignored).</param>
     /// <param name="period">The period.</param>
     /// <param name="nowUtc">The current time.</param>

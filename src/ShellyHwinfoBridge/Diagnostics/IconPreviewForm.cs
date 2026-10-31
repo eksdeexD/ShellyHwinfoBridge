@@ -13,7 +13,7 @@ internal sealed class IconPreviewForm : ThemedForm
     public IconPreviewForm()
     {
         Text = "Tray icons";
-        SetClientSizeDip(new Size(760, 420), new Size(760, 420));
+        SetClientSizeDip(new Size(760, 480), new Size(760, 480));
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -38,6 +38,16 @@ internal sealed class IconPreviewForm : ThemedForm
             }
 
             y += this.Px(132);
+        }
+
+        // The window icon (title bar, taskbar): a multi-size icon in the accent colour.
+        Gfx.Text(g, "Window", Fonts.Body, new Rectangle(this.Px(24), y, this.Px(100), this.Px(32)), Theme.Ink);
+        var left = this.Px(130);
+        foreach (var size in new[] { 16, 24, 32, 48 })
+        {
+            using var icon = new Icon(IconFactory.WindowIcon, size, size);
+            g.DrawIcon(icon, new Rectangle(left, y, size, size));
+            left += size + this.Px(24);
         }
     }
 }

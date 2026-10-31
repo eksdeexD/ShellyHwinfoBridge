@@ -33,13 +33,13 @@ internal sealed class ShellyStepView : WizardStepView
     private readonly CardPanel _found = new() { Title = "Found on your network" };
     private readonly SelectableList _list = new() { RowHeightDip = 44, AccessibleName = "Shelly plugs found" };
     private readonly TextLabel _discoveryStatus = new() { Tone = UiTone.Secondary };
-    private readonly PillButton _searchAgain = new() { Text = "Search again" };
+    private readonly TextLink _searchAgain = new() { Text = "Search again", Semibold = true };
     private readonly CardPanel _connection = new() { Title = "Connection" };
     private readonly TextLabel _hostLabel = new() { Text = "Host", Tone = UiTone.Secondary };
     private readonly TextLabel _passwordLabel = new() { Text = "Password", Tone = UiTone.Secondary };
     private readonly ThemedTextBox _host = new() { Placeholder = "IP address or host name", AccessibleName = "Host" };
     private readonly ThemedTextBox _password = new() { Placeholder = "leave empty if not set", UseSystemPasswordChar = true, AccessibleName = "Password" };
-    private readonly PillButton _test = new() { Text = "Test connection" };
+    private readonly TextLink _test = new() { Text = "Test connection", Semibold = true };
     private readonly ValueTile _power = new() { Caption = "Power" };
     private readonly ValueTile _voltage = new() { Caption = "Voltage" };
     private readonly ValueTile _current = new() { Caption = "Current" };
@@ -260,7 +260,7 @@ internal sealed class ShellyStepView : WizardStepView
         while (_addedRows.Count < devices.Count)
         {
             var text = new TextLabel();
-            var remove = new TextLink { Text = "Remove", Tone = LinkTone.Danger, Semibold = true };
+            var remove = new TextLink { Text = "Remove", Semibold = true };
             var index = _addedRows.Count;
             remove.Click += (_, _) =>
             {
@@ -381,7 +381,7 @@ internal sealed class ShellyStepView : WizardStepView
         _password.Bounds = Dip(p + fieldWidth + 10, t + 20, fieldWidth, Theme.FieldHeight);
         var testTop = t + 20 + Theme.FieldHeight + 10;
         var test = _test.GetPreferredSize(Size.Empty);
-        _test.Bounds = new Rectangle(Px(p), Px(testTop), test.Width, test.Height);
+        _test.Bounds = new Rectangle(Px(p + cw) - test.Width, Px(testTop) + ((Px(Theme.ButtonHeight) - test.Height) / 2), test.Width, test.Height);
         var tilesTop = testTop + Theme.ButtonHeight + 10;
         var tileWidth = (cw - 16) / 3;
         for (var i = 0; i < 3; i++)

@@ -21,17 +21,8 @@ internal class ThemedForm : Form, IThemedSurface
         ForeColor = Theme.Ink;
         StartPosition = FormStartPosition.CenterScreen;
         Font = ThemeFonts.For(DeviceDpi).Body;
-        try
-        {
-            if (Environment.ProcessPath is { } exe)
-            {
-                Icon = Icon.ExtractAssociatedIcon(exe);
-            }
-        }
-        catch (Exception ex) when (ex is ArgumentException or IOException)
-        {
-            // Keep the default icon.
-        }
+        Icon = Icons.IconFactory.WindowIcon;
+        Theme.AccentChanged += OnAccentChanged;
     }
 
     /// <summary>Gets the fonts for the current DPI.</summary>
@@ -96,6 +87,31 @@ internal class ThemedForm : Form, IThemedSurface
         Font = Fonts.Body;
         PerformLayout();
         Invalidate(true);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Theme.AccentChanged -= OnAccentChanged;
+        }
+
+        base.Dispose(disposing);
+    }
+
+    /// <summary>Called after the accent colour changed: the window icon is redrawn and the window repaints.</summary>
+    protected virtual void OnAccentChanged()
+    {
+        Icon = Icons.IconFactory.WindowIcon;
+        Invalidate(true);
+    }
+
+    private void OnAccentChanged(object? sender, EventArgs e)
+    {
+        if (!IsDisposed)
+        {
+            OnAccentChanged();
+        }
     }
 
     protected override void OnPaintBackground(PaintEventArgs e) => PaintGradient(e.Graphics, e.ClipRectangle);

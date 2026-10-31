@@ -57,14 +57,20 @@ public sealed record EnergyChartModel(
     IReadOnlyList<string> YLabels,
     EnergyChartMode Mode = EnergyChartMode.Combined)
 {
-    /// <summary>Every how many hour bars a label is shown (on local hours divisible by this).</summary>
-    public const int HourLabelEvery = 4;
+    /// <summary>Every how many hour bars a label is shown in Combined mode (on local hours divisible by this).</summary>
+    public const int HourLabelEvery = 2;
+
+    /// <summary>Every how many hour groups a label is shown in Per device mode (every hour: twelve groups).</summary>
+    public const int PerDeviceHourLabelEvery = 1;
+
+    /// <summary>How many hours the Per device chart shows (the last 12 of the 24 hour buckets), so its groups stay wide.</summary>
+    public const int PerDeviceHours = 12;
 
     /// <summary>Every how many day bars a label is shown (counted back from today).</summary>
-    public const int DayLabelEvery = 7;
+    public const int DayLabelEvery = 5;
 
     /// <summary>Every how many month bars a label is shown (counted back from this month).</summary>
-    public const int MonthLabelEvery = 3;
+    public const int MonthLabelEvery = 1;
 
     /// <summary>Gets the per-device groups (empty in Combined mode).</summary>
     public IReadOnlyList<ChartGroupModel> Groups { get; init; } = [];
@@ -111,15 +117,19 @@ public sealed record EnergyChartModel(
         var monthTooltipPattern = ShortPattern(culture.DateTimeFormat.YearMonthPattern);
         var breakdown = devices.Count > 1;
         var perDevice = mode == EnergyChartMode.PerDevice && devices.Count > 1;
-        var bars = new List<ChartBarModel>(buckets.Count);
-        var groups = new List<ChartGroupModel>(perDevice ? buckets.Count : 0);
-        for (var i = 0; i < buckets.Count; i++)
+
+        // Per device, the hour chart shows only the last 12 hours (its combined bars too).
+        var first = perDevice && period == EnergyPeriod.Hours ? Math.Max(0, buckets.Count - PerDeviceHours) : 0;
+        var hourEvery = perDevice ? PerDeviceHourLabelEvery : HourLabelEvery;
+        var bars = new List<ChartBarModel>(buckets.Count - first);
+        var groups = new List<ChartGroupModel>(perDevice ? buckets.Count - first : 0);
+        for (var i = first; i < buckets.Count; i++)
         {
             var b = buckets[i];
             var fromEnd = buckets.Count - 1 - i;
             string? label = period switch
             {
-                EnergyPeriod.Hours => b.StartLocal.Hour % HourLabelEvery == 0 ? b.StartLocal.ToString("HH", culture) : null,
+                EnergyPeriod.Hours => b.StartLocal.Hour % hourEvery == 0 ? b.StartLocal.ToString("HH", culture) : null,
                 EnergyPeriod.Days => fromEnd % DayLabelEvery == 0 ? b.StartLocal.ToString(dayPattern, culture) : null,
                 _ => fromEnd % MonthLabelEvery == 0 ? b.StartLocal.ToString("MMM", culture) : null,
             };

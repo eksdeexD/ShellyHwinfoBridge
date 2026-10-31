@@ -24,7 +24,7 @@ public static class TrayPresenter
     public const int MaxTooltipLength = 127;
 
     /// <summary>
-    /// Returns the tooltip: "AC 312.4 W · DC 294.8 W · Other 48.1 W · Total 380 W" (Other only when a component source
+    /// Returns the tooltip: the product name on the first line, then "AC 312.4 W · DC 294.8 W · Other 48.1 W · Total 380 W" (Other only when a component source
     /// works, Total only with additional devices), "Shelly offline", "Polling paused", "Setup not completed", …; never
     /// longer than <see cref="MaxTooltipLength"/>.
     /// </summary>
@@ -55,9 +55,10 @@ public static class TrayPresenter
             {
                 OnlineState.Offline => "Shelly offline",
                 OnlineState.Online when last is not null => Live(last, hwinfo, other, totalWatts, culture),
-                _ => "ShellyHwinfoBridge · connecting…",
+                _ => "Connecting…",
             },
         };
+        text = AppInfo.ProductName + "\n" + text;
         return text.Length <= MaxTooltipLength ? text : text[..(MaxTooltipLength - 1)] + "…";
     }
 

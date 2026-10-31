@@ -1,12 +1,13 @@
 using System.Globalization;
 using ShellyHwinfoBridge.Core.App;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
 using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
 using ShellyHwinfoBridge.Core.Shelly.Discovery;
 
 namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 
-/// <summary>The six steps of the setup wizard, in order.</summary>
+/// <summary>The seven steps of the setup wizard, in order.</summary>
 public enum WizardStep
 {
     /// <summary>Step 1: HWiNFO check.</summary>
@@ -24,8 +25,11 @@ public enum WizardStep
     /// <summary>Step 5: review and apply.</summary>
     Apply = 4,
 
-    /// <summary>Step 6: restart HWiNFO and verify the sensors (after Apply).</summary>
-    Verify = 5,
+    /// <summary>Step 6: report the component sensors to the HWiNFO Gadget (after Apply).</summary>
+    Gadget = 5,
+
+    /// <summary>Step 7: restart HWiNFO and verify the sensors.</summary>
+    Verify = 6,
 }
 
 /// <summary>An entry of a drop-down: a value (<c>null</c> for "Any" or "—") and its text.</summary>
@@ -50,6 +54,7 @@ public sealed record WizardStatusLine(Tone Tone, string Text);
 /// <param name="RestartHwinfo">Closes and relaunches HWiNFO (runs in the background).</param>
 /// <param name="StartHwinfo">Starts HWiNFO from its detected path; <c>false</c> when it could not be started.</param>
 /// <param name="Time">The clock (verify timeout); <c>null</c> for the system clock.</param>
+/// <param name="ReadGadgetExport">Reads HWiNFO's gadget export (step 6 markers), <c>null</c> while HWiNFO does not run; <c>null</c> for none.</param>
 public sealed record WizardDependencies(
     IBridgeRuntime Runtime,
     Func<HwinfoStatus> DetectHwinfo,
@@ -57,7 +62,8 @@ public sealed record WizardDependencies(
     Func<CancellationToken, Task<IReadOnlyList<DiscoveredShelly>>> DiscoverShellys,
     Func<CancellationToken, Task<HwinfoRestartResult>> RestartHwinfo,
     Func<bool> StartHwinfo,
-    TimeProvider? Time = null)
+    TimeProvider? Time = null,
+    Func<IReadOnlyList<GadgetReading>?>? ReadGadgetExport = null)
 {
     /// <summary>Builds the dependencies from the app's services.</summary>
     /// <param name="runtime">The runtime.</param>
@@ -65,12 +71,14 @@ public sealed record WizardDependencies(
     /// <param name="reader">The shared-memory reader.</param>
     /// <param name="discovery">The mDNS discovery.</param>
     /// <param name="time">The clock, or <c>null</c> for the system clock.</param>
+    /// <param name="readGadgetExport">Reads HWiNFO's gadget export (<see cref="HwinfoMonitor.ReadGadgetExport"/>), or <c>null</c>.</param>
     public static WizardDependencies Create(
         IBridgeRuntime runtime,
         HwinfoLocator locator,
         HwinfoSharedMemoryReader reader,
         ShellyDiscovery discovery,
-        TimeProvider? time = null)
+        TimeProvider? time = null,
+        Func<IReadOnlyList<GadgetReading>?>? readGadgetExport = null)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(locator);
@@ -83,7 +91,8 @@ public sealed record WizardDependencies(
             ct => discovery.DiscoverAsync(cancellationToken: ct),
             ct => Task.Run(() => locator.RestartAsync(cancellationToken: ct), ct),
             locator.Start,
-            time);
+            time,
+            readGadgetExport);
     }
 }
 

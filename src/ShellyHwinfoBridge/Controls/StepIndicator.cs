@@ -81,7 +81,7 @@ internal sealed class StepIndicator : ThemedControl
             if (_completed.Contains(i) && i != _current)
             {
                 Gfx.FillRounded(g, Theme.Success, r, circle / 2f);
-                Gfx.DrawCheck(g, Theme.OnAccent, RectangleF.Inflate(r, -circle * 0.18f, -circle * 0.18f), Math.Max(1.5f, this.PxF(2.4f)));
+                Gfx.DrawCheck(g, Color.White, RectangleF.Inflate(r, -circle * 0.18f, -circle * 0.18f), Math.Max(1.5f, this.PxF(2.4f)));
             }
             else if (i == _current)
             {

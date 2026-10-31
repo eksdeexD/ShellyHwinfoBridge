@@ -34,16 +34,16 @@ public class ChartAndTrayTests
     }
 
     [Fact]
-    public void HoursChartHas48BarsLabelledEveryFourHours()
+    public void HoursChartHas24BarsLabelledEveryTwoHours()
     {
         var rows = new[] { new EnergyHourRecord(new DateTimeOffset(2026, 10, 30, 18, 0, 0, TimeSpan.Zero), 340, 310, 2400, 300, 400, 340) };
         var buckets = EnergyAggregator.Aggregate(rows, EnergyPeriod.Hours, Now, TimeZoneInfo.Utc);
 
         var chart = EnergyChartModel.Build(buckets, EnergyPeriod.Hours, EnUs);
 
-        Assert.Equal(48, chart.Bars.Count);
+        Assert.Equal(24, chart.Bars.Count);
         Assert.Equal(12, chart.Bars.Count(b => b.Label is not null));
-        Assert.All(chart.Bars.Where(b => b.Label is not null), b => Assert.Equal(0, int.Parse(b.Label!, CultureInfo.InvariantCulture) % 4));
+        Assert.All(chart.Bars.Where(b => b.Label is not null), b => Assert.Equal(0, int.Parse(b.Label!, CultureInfo.InvariantCulture) % 2));
         Assert.Equal("16", chart.Bars[^3].Label);
         Assert.Equal(["Fri 18:00", "0.34 kWh", "PC est. 0.31 kWh"], chart.Bars[^1].TooltipLines);
         Assert.Equal("Fri 18:00 · 0.34 kWh · PC est. 0.31 kWh", chart.Bars[^1].Tooltip);
@@ -57,16 +57,17 @@ public class ChartAndTrayTests
     public void DaysAndMonthsLabelSpacing()
     {
         var days = EnergyChartModel.Build(EnergyAggregator.Aggregate([], EnergyPeriod.Days, Now, TimeZoneInfo.Utc), EnergyPeriod.Days, EnUs);
-        Assert.Equal(60, days.Bars.Count);
-        Assert.Equal(9, days.Bars.Count(b => b.Label is not null));
+        Assert.Equal(30, days.Bars.Count);
+        Assert.Equal(6, days.Bars.Count(b => b.Label is not null));
         Assert.Equal("10/30", days.Bars[^1].Label);
-        Assert.Equal("10/23", days.Bars[^8].Label);
+        Assert.Equal("10/25", days.Bars[^6].Label);
+        Assert.Null(days.Bars[^5].Label);
         Assert.Equal(["Fri Oct 30", "no data"], days.Bars[^1].TooltipLines);
         Assert.Equal(ChartScale.EmptyMax, days.YMax);
 
         var months = EnergyChartModel.Build(EnergyAggregator.Aggregate([], EnergyPeriod.Months, Now, TimeZoneInfo.Utc), EnergyPeriod.Months, EnUs);
-        Assert.Equal(24, months.Bars.Count);
-        Assert.Equal(8, months.Bars.Count(b => b.Label is not null));
+        Assert.Equal(12, months.Bars.Count);
+        Assert.Equal(12, months.Bars.Count(b => b.Label is not null));
         Assert.Equal("Oct", months.Bars[^1].Label);
         Assert.Equal("Jul", months.Bars[^4].Label);
         Assert.Equal(["Oct 2026", "no data"], months.Bars[^1].TooltipLines);
@@ -104,15 +105,15 @@ public class ChartAndTrayTests
         var reading = BriefExample.Reading();
         var hw = BriefExample.Hwinfo();
         var other = BriefExample.Other();
-        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 48.1 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs, other));
-        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 48.1 W · Total 380 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs, other, 380.2));
-        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false, SensorsVisible = false }, EnUs, other with { Source = OtherSource.None }));
-        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 47.5 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false }, EnUs, other with { Watts = 47.5, Source = OtherSource.Gadget }));
-        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { IsRunning = false }, EnUs, other));
-        Assert.Equal("Shelly offline", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Offline, null, hw, EnUs));
-        Assert.Equal("Polling paused", TrayPresenter.Tooltip(RuntimeState.Paused, OnlineState.Unknown, null, hw, EnUs));
-        Assert.Equal("Setup not completed", TrayPresenter.Tooltip(RuntimeState.Unconfigured, OnlineState.Unknown, null, hw, EnUs));
-        Assert.Equal("No PSU curve: open Settings", TrayPresenter.Tooltip(RuntimeState.CurveUnavailable, OnlineState.Unknown, null, hw, EnUs));
+        Assert.Equal("Shelly HWiNFO Bridge\nAC 312.4 W · DC 294.8 W · Other 48.1 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs, other));
+        Assert.Equal("Shelly HWiNFO Bridge\nAC 312.4 W · DC 294.8 W · Other 48.1 W · Total 380 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs, other, 380.2));
+        Assert.Equal("Shelly HWiNFO Bridge\nAC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false, SensorsVisible = false }, EnUs, other with { Source = OtherSource.None }));
+        Assert.Equal("Shelly HWiNFO Bridge\nAC 312.4 W · DC 294.8 W · Other 47.5 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false }, EnUs, other with { Watts = 47.5, Source = OtherSource.Gadget }));
+        Assert.Equal("Shelly HWiNFO Bridge\nAC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { IsRunning = false }, EnUs, other));
+        Assert.Equal("Shelly HWiNFO Bridge\nShelly offline", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Offline, null, hw, EnUs));
+        Assert.Equal("Shelly HWiNFO Bridge\nPolling paused", TrayPresenter.Tooltip(RuntimeState.Paused, OnlineState.Unknown, null, hw, EnUs));
+        Assert.Equal("Shelly HWiNFO Bridge\nSetup not completed", TrayPresenter.Tooltip(RuntimeState.Unconfigured, OnlineState.Unknown, null, hw, EnUs));
+        Assert.Equal("Shelly HWiNFO Bridge\nNo PSU curve: open Settings", TrayPresenter.Tooltip(RuntimeState.CurveUnavailable, OnlineState.Unknown, null, hw, EnUs));
         Assert.True(TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs).Length <= TrayPresenter.MaxTooltipLength);
     }
 

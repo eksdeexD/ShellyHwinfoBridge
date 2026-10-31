@@ -14,22 +14,22 @@ using ShellyHwinfoBridge.Windows.Wizard;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// The settings page, shown inside the main window in place of the dashboard: a title row ("‹ Home", "Settings" and the
-/// footnote "Changes apply immediately."), then the cards: Shelly plugs ("Manage Shellys") and Power supply ("Change",
-/// input voltage); Sensors and formula across the page (formula, gadget tip, "Customize HWiNFO sensor names" and "Edit"
-/// in its lower-right corner); Polling and Energy; PSU database ("Check for update") and Startup and tray; Maintenance;
-/// and About. Every change goes through <see cref="SettingsPresenter"/> and is applied at once; sliders apply when
-/// released, text fields on Enter or when focus leaves. "Change", "Edit" and the sensor names open a modal
-/// <see cref="StepDialog"/> owned by the main window; "Manage Shellys" asks the main window to open
-/// <see cref="ManageShellysPage"/>. The page scrolls inside the fixed-size window.
+/// The settings page, shown inside the main window in place of the dashboard: a title row ("Settings" and the footnote
+/// "Changes apply immediately." at the left, "‹ Home" right-aligned), then the cards: Shelly plugs ("Manage Shellys")
+/// and Power supply ("Change", input voltage); Sensors across the page (the calculation, a one-line gadget explainer with
+/// "How to enable?", "Customize HWiNFO sensor names" and "Edit sensors" in its lower-right corner); Polling and Energy;
+/// PSU database ("Check for update" in its lower-right corner) and Startup and tray; Maintenance (Open log folder,
+/// Re-run setup wizard; "Remove HWiNFO sensors" right-aligned, with a confirmation). Every change goes through
+/// <see cref="SettingsPresenter"/> and is applied at once; sliders apply when released, text fields on Enter or when
+/// focus leaves. "Change", "Edit sensors" and the sensor names open a modal <see cref="StepDialog"/> owned by the main
+/// window; "How to enable?" the <see cref="GadgetHelpDialog"/>; "Manage Shellys" asks the main window to open
+/// <see cref="ManageShellysPage"/>. The page scrolls inside the fixed-size window. About has its own window.
 /// </summary>
 internal sealed class SettingsPage : ScrollPanel
 {
-    /// <summary>The project's issues page (About).</summary>
-    public const string IssuesUrl = "https://github.com/eksdeexD/ShellyHwinfoBridge/issues";
-
-    /// <summary>The feedback address (About).</summary>
-    public const string FeedbackEmail = "zapador@zapador.net";
+    /// <summary>The text of the confirmation of "Remove HWiNFO sensors".</summary>
+    public const string RemoveSensorsConfirmText =
+        "This deletes the Shelly Power sensor group from HWiNFO's registry key. HWiNFO stops showing the bridge's sensors after its next restart. Your settings are kept; polling pauses until you resume it.";
 
     /// <summary>The page's back command ("‹ Home"; Manage Shellys has "‹ Settings" in the same place).</summary>
     public const string HomeText = "‹ Home";
@@ -38,16 +38,18 @@ internal sealed class SettingsPage : ScrollPanel
     private const float Pad = Theme.WindowPadding;
     private const float Gap = Theme.Gap;
     private const float P = Theme.CardPadding;
-    private const float MinContentWidth = 640;
+    private const float MinContentWidth = 760;
     private const float Line = Theme.LineHeight;
     private const float Field = Theme.FieldHeight;
     private const float Segment = Theme.ButtonHeight;
     private const float CurveNoteHeight = 24;
+    private const float SubLine = 24;
+    private const float TextLine = 21;
     private const float BottomMargin = 16;
-    private const float FormulaWidth = 220;
+    private const float FormulaWidth = 260;
     private const float FormulaMinHeight = 72;
     private const int FormulaMaxLines = 10;
-    private const float FieldLabelWidth = 84;
+    private const float FieldLabelWidth = 100;
     private const float BottomPad = 12;
 
     private static readonly InputVoltageMode[] VoltageModes = [InputVoltageMode.Auto, InputVoltageMode.V115, InputVoltageMode.V230];
@@ -74,11 +76,12 @@ internal sealed class SettingsPage : ScrollPanel
     private readonly SegmentedControl _voltage = new() { AccessibleName = "Input voltage" };
     private readonly InfoLine _curveNote = new() { Visible = false };
 
-    // Sensors and formula.
-    private readonly CardPanel _sensorsCard = new() { Title = "Sensors and formula" };
-    private readonly ThemedTextBox _formula = new() { Multiline = true, Monospace = true, ReadOnly = true, AccessibleName = "Formula" };
-    private readonly TextLink _edit = new() { Text = "Edit", Semibold = true, AccessibleName = "Edit sensors and formula" };
-    private readonly TextLabel _gadgetTip = new() { Text = HwinfoTips.GadgetExport, Role = FontRole.Small, Tone = UiTone.Secondary, WordWrap = true };
+    // Sensors.
+    private readonly CardPanel _sensorsCard = new() { Title = "Sensors" };
+    private readonly ThemedTextBox _formula = new() { Multiline = true, Monospace = true, ReadOnly = true, AccessibleName = "Other Components calculation" };
+    private readonly TextLink _edit = new() { Text = "Edit sensors", Semibold = true };
+    private readonly TextLabel _gadgetTip = new() { Text = HwinfoTips.GadgetExplainer, Tone = UiTone.Secondary, WordWrap = true };
+    private readonly TextLink _howToEnable = new() { Text = MainWindowPresenter.HowToEnableText, Semibold = true, AccessibleName = "How to enable the HWiNFO Gadget export" };
     private readonly TextLink _sensorNames = new() { Text = "Customize HWiNFO sensor names", Semibold = true };
     private readonly InfoLine _retiredNote = new() { Visible = false };
 
@@ -116,19 +119,9 @@ internal sealed class SettingsPage : ScrollPanel
     private readonly CardPanel _maintenanceCard = new() { Title = "Maintenance" };
     private readonly TextLink _openLog = new() { Text = "Open log folder", Semibold = true };
     private readonly TextLink _rerun = new() { Text = "Re-run setup wizard", Semibold = true };
-    private readonly TextLink _remove = new() { Text = "Remove HWiNFO sensors", Tone = LinkTone.Danger, Semibold = true };
-    private readonly TextLink _exit = new() { Text = "Exit ShellyHwinfoBridge", Tone = LinkTone.Danger, Semibold = true };
+    private readonly TextLink _remove = new() { Text = "Remove HWiNFO sensors", Semibold = true };
 
-    // About.
-    private readonly CardPanel _aboutCard = new() { Title = "About" };
-    private readonly TextLabel _aboutName = new() { Text = "ShellyHwinfoBridge " + VersionText, Role = FontRole.BodySemibold };
-    private readonly TextLabel _feedbackStart = new() { Text = "Feedback and feature requests are welcome at", Tone = UiTone.Secondary };
-    private readonly TextLink _email = new() { Text = FeedbackEmail, AccessibleName = "Send feedback to " + FeedbackEmail };
-    private readonly TextLabel _feedbackMiddle = new() { Text = "or as", Tone = UiTone.Secondary };
-    private readonly TextLink _issues = new() { Text = "issues on GitHub", AccessibleName = "Open the issues page on GitHub" };
-    private readonly TextLabel _licence = new() { Text = "MIT licence", Tone = UiTone.Secondary };
-    private readonly TextLabel _attribution = new() { Text = "PSU efficiency data: Cybenetics, used with attribution; each PSU links to its report", Tone = UiTone.Secondary, WordWrap = true };
-
+    private readonly Func<GadgetStepModel> _createGadgetModel;
     private readonly InfoLine _applyError = new() { Tone = InfoTone.Error, Visible = false };
 
     private bool _applying;
@@ -142,12 +135,14 @@ internal sealed class SettingsPage : ScrollPanel
     /// <param name="runtime">The runtime (PSU database and last reading for the PSU dialog).</param>
     /// <param name="readSharedMemory">Reads HWiNFO's shared memory for the sensor dialog (null when it is off).</param>
     /// <param name="discover">Browses the network for plugs (the Manage Shellys device form).</param>
-    public SettingsPage(SettingsPresenter presenter, IBridgeRuntime runtime, Func<HwinfoSnapshot?> readSharedMemory, Func<CancellationToken, Task<IReadOnlyList<DiscoveredShelly>>> discover)
+    /// <param name="createGadgetModel">Creates the gadget how-to model for "How to enable?" (loaded with the selected sensors).</param>
+    public SettingsPage(SettingsPresenter presenter, IBridgeRuntime runtime, Func<HwinfoSnapshot?> readSharedMemory, Func<CancellationToken, Task<IReadOnlyList<DiscoveredShelly>>> discover, Func<GadgetStepModel> createGadgetModel)
     {
         _presenter = presenter ?? throw new ArgumentNullException(nameof(presenter));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _readSharedMemory = readSharedMemory ?? throw new ArgumentNullException(nameof(readSharedMemory));
         _discover = discover ?? throw new ArgumentNullException(nameof(discover));
+        _createGadgetModel = createGadgetModel ?? throw new ArgumentNullException(nameof(createGadgetModel));
         AccessibleName = "Settings";
         AccessibleRole = AccessibleRole.Pane;
 
@@ -157,13 +152,12 @@ internal sealed class SettingsPage : ScrollPanel
         Controls.Add(_home);
         AddCard(_shellyCard, _devicesText, _devicesHint, _manage);
         AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage, _curveNote);
-        AddCard(_sensorsCard, _formula, _gadgetTip, _sensorNames, _edit, _retiredNote);
+        AddCard(_sensorsCard, _formula, _gadgetTip, _howToEnable, _sensorNames, _edit, _retiredNote);
         AddCard(_pollingCard, _intervalLabel, _interval, _intervalValue, _smoothingLabel, _smoothing, _smoothingValue);
         AddCard(_energyCard, _logEnergy, _openEnergy, _priceLabel, _price, _currencyLabel, _currency, _priceError);
         AddCard(_databaseCard, _checkUpdate, _databaseText, _databaseResult);
         AddCard(_startupCard, _startWithWindows, _showTrayIcon);
-        AddCard(_maintenanceCard, _openLog, _rerun, _remove, _exit);
-        AddCard(_aboutCard, _aboutName, _feedbackStart, _email, _feedbackMiddle, _issues, _licence, _attribution);
+        AddCard(_maintenanceCard, _openLog, _rerun, _remove);
         _applyError.TabIndex = Controls.Count;
         Controls.Add(_applyError);
         ResumeLayout(false);
@@ -179,9 +173,6 @@ internal sealed class SettingsPage : ScrollPanel
     /// <summary>Raised when "Re-run setup wizard" is clicked.</summary>
     public event EventHandler? WizardRequested;
 
-    /// <summary>Raised when "Exit ShellyHwinfoBridge" is confirmed.</summary>
-    public event EventHandler? ExitRequested;
-
     /// <summary>Raised after "Remove HWiNFO sensors" (the tray and main window should refresh).</summary>
     public event EventHandler? SensorsRemoved;
 
@@ -190,12 +181,6 @@ internal sealed class SettingsPage : ScrollPanel
 
     /// <summary>Gets whether a dialog (step dialog or confirmation) is open over the page.</summary>
     public bool IsShowingDialog => _modalDepth > 0;
-
-    /// <summary>Gets the app version for the About card ("v0.1.0-beta.2"; build metadata after '+' dropped).</summary>
-    internal static string VersionText { get; } = "v" + (typeof(SettingsPage).Assembly
-        .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
-        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
-        .FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "0.0.0");
 
     /// <summary>Re-reads the presenter state into the controls (fields being edited keep their text).</summary>
     public void RefreshState() => ApplyState();
@@ -241,20 +226,6 @@ internal sealed class SettingsPage : ScrollPanel
         Invalidate(true);
     }
 
-    /// <summary>Scrolls the About card into view (tray "About…").</summary>
-    public void ScrollToAbout()
-    {
-        PerformLayout();
-        var top = _aboutCard.Top - AutoScrollPosition.Y - this.Px(Pad);
-        AutoScrollPosition = new Point(-AutoScrollPosition.X, Math.Max(0, top));
-        PerformLayout();
-        Invalidate(true);
-        if (_email.CanFocus)
-        {
-            _email.Focus();
-        }
-    }
-
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -286,11 +257,11 @@ internal sealed class SettingsPage : ScrollPanel
         Rectangle At(float x, float y, float width, float height) =>
             new(this.Px(x) + scroll.X, this.Px(y) + scroll.Y, this.Px(width), this.Px(height));
 
-        // The title row: "‹ Home", "Settings" and the footnote (or an apply error) after it.
+        // The title row: "Settings" and the footnote (or an apply error) after it, "‹ Home" right-aligned.
         _footnoteLeft = PageHeader.Layout(this, _home, "Settings", scroll);
-        _applyError.Bounds = At(_footnoteLeft, PageHeader.Top + ((PageHeader.Height - Line) / 2), Math.Max(0, contentWidth - Pad - _footnoteLeft), Line);
+        _applyError.Bounds = At(_footnoteLeft, PageHeader.Top + ((PageHeader.Height - Line) / 2), PageHeader.FootnoteWidth(this, _home, _footnoteLeft), Line);
 
-        // Pairs of cards share a row height; Sensors and formula, Maintenance and About span the page.
+        // Pairs of cards share a row height; Sensors and Maintenance span the page.
         var t = ContentTop();
         var y = PageHeader.ContentTop;
         var row1 = Math.Max(ShellyHeight(t), PsuHeight(t));
@@ -310,13 +281,10 @@ internal sealed class SettingsPage : ScrollPanel
         y += row4 + Gap;
         var maintenance = t + Line + BottomPad;
         _maintenanceCard.Bounds = At(left, y, full, maintenance);
-        y += maintenance + Gap;
-        var about = AboutHeight(t, full);
-        _aboutCard.Bounds = At(left, y, full, about);
-        y += about;
+        y += maintenance;
         var contentHeight = y + BottomMargin;
 
-        LayoutCards(t, column, full);
+        LayoutCards(t, column, full, row4);
 
         var minSize = new Size(contentWidth > Dip(ClientSize.Width) + 0.5f ? this.Px(contentWidth) : 0, this.Px(contentHeight));
         if (AutoScrollMinSize != minSize)
@@ -331,19 +299,6 @@ internal sealed class SettingsPage : ScrollPanel
     {
         base.OnPaint(e);
         PageHeader.Paint(e.Graphics, this, _home, "Settings", _footnoteLeft, !_applyError.Visible, AutoScrollPosition);
-    }
-
-    /// <summary>Opens a link or a mailto: address with the default handler.</summary>
-    internal static void OpenWithShell(IWin32Window? owner, string target)
-    {
-        try
-        {
-            using var _ = Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
-        {
-            ThemedDialog.Show(owner, "Could not open the link", target + Environment.NewLine + ex.Message);
-        }
     }
 
     private static void SetField(ThemedTextBox box, string text)
@@ -411,22 +366,9 @@ internal sealed class SettingsPage : ScrollPanel
 
         _openLog.Click += (_, _) => OpenFolder(AppPaths.LogDirectory);
         _remove.Click += (_, _) => RemoveSensors();
-        _exit.Click += (_, _) =>
+        _howToEnable.Click += (_, _) => ShowModal(() =>
         {
-            if (ShowModal(() => ThemedDialog.Show(FindForm(), "Exit ShellyHwinfoBridge?", "Polling stops and the Shelly Power sensors in HWiNFO go offline until the app is started again.", "Exit", "Cancel")) == DialogResult.OK)
-            {
-                Defer(() => ExitRequested?.Invoke(this, EventArgs.Empty));
-            }
-        };
-
-        _email.Click += (_, _) => ShowModal(() =>
-        {
-            OpenWithShell(FindForm(), "mailto:" + FeedbackEmail);
-            return DialogResult.OK;
-        });
-        _issues.Click += (_, _) => ShowModal(() =>
-        {
-            OpenWithShell(FindForm(), IssuesUrl);
+            GadgetHelpDialog.Show(FindForm(), _createGadgetModel());
             return DialogResult.OK;
         });
     }
@@ -494,7 +436,7 @@ internal sealed class SettingsPage : ScrollPanel
             _curveNote.Visible = s.CurveNote is not null;
             _curveNote.Text = s.CurveNote ?? string.Empty;
 
-            // Sensors and formula: the calculation, the gadget how-to with the selected names, the retired formula note.
+            // Sensors: the calculation and the retired formula note.
             if (_formula.Text != s.FormulaText)
             {
                 _formula.SetText(s.FormulaText);
@@ -503,7 +445,6 @@ internal sealed class SettingsPage : ScrollPanel
             var lines = s.FormulaText.Split('\n').Length;
             _formulaLines = Math.Clamp(lines, 1, FormulaMaxLines);
             _formula.InnerTextBox.ScrollBars = lines > FormulaMaxLines ? ScrollBars.Vertical : ScrollBars.None;
-            _gadgetTip.Text = s.GadgetTip.Length > 0 ? s.GadgetTip : HwinfoTips.GadgetExport;
             _retiredNote.Visible = s.RetiredFormulaNote is not null;
             _retiredNote.Text = s.RetiredFormulaNote ?? string.Empty;
 
@@ -562,64 +503,31 @@ internal sealed class SettingsPage : ScrollPanel
         _retiredNote.Visible ? _retiredNote.GetPreferredHeight(this.Px(cardWidth - (2 * P))) * 96f / DeviceDpi : 0;
 
     /// <summary>Shelly plugs: the devices summary and the hint, then Manage Shellys.</summary>
-    private static float ShellyHeight(float t) => t + 20 + 18 + 6 + Line + BottomPad;
+    private static float ShellyHeight(float t) => t + SubLine + TextLine + 6 + Line + BottomPad;
 
     /// <summary>Power supply: model and details, the input voltage segments and (single-voltage PSU) the curve note.</summary>
-    private float PsuHeight(float t) => t + 20 + 18 + 8 + Segment + (_curveNote.Visible ? 4 + CurveNoteHeight : 0) + BottomPad;
+    private float PsuHeight(float t) => t + SubLine + TextLine + 8 + Segment + (_curveNote.Visible ? 4 + CurveNoteHeight : 0) + BottomPad;
 
-    /// <summary>Sensors and formula: formula and tip side by side, the retired formula note, then the commands row.</summary>
+    /// <summary>
+    /// Sensors: the calculation box and, beside it, the gadget explainer with "How to enable?"; the retired formula
+    /// note; then the commands row.
+    /// </summary>
     private float SensorsHeight(float t, float cardWidth)
     {
         var note = NoteHeight(cardWidth);
-        return t + Math.Max(FormulaHeight(), TipHeight(cardWidth)) + 8 + (note > 0 ? note + 6 : 0) + Line + BottomPad;
+        return t + Math.Max(FormulaHeight(), TipHeight(cardWidth) + 4 + Line) + 8 + (note > 0 ? note + 6 : 0) + Line + BottomPad;
     }
 
     private static float PollingHeight(float t) => t + Line + 8 + Line + BottomPad;
 
     private float EnergyHeight(float t) => t + Line + 8 + Field + (_priceError.Visible ? 6 + Line : 0) + BottomPad;
 
-    private static float DatabaseHeight(float t) => t + 18 + 2 + Line + BottomPad;
+    /// <summary>PSU database: the database text, the result of a check, then "Check for update" in the lower-right corner.</summary>
+    private float DatabaseHeight(float t) => t + TextLine + (_databaseResult.Visible ? 2 + Line : 0) + 6 + Line + BottomPad;
 
     private static float StartupHeight(float t) => t + Line + 6 + Line + BottomPad;
 
-    /// <summary>The About card: name and version, the feedback line (wraps as a flow), the licence and attribution lines.</summary>
-    private float AboutHeight(float t, float cardWidth)
-    {
-        var inner = cardWidth - (2 * P);
-        var flow = LayoutFeedback(inner, 0, apply: false);
-        var attribution = _attribution.GetPreferredHeight(this.Px(inner)) * 96f / DeviceDpi;
-        return t + 20 + 2 + flow + 2 + 18 + 2 + Math.Max(18, attribution) + BottomPad;
-    }
-
-    /// <summary>Places the feedback sentence's labels and links left to right, wrapping between them; returns its height in DIP.</summary>
-    private float LayoutFeedback(float innerWidth, float top, bool apply)
-    {
-        var parts = new Control[] { _feedbackStart, _email, _feedbackMiddle, _issues };
-        const float lineHeight = 20;
-        const float space = 4;
-        var x = 0f;
-        var y = 0f;
-        foreach (var part in parts)
-        {
-            var width = part.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi;
-            if (x > 0 && x + width > innerWidth)
-            {
-                x = 0;
-                y += lineHeight;
-            }
-
-            if (apply)
-            {
-                part.Bounds = new Rectangle(this.Px(P + x), this.Px(top + y), this.Px(width), this.Px(lineHeight));
-            }
-
-            x += width + space;
-        }
-
-        return y + lineHeight;
-    }
-
-    private void LayoutCards(float t, float column, float full)
+    private void LayoutCards(float t, float column, float full, float row4)
     {
         var inner = column - (2 * P);
         var fullInner = full - (2 * P);
@@ -639,26 +547,28 @@ internal sealed class SettingsPage : ScrollPanel
         }
 
         // Shelly plugs: the devices summary and the hint, then Manage Shellys.
-        _devicesText.Bounds = R(P, t, inner, 20);
-        _devicesHint.Bounds = R(P, t + 20, inner, 18);
-        Command(_manage, P, t + 20 + 18 + 6, Line);
+        _devicesText.Bounds = R(P, t, inner, SubLine);
+        _devicesHint.Bounds = R(P, t + SubLine, inner, TextLine);
+        Command(_manage, P, t + SubLine + TextLine + 6, Line);
 
         // Power supply: Change on the title line; model and details; the input voltage segments; the curve note.
         Command(_change, -1, P, titleHeight, column);
-        _psuTitle.Bounds = R(P, t, inner, 20);
-        _psuSubtitle.Bounds = R(P, t + 20, inner, 18);
-        var voltageTop = t + 20 + 18 + 8;
+        _psuTitle.Bounds = R(P, t, inner, SubLine);
+        _psuSubtitle.Bounds = R(P, t + SubLine, inner, TextLine);
+        var voltageTop = t + SubLine + TextLine + 8;
         _voltageLabel.Bounds = R(P, voltageTop, FieldLabelWidth, Segment);
-        _voltage.Bounds = R(P + FieldLabelWidth, voltageTop, Math.Min(inner - FieldLabelWidth, 210), Segment);
+        _voltage.Bounds = R(P + FieldLabelWidth, voltageTop, Math.Min(inner - FieldLabelWidth, 230), Segment);
         _curveNote.Bounds = R(P, voltageTop + Segment + 4, inner, CurveNoteHeight);
 
-        // Sensors and formula: the read-only formula box and the gadget tip beside it; the retired formula note; then
-        // "Customize HWiNFO sensor names" on the left and "Edit" in the lower-right corner.
+        // Sensors: the read-only calculation and, beside it, the one-line gadget explainer with "How to enable?" under
+        // it; the retired formula note; then "Customize HWiNFO sensor names" on the left and "Edit sensors" in the
+        // lower-right corner.
         var formulaHeight = FormulaHeight();
         var tipHeight = TipHeight(full);
         _formula.Bounds = R(P, t, FormulaWidth, formulaHeight);
         _gadgetTip.Bounds = R(P + FormulaWidth + Gap, t, TipWidth(full), tipHeight);
-        var y = t + Math.Max(formulaHeight, tipHeight) + 8;
+        Command(_howToEnable, P + FormulaWidth + Gap, t + tipHeight + 4, Line);
+        var y = t + Math.Max(formulaHeight, tipHeight + 4 + Line) + 8;
         var note = NoteHeight(full);
         _retiredNote.Bounds = R(P, y, fullInner, note);
         y += note > 0 ? note + 6 : 0;
@@ -666,8 +576,8 @@ internal sealed class SettingsPage : ScrollPanel
         Command(_edit, -1, y, Line, full);
 
         // Polling: label, slider, value.
-        const float labelWidth = 70;
-        const float valueWidth = 64;
+        const float labelWidth = 84;
+        const float valueWidth = 80;
         var sliderWidth = inner - labelWidth - valueWidth - 8;
         foreach (var (label, slider, value, top) in new[] { (_intervalLabel, _interval, _intervalValue, t), (_smoothingLabel, _smoothing, _smoothingValue, t + Line + 8) })
         {
@@ -680,8 +590,8 @@ internal sealed class SettingsPage : ScrollPanel
         Command(_openEnergy, -1, t, Line, column);
         _logEnergy.Bounds = R(P, t, Math.Min(inner - PrefWidth(_openEnergy) - 8, PrefWidth(_logEnergy)), Line);
         var priceTop = t + Line + 8;
-        const float currencyLabelWidth = 54;
-        const float currencyWidth = 60;
+        const float currencyLabelWidth = 68;
+        const float currencyWidth = 70;
         var priceWidth = Math.Max(50, inner - FieldLabelWidth - 8 - currencyLabelWidth - currencyWidth);
         _priceLabel.Bounds = R(P, priceTop, FieldLabelWidth, Field);
         _price.Bounds = R(P + FieldLabelWidth, priceTop, priceWidth, Field);
@@ -690,30 +600,20 @@ internal sealed class SettingsPage : ScrollPanel
         _currency.Bounds = R(currencyLabelLeft + currencyLabelWidth, priceTop, P + inner - currencyLabelLeft - currencyLabelWidth, Field);
         _priceError.Bounds = R(P, priceTop + Field + 6, inner, Line);
 
-        // PSU database: "Check for update" on the title line; the database text and the check's result.
-        Command(_checkUpdate, -1, P, titleHeight, column);
-        _databaseText.Bounds = R(P, t, inner, 18);
-        _databaseResult.Bounds = R(P, t + 20, inner, Line);
+        // PSU database: the database text and the check's result; "Check for update" in the lower-right corner.
+        _databaseText.Bounds = R(P, t, inner, TextLine);
+        _databaseResult.Bounds = R(P, t + TextLine + 2, inner, Line);
+        Command(_checkUpdate, -1, row4 - BottomPad - Line, Line, column);
 
         // Startup and tray: the two switches, one per line.
         _startWithWindows.Bounds = R(P, t, Math.Min(inner, PrefWidth(_startWithWindows)), Line);
         _showTrayIcon.Bounds = R(P, t + Line + 6, Math.Min(inner, PrefWidth(_showTrayIcon)), Line);
 
-        // Maintenance: Open log folder and Re-run setup wizard on the left; Remove HWiNFO sensors and Exit on the right.
+        // Maintenance: Open log folder and Re-run setup wizard on the left; Remove HWiNFO sensors right-aligned.
         const float commandGap = 20;
         Command(_openLog, P, t, Line);
         Command(_rerun, P + PrefWidth(_openLog) + commandGap, t, Line);
-        Command(_exit, -1, t, Line, full);
-        Command(_remove, (_exit.Left * 96f / DeviceDpi) - commandGap - PrefWidth(_remove), t, Line);
-
-        // About: name and version; the feedback sentence with its two links; licence; Cybenetics attribution.
-        _aboutName.Bounds = R(P, t, fullInner, 20);
-        var flowTop = t + 20 + 2;
-        var flow = LayoutFeedback(fullInner, flowTop, apply: true);
-        var licenceTop = flowTop + flow + 2;
-        _licence.Bounds = R(P, licenceTop, fullInner, 18);
-        var attribution = Math.Max(18, _attribution.GetPreferredHeight(this.Px(fullInner)) * 96f / DeviceDpi);
-        _attribution.Bounds = R(P, licenceTop + 18 + 2, fullInner, attribution);
+        Command(_remove, -1, t, Line, full);
     }
 
     private DialogResult ShowModal(Func<DialogResult> show)
@@ -737,7 +637,7 @@ internal sealed class SettingsPage : ScrollPanel
         model.MeasuredVolts = _runtime.LastReading?.Raw.Volts;
         using var dialog = new StepDialog(
             "Power supply",
-            "Pick it from the database for the most accurate curve. If it is missing, use a generic curve by rating or enter your own.",
+            "Pick it from the database for the most accurate curve. If it is missing, use a generic or your own curve.",
             new PsuStepView(model),
             () => model.IsValid ? null : model.ValidationMessage);
         if (ShowModal(() => dialog.ShowDialog(FindForm())) == DialogResult.OK)
@@ -750,6 +650,7 @@ internal sealed class SettingsPage : ScrollPanel
     {
         var current = _runtime.Settings?.Clone() ?? new AppSettings();
         var model = new SensorStepModel();
+        model.UseSensorNames(current);
         void Load() => model.Load(_readSharedMemory()?.GetPowerSensors(), current.Sensors);
         Load();
         var view = new SensorStepView(model, () =>
@@ -758,12 +659,13 @@ internal sealed class SettingsPage : ScrollPanel
             Load();
         });
         using var dialog = new StepDialog(
-            "Sensors and formula",
+            "Choose the component sensors",
             "These HWiNFO power sensors are subtracted from DC power to compute Other Components.",
             view,
             () => model.IsValid ? null
                 : model.InvalidNames.Count > 0 ? "A selected sensor name contains a double quote. Rename it in HWiNFO or untick it."
-                : "Select at least one sensor or enter a formula.");
+                : "Select at least one sensor or enter a formula.",
+            "Sensors");
         if (ShowModal(() => dialog.ShowDialog(FindForm())) == DialogResult.OK)
         {
             _presenter.Update(model.ApplyTo);
@@ -779,7 +681,8 @@ internal sealed class SettingsPage : ScrollPanel
             "Customize HWiNFO sensor names",
             "Leave a name empty to use the default. Names must be unique and contain no double quote.",
             new SensorNamesView(model),
-            () => SaveSensorNames(model, dialog));
+            () => SaveSensorNames(model, dialog),
+            "Sensor names");
         dialog = created;
         void UpdateSave() => created.SaveEnabled = model.IsValid && model.HasChanges;
         model.Changed += (_, _) => UpdateSave();
@@ -817,7 +720,7 @@ internal sealed class SettingsPage : ScrollPanel
         var answer = ShowModal(() => ThemedDialog.Show(
             FindForm(),
             "Remove HWiNFO sensors?",
-            "This deletes the Shelly Power sensors from HWiNFO and pauses polling, because the next poll would create them again. Use this before uninstalling. Resume polling (main window or tray) to create them again.",
+            RemoveSensorsConfirmText,
             "Remove",
             "Cancel"));
         if (answer != DialogResult.OK)

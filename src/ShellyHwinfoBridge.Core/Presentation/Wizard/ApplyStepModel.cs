@@ -245,7 +245,7 @@ public sealed class ApplyStepModel
 
         var sensors = draft.Sensors.Count == 0
             ? "None selected"
-            : string.Join(", ", draft.Sensors.Select(x => $"{x.Name} ({CategoryText(x.Category)})"));
+            : string.Join(", ", SensorDisplay.Labels(draft.Sensors).Select((label, i) => $"{label} ({CategoryText(draft.Sensors[i].Category)})"));
         var lines = new List<SummaryLine> { new("Device", deviceText) };
         if (draft.HasAdditionalDevices)
         {
@@ -253,7 +253,7 @@ public sealed class ApplyStepModel
                 $"{d.Label} · {d.Host.Trim()}{(d.IncludeInTotals ? string.Empty : " (not in totals)")}"))));
         }
 
-        var calculation = string.Join(" − ", draft.Sensors.Select(s => s.Name.Trim()).Where(n => n.Length > 0).Prepend(SensorNaming.PcDcName));
+        var calculation = string.Join(" − ", SensorDisplay.Labels(draft.Sensors.Where(s => s.Name.Trim().Length > 0).ToList()).Prepend(SensorNaming.ResolveName(SensorKey.PcDc, draft))) + " = " + SensorNaming.ResolveName(SensorKey.PcOther, draft);
         lines.AddRange(
         [
             new("PSU", psu),

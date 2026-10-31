@@ -5,9 +5,11 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
-/// The setup wizard window (design/final/wizard-step3-psu.png): header with logo, "Setup wizard" and the step indicator;
-/// page title and subtitle; the step view; footer with Cancel, Back and Next ("Apply" on step 5; "Finish" on step 6,
-/// where Back and Cancel are hidden). Enter = Next, Esc = Cancel. Closing before Apply cancels without changing anything.
+/// The setup wizard window (title "Setup wizard"): the step indicator centred at the top (no logo or app name: the title
+/// bar carries them), page title and subtitle, the step view, and the footer with Back and Next ("Apply" on step 5;
+/// "Finish" on step 7; Back is hidden after Apply). There is no Cancel: the title bar's X closes the window, and so does
+/// Esc before Apply. Enter = Next. Closing before Apply cancels without changing anything. Next on step 6 asks first while
+/// a selected sensor is not reported to the HWiNFO Gadget yet.
 /// </summary>
 internal sealed class WizardForm : ThemedForm
 {
@@ -16,14 +18,12 @@ internal sealed class WizardForm : ThemedForm
 
     // Layout in DIP (compact scale; spacing from Theme).
     private const int Pad = Theme.WindowPadding;
-    private const int HeaderTop = 12;
-    private const int HeaderHeight = 32;
-    private const int StepsTop = 10;
-    private const int TitleTop = 62;
-    private const int TitleHeight = 32;
-    private const int SubtitleTop = 94;
-    private const int SubtitleHeight = 20;
-    private const int HostTop = 122;
+    private const int StepsTop = 12;
+    private const int TitleTop = 70;
+    private const int TitleHeight = 30;
+    private const int SubtitleTop = TitleTop + TitleHeight + 4;
+    private const int SubtitleHeight = 22;
+    private const int HostTop = SubtitleTop + SubtitleHeight + 12;
     private const int FooterHeight = 52;
     private const int ButtonWidth = 84;
     private const int ButtonHeight = Theme.ButtonHeight;
@@ -31,7 +31,6 @@ internal sealed class WizardForm : ThemedForm
     private readonly WizardSession _session;
     private readonly StepIndicator _steps = new() { AccessibleName = "Setup steps" };
     private readonly ThemedPanel _host = new() { AccessibleName = "Step" };
-    private readonly TextLink _cancel = new() { Text = "Cancel", Semibold = true };
     private readonly PillButton _back = new() { Text = "Back" };
     private readonly PillButton _next = new() { Text = "Next", Variant = PillVariant.Primary };
     private readonly Dictionary<WizardStep, WizardStepView> _views = [];
@@ -43,15 +42,14 @@ internal sealed class WizardForm : ThemedForm
     public WizardForm(WizardSession session)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
-        Text = "Setup wizard · ShellyHwinfoBridge";
+        Text = "Setup wizard";
         KeyPreview = true;
         SuspendLayout();
         _steps.SetSteps(WizardSession.StepLabels);
-        Controls.AddRange([_steps, _host, _cancel, _back, _next]);
+        Controls.AddRange([_steps, _host, _back, _next]);
         AcceptButton = _next;
         ResumeLayout(false);
 
-        _cancel.Click += (_, _) => Close();
         _back.Click += (_, _) => _session.GoBack();
         _next.Click += async (_, _) => await NextAsync();
         _session.Changed += OnSessionChanged;
@@ -73,7 +71,7 @@ internal sealed class WizardForm : ThemedForm
 
     protected override bool ProcessDialogKey(Keys keyData)
     {
-        if (keyData == Keys.Escape && _cancel.Visible)
+        if (keyData == Keys.Escape && !_session.IsApplied)
         {
             Close();
             return true;
@@ -123,7 +121,7 @@ internal sealed class WizardForm : ThemedForm
 
         var pad = this.Px(Pad);
         var stepsSize = _steps.GetPreferredSize(Size.Empty);
-        _steps.Bounds = new Rectangle(w - pad - stepsSize.Width, this.Px(StepsTop), stepsSize.Width, stepsSize.Height);
+        _steps.Bounds = new Rectangle((w - stepsSize.Width) / 2, this.Px(StepsTop), stepsSize.Width, stepsSize.Height);
 
         var footerTop = h - this.Px(FooterHeight);
         _host.Bounds = new Rectangle(pad, this.Px(HostTop), w - (2 * pad), Math.Max(this.Px(160), footerTop - this.Px(HostTop)));
@@ -136,21 +134,12 @@ internal sealed class WizardForm : ThemedForm
         var nextWidth = Math.Max(this.Px(ButtonWidth), _next.GetPreferredSize(Size.Empty).Width);
         _next.Bounds = new Rectangle(w - pad - nextWidth, buttonTop, nextWidth, this.Px(ButtonHeight));
         _back.Bounds = new Rectangle(_next.Left - this.Px(8) - this.Px(ButtonWidth), buttonTop, this.Px(ButtonWidth), this.Px(ButtonHeight));
-        var cancelSize = _cancel.GetPreferredSize(Size.Empty);
-        _cancel.Bounds = new Rectangle(pad, buttonTop + ((this.Px(ButtonHeight) - cancelSize.Height) / 2), cancelSize.Width, cancelSize.Height);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
         var g = e.Graphics;
-        var logoHeight = this.Px(30);
-        var top = this.Px(HeaderTop) + ((this.Px(HeaderHeight) - logoHeight) / 2);
-        var logoLeft = this.Px(Pad + 4);
-        var logoWidth = AppAssets.DrawLogo(g, new Point(logoLeft, top), logoHeight);
-        var titleLeft = logoLeft + logoWidth + this.Px(10);
-        Gfx.Text(g, "Setup wizard", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop), Math.Max(0, _steps.Left - titleLeft - this.Px(10)), this.Px(HeaderHeight)), Theme.Ink);
-
         var width = ClientSize.Width - this.Px(2 * (Pad + 2));
         Gfx.Text(g, _session.PageTitle, Fonts.PageTitle, new Rectangle(this.Px(Pad + 2), this.Px(TitleTop), width, this.Px(TitleHeight)), Theme.Ink);
         Gfx.Text(g, _session.PageSubtitle, Fonts.Subtitle, new Rectangle(this.Px(Pad + 2), this.Px(SubtitleTop), width, this.Px(SubtitleHeight)), Theme.InkSecondary);
@@ -166,6 +155,13 @@ internal sealed class WizardForm : ThemedForm
         if (_session.Current == WizardStep.Verify)
         {
             Close();
+            return;
+        }
+
+        // Step 6: while a selected sensor is not reported to the HWiNFO Gadget yet, ask first.
+        if (_session.NeedsNextConfirmation &&
+            ThemedDialog.Show(this, GadgetStepModel.ConfirmTitle, _session.Gadget.ConfirmText, GadgetStepModel.ContinueText, GadgetStepModel.GoBackText) != DialogResult.OK)
+        {
             return;
         }
 
@@ -240,7 +236,6 @@ internal sealed class WizardForm : ThemedForm
         _next.Enabled = _session.CanGoNext && !_navigating;
         _back.Visible = !_session.IsApplied;
         _back.Enabled = _session.CanGoBack;
-        _cancel.Visible = !_session.IsApplied;
 
         if (_shownStep != current)
         {
@@ -278,6 +273,7 @@ internal sealed class WizardForm : ThemedForm
             WizardStep.Psu => new PsuStepView(_session.Psu),
             WizardStep.Sensors => new SensorStepView(_session.Sensors, _session.ReloadSensors),
             WizardStep.Apply => new ApplyStepView(_session),
+            WizardStep.Gadget => new GadgetStepView(_session.Gadget),
             _ => new VerifyStepView(_session),
         };
         view.Visible = false;

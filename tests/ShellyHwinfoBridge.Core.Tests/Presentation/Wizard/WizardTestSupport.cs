@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Time.Testing;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Curves;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
 using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
@@ -31,6 +32,8 @@ internal sealed class WizardFixture
 
     public int Starts { get; private set; }
 
+    public List<GadgetReading>? GadgetExport { get; set; } = [];
+
     public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 10, 30, 18, 40, 0, TimeSpan.Zero));
 
     public WizardDependencies Dependencies => new(
@@ -48,7 +51,8 @@ internal sealed class WizardFixture
             Starts++;
             return StartWorks;
         },
-        Time);
+        Time,
+        () => GadgetExport?.ToList());
 
     public static DiscoveredShelly Plug(string name, string ip) =>
         new("shellyplugmg3-" + name.ToLowerInvariant(), name, "S3PL-10112EU", "PlugMG3", 3, IPAddress.Parse(ip), 80, false);

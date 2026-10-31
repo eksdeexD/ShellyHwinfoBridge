@@ -3,8 +3,11 @@ namespace ShellyHwinfoBridge.Core.Presentation;
 /// <summary>Help texts about HWiNFO shown in more than one place (<see cref="InlineMarkup"/>: bold in <c>**</c>).</summary>
 public static class HwinfoTips
 {
-    /// <summary>The title of the "How to enable?" help dialog.</summary>
-    public const string GadgetExportTitle = "Report the component sensors to the HWiNFO Gadget";
+    /// <summary>The title of the "How to enable?" help dialog (the same heading as wizard step 6).</summary>
+    public const string GadgetExportTitle = Wizard.GadgetStepModel.Heading;
+
+    /// <summary>The one-line explainer of Settings › Sensors, followed by the "How to enable?" text action.</summary>
+    public const string GadgetExplainer = "Without Shared Memory, Other Components needs the HWiNFO Gadget export.";
 
     /// <summary>The screenshot shown with the gadget how-to.</summary>
     public const string GadgetScreenshot = "hwinfo-gadget.png";

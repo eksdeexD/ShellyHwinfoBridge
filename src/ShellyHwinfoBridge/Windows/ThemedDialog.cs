@@ -9,7 +9,7 @@ namespace ShellyHwinfoBridge.Windows;
 /// </summary>
 internal sealed class ThemedDialog : ThemedForm
 {
-    private const int WidthDip = 400;
+    private const int WidthDip = 460;
     private const int PaddingDip = Theme.WindowPadding;
     private const int TitleGapDip = 8;
     private const int ButtonsGapDip = 16;

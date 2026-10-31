@@ -21,7 +21,7 @@ internal static class WizardPreview
     /// <paramref name="afterApply"/>, when set, replaces <paramref name="snapshot"/> once the setup was applied.
     /// <paramref name="database"/> replaces the three-entry preview database.
     /// </summary>
-    public static WizardForm At(WizardStep step, bool firstRun = true, Action<WizardSession>? tweak = null, Snapshot snapshot = Snapshot.Desktop, Snapshot? afterApply = null, PsuDatabase? database = null)
+    public static WizardForm At(WizardStep step, bool firstRun = true, Action<WizardSession>? tweak = null, Snapshot snapshot = Snapshot.Desktop, Snapshot? afterApply = null, PsuDatabase? database = null, GadgetExport gadgetExport = GadgetExport.None)
     {
         var runtime = new PreviewRuntime();
         WizardSession? session = null;
@@ -37,7 +37,8 @@ internal static class WizardPreview
             Discover,
             _ => Task.FromResult(HwinfoRestartResult.CouldNotClose),
             () => true,
-            TimeProvider.System);
+            TimeProvider.System,
+            () => Export(gadgetExport));
 
         var settings = firstRun ? null : SampleData.Settings();
         session = new WizardSession(settings, null, database ?? Database(), dependencies, SampleData.Culture);
@@ -76,6 +77,52 @@ internal static class WizardPreview
             new("shellyplugmg3-1", "PlugMGen3-2", "S3PL-10112EU", "PlugMG3", 3, IPAddress.Parse("192.168.1.42"), 80, false),
             new("shellyplugsg3-2", "PlugSG3-1", "S3PL-00112EU", "PlugSG3", 3, IPAddress.Parse("192.168.1.57"), 80, false),
         ]);
+
+    /// <summary>What the preview's gadget export reports.</summary>
+    internal enum GadgetExport
+    {
+        /// <summary>HWiNFO runs, nothing is reported yet.</summary>
+        None,
+
+        /// <summary>CPU Package Power and the first DIMM are reported; GPU Power and the second DIMM are not.</summary>
+        Partial,
+
+        /// <summary>Every selected sensor is reported.</summary>
+        All,
+
+        /// <summary>HWiNFO does not run (the export cannot be read).</summary>
+        NotRunning,
+    }
+
+    /// <summary>The preview's gadget export.</summary>
+    internal static IReadOnlyList<GadgetReading>? Export(GadgetExport export)
+    {
+        var partial = new List<GadgetReading>
+        {
+            new(0, "CPU [#0]: Intel Core i9-14900K", "CPU Package Power", 142.3),
+            new(1, "DDR5 DIMM [#1]: Patriot Memory (PDP Systems) 6000 Series (P0 CHANNEL A/DIMM 1)", "Total Power", 1.1),
+        };
+        return export switch
+        {
+            GadgetExport.NotRunning => null,
+            GadgetExport.None => [],
+            GadgetExport.Partial => partial,
+            _ =>
+            [
+                .. partial,
+                new(2, "GPU [#0]: NVIDIA GeForce RTX 4080", "GPU Power", 88.6),
+                new(3, "DDR5 DIMM [#3]: Patriot Memory (PDP Systems) 6000 Series (P0 CHANNEL B/DIMM 1)", "Total Power", 0.9),
+            ],
+        };
+    }
+
+    /// <summary>The sensors the preview's step 4 pre-checks (with their devices).</summary>
+    internal static IReadOnlyList<SensorSelection> SelectedSensors()
+    {
+        var model = new SensorStepModel(SampleData.Culture);
+        model.Load(Sensors(withBridge: false).GetPowerSensors(), []);
+        return model.Selected;
+    }
 
     /// <summary>What the preview's shared memory returns.</summary>
     internal enum Snapshot
@@ -152,15 +199,16 @@ internal static class WizardPreview
 
         const string cpu = "CPU [#0]: Intel Core i9-14900K";
         const string gpu = "GPU [#0]: NVIDIA GeForce RTX 4080";
-        const string memory = "Memory";
+        const string dimm1 = "DDR5 DIMM [#1]: Patriot Memory (PDP Systems) 6000 Series (P0 CHANNEL A/DIMM 1)";
+        const string dimm3 = "DDR5 DIMM [#3]: Patriot Memory (PDP Systems) 6000 Series (P0 CHANNEL B/DIMM 1)";
         var readings = new List<HwinfoReading>
         {
             W(0, cpu, "CPU Package Power", 142.3),
             W(0, cpu, "IA Cores Power", 118.0),
             W(0, cpu, "GT Cores Power", 2.1),
             W(1, gpu, "GPU Power", 88.6),
-            W(2, memory, "DIMM1 Power", 8.1),
-            W(2, memory, "DIMM3 Power", 7.7),
+            W(2, dimm1, "Total Power", 1.1),
+            W(3, dimm3, "Total Power", 0.9),
         };
         if (withBridge)
         {

@@ -214,4 +214,26 @@ public class ColoursAndChartTests
         Assert.Equal(0.27, combined[1].DcEstKwh, 9);
         Assert.Empty(EnergyAggregator.Combine([]));
     }
+
+    [Fact]
+    public void PerDeviceHoursShowTheLastTwelveHoursLabelledEveryHour()
+    {
+        var hours = Enumerable.Range(0, 24).ToList();
+        var pc = new DeviceEnergySeries("pc", "PC", hours.Select(h => Bucket(h, 0.1)).ToList());
+        var monitor = new DeviceEnergySeries(MonitorId, "Monitor", hours.Select(h => Bucket(h, 0.02)).ToList());
+        IReadOnlyList<DeviceEnergySeries> devices = [pc, monitor];
+        var data = new EnergyChartData(EnergyAggregator.Combine(devices.Select(d => d.Buckets)), devices);
+
+        var perDevice = EnergyChartModel.Build(data, EnergyPeriod.Hours, EnergyChartMode.PerDevice, Colours, EnUs);
+        Assert.Equal(EnergyChartModel.PerDeviceHours, perDevice.Groups.Count);
+        Assert.Equal(EnergyChartModel.PerDeviceHours, perDevice.Bars.Count);
+        Assert.Equal("12", perDevice.Groups[0].Label);
+        Assert.Equal("23", perDevice.Groups[^1].Label);
+        Assert.All(perDevice.Groups, g => Assert.NotNull(g.Label));
+        Assert.All(perDevice.Groups, g => Assert.Equal(2, g.Bars.Count));
+
+        var combined = EnergyChartModel.Build(data, EnergyPeriod.Hours, EnergyChartMode.Combined, Colours, EnUs);
+        Assert.Equal(24, combined.Bars.Count);
+        Assert.Equal(12, combined.Bars.Count(b => b.Label is not null));
+    }
 }

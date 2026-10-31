@@ -27,7 +27,7 @@ internal sealed class PsuStepView : WizardStepView
     private readonly ThemedDropDown _wattage = new() { Prefix = "Wattage" };
     private readonly ThemedDropDown _rating = new() { Prefix = "Rating" };
     private readonly ThemedTextBox _search = new() { Placeholder = "Search model…", AccessibleName = "Search model" };
-    private readonly SelectableList _list = new() { RowHeightDip = 50, AccessibleName = "Power supplies" };
+    private readonly SelectableList _list = new() { RowHeightDip = 54, AccessibleName = "Power supplies" };
 
     // Generic mode.
     private readonly CardPanel _genericCard = new() { Title = "Generic curve" };
@@ -235,7 +235,7 @@ internal sealed class PsuStepView : WizardStepView
         var h = HeightDip;
         const float gap = Theme.Gap;
         const float p = Theme.CardPadding;
-        const float cardHeight = 66;
+        const float cardHeight = 80;
         const float filtersTop = cardHeight + gap;
         const float listTop = filtersTop + Theme.FieldHeight + gap;
         float PrefWidth(Control c) => c.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi;
@@ -266,10 +266,10 @@ internal sealed class PsuStepView : WizardStepView
         var t = _genericCard.ContentBounds.Top * 96f / DeviceDpi;
         const float wattageWidth = 150;
         const float ratingWidth = 180;
-        _genericWattageLabel.Bounds = Dip(p, t, wattageWidth, 18);
+        _genericWattageLabel.Bounds = Dip(p, t, wattageWidth, 20);
         _genericWattage.Bounds = Dip(p, t + 20, wattageWidth, Theme.FieldHeight);
         var ratingLeft = p + wattageWidth + 12;
-        _genericRatingLabel.Bounds = Dip(ratingLeft, t, ratingWidth, 18);
+        _genericRatingLabel.Bounds = Dip(ratingLeft, t, ratingWidth, 20);
         _genericRating.Bounds = Dip(ratingLeft, t + 20, ratingWidth, Theme.FieldHeight);
         var tileLeft = ratingLeft + ratingWidth + 16;
         var tileWidth = Math.Min(110, (w - p - tileLeft - 16) / 3);
@@ -291,7 +291,7 @@ internal sealed class PsuStepView : WizardStepView
         for (var i = 0; i < _formFields.Length; i++)
         {
             var x = p + (i * (fieldWidth + 10));
-            _formLabels[i].Bounds = Dip(x, ft, fieldWidth, 18);
+            _formLabels[i].Bounds = Dip(x, ft, fieldWidth, 20);
             _formFields[i].Bounds = Dip(x, ft + 20, fieldWidth, Theme.FieldHeight);
         }
 

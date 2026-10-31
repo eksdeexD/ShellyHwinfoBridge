@@ -67,20 +67,32 @@ public class WizardSessionTests
         Assert.True(startWithWindows);
 
         Assert.True(session.IsApplied);
-        Assert.Equal(WizardStep.Verify, session.Current);
-        Assert.Equal("Verify in HWiNFO", session.PageTitle);
+        Assert.Equal(WizardStep.Gadget, session.Current);
+        Assert.Equal(GadgetStepModel.Heading, session.PageTitle);
         Assert.False(session.CanGoBack);
         Assert.True(session.CanGoNext);
-        Assert.Equal("Finish", session.NextText);
+        Assert.Equal("Next", session.NextText);
         Assert.Contains(WizardStep.Apply, session.Completed);
         Assert.Equal(HwinfoPrimaryAction.Restart, session.Apply.PrimaryAction);
 
-        // Step 6 starts verifying at once.
+        // Step 6 lists the selected sensors; none is reported to the gadget yet, so Next asks first.
+        Assert.Equal(["CPU Package Power", "GPU Power", "DIMM1 Power", "DIMM3 Power"], session.Gadget.Items.Select(i => i.Label));
+        Assert.True(session.NeedsNextConfirmation);
+        Assert.False(session.Apply.IsVerifyRunning);
+        Assert.True(await session.GoNextAsync());
+
+        Assert.Equal(WizardStep.Verify, session.Current);
+        Assert.Equal("Verify in HWiNFO", session.PageTitle);
+        Assert.Equal("Finish", session.NextText);
+        Assert.False(session.NeedsNextConfirmation);
+        Assert.Contains(WizardStep.Gadget, session.Completed);
+
+        // Step 7 starts verifying at once.
         Assert.True(session.Apply.IsVerifyRunning);
         Assert.False(await session.GoNextAsync());
         Assert.Equal(WizardStep.Verify, session.Current);
         Assert.Single(f.Runtime.WizardApplied);
-        Assert.Equal(6, WizardSession.StepLabels.Count);
+        Assert.Equal(7, WizardSession.StepLabels.Count);
     }
 
     [Fact]
@@ -102,7 +114,7 @@ public class WizardSessionTests
         Assert.True(await session.GoNextAsync());
         Assert.Null(session.Apply.ApplyError);
         Assert.True(session.IsApplied);
-        Assert.Equal(WizardStep.Verify, session.Current);
+        Assert.Equal(WizardStep.Gadget, session.Current);
     }
 
     [Fact]
@@ -276,7 +288,7 @@ public class WizardSessionTests
         Assert.Equal("Cybenetics report 21PS1872A", lines["Curve source"]);
         Assert.Equal("230 V curve (automatic, plug measured 226.9 V)", lines["Voltage"]);
         Assert.Equal("CPU Package Power (CPU), GPU Power (GPU), DIMM1 Power (RAM), DIMM3 Power (RAM)", lines["Sensors"]);
-        Assert.Equal("PC Power (DC) − CPU Package Power − GPU Power − DIMM1 Power − DIMM3 Power", lines["Other Components"]);
+        Assert.Equal("PC Power (DC) − CPU Package Power − GPU Power − DIMM1 Power − DIMM3 Power = PC Other Components", lines["Other Components"]);
         Assert.False(lines.ContainsKey("Other devices"));
         Assert.True(session.Apply.SummaryLines.Single(l => l.Label == "Other Components").Monospace);
     }

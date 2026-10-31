@@ -187,13 +187,13 @@ public sealed class EnergyLoggerTests : IDisposable
         Poll(logger, 100, 90, 1050);
 
         var hours = logger.GetBuckets(EnergyPeriod.Hours);
-        Assert.Equal(48, hours.Count);
+        Assert.Equal(24, hours.Count);
         Assert.Equal(0.05, hours[^1].AcKwh, 9);
         Assert.Equal(0.34, hours[^2].AcKwh, 9);
 
         var days = logger.GetBuckets(EnergyPeriod.Days);
         Assert.Equal(0.39, days[^1].AcKwh, 9);
-        Assert.Equal(24, logger.GetBuckets(EnergyPeriod.Months).Count);
+        Assert.Equal(12, logger.GetBuckets(EnergyPeriod.Months).Count);
     }
 
     [Fact]

@@ -7,11 +7,12 @@ using ShellyHwinfoBridge.Windows.Wizard;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// The Manage Shellys page, opened from the settings page inside the main window (same title row: "‹ Settings" back link,
-/// title, "Changes apply immediately."). The "Devices" card lists every device (colour swatch, in Custom mode with its
+/// The Manage Shellys page, opened from the settings page or the status pill inside the main window (same title row as
+/// Settings: title, "Changes apply immediately.", "‹ Settings" right-aligned). The "Devices" card lists every device (colour swatch, in Custom mode with its
 /// editable <c>#RRGGBB</c> field; label, host, model, status pill, "Include in totals", Edit, Remove) with Add device
-/// under it (disabled with the hint at the cap); the "Chart colours" card switches between the automatic scheme (base
-/// colour swatch and its editable <c>#RRGGBB</c> field) and custom colours. A swatch click opens the colour dialog; a
+/// under it (disabled with the hint at the cap); the "Colours" card holds the app-wide "Accent colour" (swatch and
+/// editable <c>#RRGGBB</c> field, in both modes) and switches between the automatic chart scheme (derived from the accent)
+/// and custom chart colours. A swatch click opens the colour dialog; a
 /// typed colour applies on Enter or when the field loses focus, and an invalid one shows
 /// <see cref="ManageShellysModel.ColourError"/>. Add and Edit open the shared <see cref="DeviceFormView"/> in a
 /// <see cref="StepDialog"/>; saving a changed label asks with the rename warning first. Every change goes through
@@ -26,12 +27,12 @@ internal sealed class ManageShellysPage : ScrollPanel
     private const float Pad = Theme.WindowPadding;
     private const float Gap = Theme.Gap;
     private const float P = Theme.CardPadding;
-    private const float MinContentWidth = 640;
+    private const float MinContentWidth = 760;
     private const float CaptionHeight = 18;
-    private const float RowHeight = 36;
+    private const float RowHeight = 40;
     private const float ColumnGap = 10;
     private const float SwatchSize = 18;
-    private const float HexWidth = 74;
+    private const float HexWidth = 84;
     private const float HexHeight = 26;
     private const float BottomPad = 12;
 
@@ -51,11 +52,11 @@ internal sealed class ManageShellysPage : ScrollPanel
     private readonly InfoLine _addHint = new() { Visible = false };
     private readonly List<RowControls> _rows = [];
 
-    private readonly CardPanel _coloursCard = new() { Title = "Chart colours" };
+    private readonly CardPanel _coloursCard = new() { Title = "Colours" };
     private readonly SegmentedControl _colourMode = new() { AccessibleName = "Colour mode" };
-    private readonly TextLabel _baseLabel = new() { Text = "Base colour", Tone = UiTone.Secondary };
-    private readonly ColourSwatch _baseSwatch = new() { Clickable = true, AccessibleName = "Base colour" };
-    private readonly ThemedTextBox _baseHex = new() { MaxLength = 7, Placeholder = "#RRGGBB", AccessibleName = "Base colour as #RRGGBB" };
+    private readonly TextLabel _baseLabel = new() { Text = "Accent colour", Tone = UiTone.Secondary };
+    private readonly ColourSwatch _baseSwatch = new() { Clickable = true, AccessibleName = "Accent colour" };
+    private readonly ThemedTextBox _baseHex = new() { MaxLength = 7, Placeholder = "#RRGGBB", AccessibleName = "Accent colour as #RRGGBB" };
     private readonly TextLabel _colourText = new() { Tone = UiTone.Secondary, WordWrap = true };
     private readonly InfoLine _colourError = new() { Tone = InfoTone.Error, Visible = false };
 
@@ -186,7 +187,7 @@ internal sealed class ManageShellysPage : ScrollPanel
 
         // Title row: the back link, then the title (painted) and the footnote or the apply error.
         _footnoteLeft = PageHeader.Layout(this, _back, "Manage Shellys", scroll);
-        _applyError.Bounds = At(_footnoteLeft, PageHeader.Top + ((PageHeader.Height - Theme.LineHeight) / 2), Math.Max(0, contentWidth - Pad - _footnoteLeft), Theme.LineHeight);
+        _applyError.Bounds = At(_footnoteLeft, PageHeader.Top + ((PageHeader.Height - Theme.LineHeight) / 2), PageHeader.FootnoteWidth(this, _back, _footnoteLeft), Theme.LineHeight);
 
         // Devices card: column captions, one row per device, then Add device and its hint. In Custom mode the colour
         // column also holds each device's #RRGGBB field.
@@ -194,7 +195,7 @@ internal sealed class ManageShellysPage : ScrollPanel
         var inner = width - (2 * P);
         var custom = _model.CanPickDeviceColours;
         var colourWidth = SwatchSize + (custom ? 8 + HexWidth : 0);
-        const float includeWidth = 72;
+        const float includeWidth = 84;
         var actionsWidth = _rows.Count == 0 ? 0 : _rows.Max(r => PrefWidth(r.Edit) + 12 + PrefWidth(r.Remove));
         var flexible = Math.Max(240, inner - colourWidth - includeWidth - actionsWidth - (6 * ColumnGap));
         var statusWidth = Math.Min(flexible * 0.4f, Math.Max(100, _rows.Count == 0 ? 0 : _rows.Max(r => PrefWidth(r.Status))));
@@ -349,14 +350,11 @@ internal sealed class ManageShellysPage : ScrollPanel
 
             _colourMode.SetItems(["Automatic scheme", "Custom"], Math.Max(0, Array.IndexOf(ColourModes, _model.ColourMode)));
             var automatic = _model.ColourMode == ColourMode.AutomaticScheme;
-            _baseLabel.Visible = automatic;
-            _baseSwatch.Visible = automatic;
-            _baseHex.Visible = automatic;
             _baseSwatch.Colour = ColourSwatch.Parse(_model.BaseColour, Theme.Accent);
             SetHex(_baseHex, _model.BaseColour);
             _colourText.Text = automatic
-                ? "The PC uses the base colour; the other devices get colours derived from it (2 devices complementary, 3 a triad, 4 a square). Click the swatch or type a colour as #RRGGBB to change the base colour."
-                : "Each device has its own colour: click a device's swatch in the list or type its colour as #RRGGBB.";
+                ? "The accent colour is used for the app's text actions, buttons, switches and icons, and for the PC in the chart; the other devices get chart colours derived from it (2 devices complementary, 3 a triad, 4 a square). Click the swatch or type a colour as #RRGGBB."
+                : "The accent colour is used for the app's text actions, buttons, switches and icons. Each device has its own chart colour: click a device's swatch in the list or type its colour as #RRGGBB.";
             _colourError.Visible = _model.ColourError is not null;
             _colourError.Text = _model.ColourError ?? string.Empty;
 
@@ -431,7 +429,7 @@ internal sealed class ManageShellysPage : ScrollPanel
                 new StatusPill(),
                 new ThemedCheckBox(),
                 new TextLink { Text = "Edit", Semibold = true },
-                new TextLink { Text = "Remove", Tone = LinkTone.Danger, Semibold = true });
+                new TextLink { Text = "Remove", Semibold = true });
             c.Swatch.Click += (_, _) => PickDeviceColour(id);
             c.Hex.TextCommitted += (_, _) => CommitHex(c.Hex, text => _model.SetDeviceColour(id, text));
             c.Include.CheckedChanged += (_, _) =>
@@ -475,7 +473,8 @@ internal sealed class ManageShellysPage : ScrollPanel
                 ? "The PC's plug: its AC reading goes through the PSU curve. Pick it from the list or type its address."
                 : "Pick the plug from the list or type its address. It is measured on the AC side only.",
             view,
-            () => SaveForm(view, dialog));
+            () => SaveForm(view, dialog),
+            form.WindowTitle);
         dialog = created;
         var result = ShowModal(() => created.ShowDialog(FindForm()));
         if (result != DialogResult.OK && _model.Form is not null)

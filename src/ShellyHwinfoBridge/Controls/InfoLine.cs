@@ -241,7 +241,7 @@ internal sealed class InfoLine : ThemedControl
             {
                 using var brush = new SolidBrush(Theme.Success);
                 g.FillEllipse(brush, r);
-                Gfx.DrawCheck(g, Theme.OnAccent, RectangleF.Inflate(r, -r.Width * 0.12f, -r.Height * 0.12f), r.Width * 0.11f);
+                Gfx.DrawCheck(g, Color.White, RectangleF.Inflate(r, -r.Width * 0.12f, -r.Height * 0.12f), r.Width * 0.11f);
                 break;
             }
         }

@@ -55,7 +55,7 @@ internal sealed class BarChart : ThemedControl
     public string? HoveredTooltip => ItemAt(_hovered) is { } bar ? string.Join(" · ", bar.TooltipLines) : null;
 
     /// <summary>Gets or sets the height reserved for X labels in DIP (default 20).</summary>
-    public int XLabelHeightDip { get; set; } = 20;
+    public int XLabelHeightDip { get; set; } = 26;
 
     private int ItemCount => IsGrouped ? _flat.Count : _bars.Count;
 
@@ -196,21 +196,24 @@ internal sealed class BarChart : ThemedControl
         var bar = ItemAt(index)!;
         var height = (float)(plot.Height * Math.Clamp(bar.Value, 0, _yMax) / _yMax);
         var slot = plot.Width / (float)SlotCount;
+        // Whole pixels, so every bar of the chart has exactly the same width.
         if (!IsGrouped)
         {
-            var width = Math.Max(1f, slot * 0.6f);
-            return new RectangleF(plot.Left + (index * slot) + ((slot - width) / 2f), plot.Bottom - height, width, height);
+            var width = Math.Max(1, (int)Math.Round(slot * 0.6f));
+            var left = (int)Math.Round(plot.Left + (index * slot) + ((slot - width) / 2f));
+            return new RectangleF(left, plot.Bottom - height, width, height);
         }
 
         var (group, position) = _flat[index];
         var count = Math.Max(1, _groups[group].Bars.Count);
         var groupWidth = Math.Max(count, slot * 0.8f);
-        var barWidth = groupWidth / count;
-        var x = plot.Left + (group * slot) + ((slot - groupWidth) / 2f) + (position * barWidth);
 
-        // A 1 px gap between neighbouring bars when they are wide enough to keep it.
-        var drawn = barWidth >= this.PxF(4) && position < count - 1 ? barWidth - Math.Max(1f, this.PxF(1)) : barWidth;
-        return new RectangleF(x, plot.Bottom - height, Math.Max(1f, drawn), height);
+        // A 1 px gap between neighbouring bars when they are wide enough to keep it; every bar gets the same width.
+        var gap = groupWidth / count >= this.PxF(4) ? Math.Max(1, this.Px(1)) : 0;
+        var barWidth = Math.Max(1, (int)Math.Floor((groupWidth - (gap * (count - 1))) / count));
+        var total = (barWidth * count) + (gap * (count - 1));
+        var groupLeft = (int)Math.Round(plot.Left + (group * slot) + ((slot - total) / 2f));
+        return new RectangleF(groupLeft + (position * (barWidth + gap)), plot.Bottom - height, barWidth, height);
     }
 
     /// <summary>Draws the hovered bar's tooltip: centred over the bar, kept inside the control.</summary>

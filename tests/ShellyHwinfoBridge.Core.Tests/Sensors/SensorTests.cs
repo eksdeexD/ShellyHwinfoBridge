@@ -110,4 +110,65 @@ public class SensorTests
         var suggested = SensorHeuristics.SuggestSelection(available).Select(s => s.Name);
         Assert.Equal(["CPU Package Power", "GPU Power", "DIMM1 Power", "DIMM3 Power"], suggested);
     }
+
+    private const string Dimm1 = "DDR5 DIMM [#1]: Patriot Memory (PDP Systems) 6000 Series (P0 CHANNEL A/DIMM 1)";
+    private const string Dimm3 = "DDR5 DIMM [#3]: Patriot Memory (PDP Systems) 6000 Series (P0 CHANNEL B/DIMM 1)";
+
+    [Theory]
+    [InlineData("Total Power", Dimm1, SensorCategory.Ram)]
+    [InlineData("Total Power", Dimm3, SensorCategory.Ram)]
+    [InlineData("Total Power", "DRAM [#0]: Module", SensorCategory.Ram)]
+    [InlineData("Total Power", "GPU [#0]: NVIDIA GeForce RTX 4090", null)]
+    [InlineData("CPU Package Power", "CPU [#0]: Intel Core i9-14900K", SensorCategory.Cpu)]
+    [InlineData("DIMM1 Power", "Memory", SensorCategory.Ram)]
+    [InlineData("IA Cores Power", "CPU [#0]: Intel Core i9-14900K", null)]
+    public void CandidateHeuristicsUseTheDevice(string name, string device, SensorCategory? expected)
+    {
+        Assert.Equal(expected, SensorHeuristics.GetCandidateCategory(name, device));
+    }
+
+    [Fact]
+    public void GuessCategoryUsesAMemoryDevice()
+    {
+        Assert.Equal(SensorCategory.Ram, SensorHeuristics.GuessCategory("Total Power", Dimm1));
+        Assert.Equal(SensorCategory.Cpu, SensorHeuristics.GuessCategory("CPU SoC Power", "Board"));
+        Assert.Equal(SensorCategory.OtherMeasured, SensorHeuristics.GuessCategory("Total Power", "Capture card"));
+        Assert.True(SensorHeuristics.IsMemoryDevice(Dimm3));
+        Assert.False(SensorHeuristics.IsMemoryDevice(null));
+    }
+
+    [Fact]
+    public void SuggestSelectionPreChecksTheTotalPowerOfEachDimmDevice()
+    {
+        // Stock HWiNFO names (work/ui-pass/rampowernames.png): a "Total Power" W sensor under each "DDR5 DIMM [#n]" device.
+        SensorInfo[] available =
+        [
+            new("CPU [#0]: Intel Core i9-14900K", "CPU Package Power"),
+            new("GPU [#0]: NVIDIA GeForce RTX 4090", "GPU Power"),
+            new("GPU [#0]: NVIDIA GeForce RTX 4090", "Total Power"),
+            new(Dimm1, "Total Power"),
+            new(Dimm3, "Total Power"),
+        ];
+
+        var suggested = SensorHeuristics.SuggestSelection(available);
+        Assert.Equal(
+            [("CPU [#0]: Intel Core i9-14900K", "CPU Package Power"), ("GPU [#0]: NVIDIA GeForce RTX 4090", "GPU Power"), (Dimm1, "Total Power"), (Dimm3, "Total Power")],
+            suggested.Select(s => (s.Device, s.Name)));
+    }
+
+    [Fact]
+    public void SuggestSelectionPicksOnePowerSensorPerMemoryDevice()
+    {
+        SensorInfo[] available =
+        [
+            new(Dimm1, "VDD Power"),
+            new(Dimm1, "Total Power"),
+            new("DIMM board", "DIMM1 Power"),
+            new("DIMM board", "Other Power"),
+        ];
+
+        // A memory device with a "DIMMn Power" sensor keeps the name rule only.
+        var suggested = SensorHeuristics.SuggestSelection(available);
+        Assert.Equal([(Dimm1, "Total Power"), ("DIMM board", "DIMM1 Power")], suggested.Select(s => (s.Device, s.Name)));
+    }
 }

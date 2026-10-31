@@ -118,16 +118,7 @@ internal sealed class StatCard : CardPanel
         }
 
         var valueFont = _compact || Gfx.Measure(_value, f.StatValue).Width > width ? f.TotalValue : f.StatValue;
-        var valueHeight = Gfx.Measure("0", valueFont).Height;
-        var subHeight = Gfx.Measure("Ag", f.Body).Height;
-        var gap1 = this.Px(3);
-        var gap2 = this.Px(2);
-        var total = captionSize.Height + gap1 + valueHeight + gap2 + subHeight;
-        var y = Math.Max(this.Px(10), (ClientSize.Height - total) / 2);
-        if (_placeholder && _reservedBottomDip > 0)
-        {
-            y = this.Px(10);
-        }
+        var y = CaptionTop(captionSize.Height);
 
         if (captionSize.Width > width)
         {
@@ -139,18 +130,54 @@ internal sealed class StatCard : CardPanel
             Gfx.DrawTracked(g, _caption, f.Caption, new Point(left, y), Theme.InkSecondary, tracking);
         }
 
-        y += captionSize.Height + gap1;
+        y += captionSize.Height + this.Px(Gap1);
 
         if (_placeholder)
         {
-            var bottom = ClientSize.Height - this.Px(6) - this.Px(_reservedBottomDip);
-            var area = new Rectangle(left, y, width, Math.Max(0, bottom - y));
+            var area = PlaceholderTextBounds();
             Gfx.Text(g, _value, f.Body, area, Theme.InkSecondary, TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             return;
         }
 
+        var valueHeight = Gfx.Measure("0", valueFont).Height;
+        var subHeight = Gfx.Measure("Ag", f.Body).Height;
         Gfx.Text(g, _value, valueFont, new Rectangle(left - this.Px(1), y, width, valueHeight), Theme.ToneColor(_valueTone));
-        y += valueHeight + gap2;
+        y += valueHeight + this.Px(Gap2);
         Gfx.Text(g, _sub, f.Body, new Rectangle(left, y, width, subHeight), Theme.InkSecondary);
+    }
+
+    /// <summary>Gets the bottom of the placeholder hint text in pixels (the owner places "How to enable?" under it).</summary>
+    public int PlaceholderTextBottom
+    {
+        get
+        {
+            var area = PlaceholderTextBounds();
+            var text = Gfx.MeasureWrapped(_value, Fonts.Body, Math.Max(1, area.Width)).Height;
+            return area.Top + Math.Min(area.Height, text);
+        }
+    }
+
+    private const int Gap1 = 3;
+    private const int Gap2 = 2;
+
+    /// <summary>
+    /// The top of the caption: the caption, value and sub-line of a value card centred vertically, so every card of a row
+    /// (also one showing a hint) has its caption on the same line.
+    /// </summary>
+    private int CaptionTop(int captionHeight)
+    {
+        var f = Fonts;
+        var valueFont = _compact ? f.TotalValue : f.StatValue;
+        var total = captionHeight + this.Px(Gap1) + Gfx.Measure("0", valueFont).Height + this.Px(Gap2) + Gfx.Measure("Ag", f.Body).Height;
+        return Math.Max(this.Px(8), (ClientSize.Height - total) / 2);
+    }
+
+    /// <summary>The area of the placeholder hint: under the caption, above the reserved bottom.</summary>
+    private Rectangle PlaceholderTextBounds()
+    {
+        var captionHeight = Gfx.MeasureTracked("A", Fonts.Caption, 0).Height;
+        var top = CaptionTop(captionHeight) + captionHeight + this.Px(Gap1 + 2);
+        var bottom = ClientSize.Height - this.Px(6) - this.Px(_reservedBottomDip);
+        return new Rectangle(TextLeft, top, TextWidth, Math.Max(0, bottom - top));
     }
 }

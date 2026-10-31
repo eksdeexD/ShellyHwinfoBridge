@@ -30,6 +30,16 @@ public sealed class DeviceFormModel
     /// <summary>The form title when adding.</summary>
     public const string AddTitle = "Add a Shelly for your monitor or another device";
 
+    /// <summary>The window title of the form when adding (the page heading carries <see cref="AddTitle"/>).</summary>
+    public const string AddWindowTitle = "Add a Shelly";
+
+    /// <summary>The window title of the form when editing.</summary>
+    public const string EditWindowTitle = "Edit Shelly";
+
+    /// <summary>The hover tooltip of "Include in totals".</summary>
+    public const string IncludeInTotalsTooltip =
+        "If enabled, this device's energy is added to the totals, cost and the chart. If disabled, it is still measured and shown in HWiNFO but left out of the totals.";
+
     /// <summary>
     /// The warning shown before saving a changed label of an existing device (also used by the sensor-names dialog). HWiNFO
     /// keeps its own label per sensor, so the user must rename the sensors in HWiNFO (<see cref="HwinfoRenameHelp"/>).
@@ -98,6 +108,9 @@ public sealed class DeviceFormModel
 
     /// <summary>Gets the title ("Add a Shelly for your monitor or another device", "Edit Monitor", "Edit PC").</summary>
     public string Title => Mode == DeviceFormMode.Add ? AddTitle : "Edit " + (IsPrimary ? AppSettings.PrimaryLabel : _originalLabel);
+
+    /// <summary>Gets the brief window title: "Add a Shelly" or "Edit Shelly".</summary>
+    public string WindowTitle => Mode == DeviceFormMode.Add ? AddWindowTitle : EditWindowTitle;
 
     /// <summary>Gets the host, password, discovery and test part.</summary>
     public ShellyStepModel Connection { get; }

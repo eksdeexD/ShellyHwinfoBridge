@@ -5,14 +5,11 @@ namespace ShellyHwinfoBridge.Controls;
 /// <summary>Colour of a <see cref="TextLink"/>.</summary>
 internal enum LinkTone
 {
-    /// <summary>Accent orange ("Change", "Edit", "Advanced: edit formula").</summary>
+    /// <summary>The accent colour ("Change", "Edit", "Remove"; text actions are never red).</summary>
     Accent,
 
     /// <summary>Ink (plain text links).</summary>
     Ink,
-
-    /// <summary>Error red ("Remove HWiNFO sensors", "Exit ShellyHwinfoBridge").</summary>
-    Danger,
 }
 
 /// <summary>
@@ -104,7 +101,6 @@ internal sealed class TextLink : ThemedControl
         var color = !Enabled ? Theme.InkDisabled : Tone switch
         {
             LinkTone.Ink => Theme.Ink,
-            LinkTone.Danger => Theme.Error,
             _ => Hovered ? Theme.AccentHover : Theme.Accent,
         };
         var font = CurrentFont();

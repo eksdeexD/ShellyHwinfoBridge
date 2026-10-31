@@ -32,7 +32,7 @@ public class SensorStepModelTests
         Assert.Equal("142.3 W", Row(m, "CPU Package Power").ValueText);
         Assert.Equal(Snapshots.Cpu, m.Selected[0].Device);
         Assert.Empty(m.Warnings);
-        Assert.Equal("PC Power (DC) − CPU Package Power − GPU Power − DIMM1 Power − DIMM3 Power", m.CalculationPreview);
+        Assert.Equal("PC Power (DC) − CPU Package Power − GPU Power − DIMM1 Power − DIMM3 Power = PC Other Components", m.CalculationPreview);
         Assert.True(m.IsValid);
     }
 
@@ -81,13 +81,12 @@ public class SensorStepModelTests
     }
 
     [Fact]
-    public void WarnsAboutDuplicateNamesWithTheRenameHint()
+    public void SensorsPickedFromHwinfoAreToldApartByDevice()
     {
+        // Picked from HWiNFO's list, a sensor is read by name and device: a second "GPU Power" is not ambiguous.
         var m = Loaded(null, Snapshots.Watts(5, "GPU [#1]: AMD Radeon RX 7600", "GPU Power", 40));
-        var warning = Assert.Single(m.Warnings);
-        Assert.Equal(
-            "Two sensors are called \"GPU Power\". The app reads component sensors by name, so this is ambiguous. Rename one of them in HWiNFO (right-click the sensor › Rename).",
-            warning);
+        Assert.Empty(m.Warnings);
+        Assert.All(m.Selected, s => Assert.NotNull(s.Device));
     }
 
     [Fact]
@@ -100,7 +99,7 @@ public class SensorStepModelTests
         }
 
         Assert.Equal(["No sensors selected: Other Components will equal PC Power (DC)."], m.Warnings);
-        Assert.Equal("PC Power (DC)", m.CalculationPreview);
+        Assert.Equal("PC Power (DC) = PC Other Components", m.CalculationPreview);
         Assert.True(m.IsValid);
     }
 
@@ -147,7 +146,7 @@ public class SensorStepModelTests
         Assert.Equal("GPU Power", Assert.Single(m.Selected).Name);
         Assert.Equal(SensorCategory.OtherMeasured, m.Selected[0].Category);
 
-        Assert.Equal("PC Power (DC) − GPU Power", m.CalculationPreview);
+        Assert.Equal("PC Power (DC) − GPU Power = PC Other Components", m.CalculationPreview);
     }
 
     [Fact]

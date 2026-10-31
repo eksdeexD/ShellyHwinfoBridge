@@ -7,13 +7,14 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// The main window, fixed at <see cref="Theme.MainWindowWidth"/> × <see cref="Theme.MainWindowHeight"/> DIP: header with
-/// logo, title and status pill; the live stat cards (four, or five with "Total Power (AC)" first when additional devices
+/// The main window (title "Shelly HWiNFO Bridge"), fixed at <see cref="Theme.MainWindowWidth"/> ×
+/// <see cref="Theme.MainWindowHeight"/> DIP: no in-window logo or app name (the title bar carries them); the status pill
+/// at the top right on every page (a summary over all Shellys; clicking it opens Manage Shellys); the live stat cards (four, or five with "Total Power (AC)" first when additional devices
 /// exist; the Other card can show a hint and the "How to enable?" text command); the "Energy history" card (Combined /
 /// Per device toggle with more than one device, Hours/Days/Months, bar chart with a hover tooltip, today and this month,
-/// and the device legend in per-device mode); the configuration card and two text commands (Settings, Pause/Resume
-/// polling). When setup is not done, one "Not set up yet" card (with "Run setup wizard") replaces the stats and the
-/// energy card. <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under the header,
+/// and the device legend in per-device mode); the configuration card and three right-aligned text commands (Settings,
+/// Pause/Resume polling, About). When setup is not done, one "Not set up yet" card (with "Run setup wizard") replaces the stats and the
+/// energy card. <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under the pill,
 /// and the settings page can open <see cref="ManageShellysPage"/> over itself; "‹ Home", "‹ Settings" or Esc go back.
 /// Passive: the tray context pushes <see cref="MainViewState"/> and <see cref="EnergyChartModel"/> in, and the window
 /// raises events for its commands. Closing hides it.
@@ -23,26 +24,24 @@ internal sealed class MainForm : ThemedForm
     // Layout in DIP (compact scale; spacing from Theme).
     private const int Pad = Theme.WindowPadding;
     private const int Gap = Theme.Gap;
-    private const int HeaderTop = 12;
-    private const int HeaderHeight = 32;
-    private const int LogoHeight = 30;
+    private const int HeaderTop = 10;
+    private const int HeaderHeight = 28;
     private const int StatsTop = HeaderTop + HeaderHeight + Gap;
-    private const int StatsHeight = 92;
-    private const int StatsHeightWithHowTo = 112;
-    private const int HowToHeight = 20;
-    private const int BottomHeight = 84;
+    private const int StatsHeight = 118;
+    private const int HowToHeight = 22;
+    private const int BottomHeight = 96;
     private const int BottomMargin = 22;
-    private const int CommandsWidth = 120;
-    private const int ChartTop = 48;
-    private const int TotalsHeight = 58;
-    private const int ConfigLabelWidth = 64;
-    private const int ConfigLineStep = 20;
-    private const int SettingsPageTop = HeaderTop + HeaderHeight;
+    private const int CommandsWidth = 136;
+    private const int ChartTop = 56;
+    private const int TotalsHeight = 70;
+    private const int ConfigLabelWidth = 80;
+    private const int ConfigLineStep = 24;
+    private const int SettingsPageTop = HeaderTop + HeaderHeight + 4;
 
     private static readonly EnergyPeriod[] Periods = [EnergyPeriod.Hours, EnergyPeriod.Days, EnergyPeriod.Months];
     private static readonly EnergyChartMode[] ChartModes = [EnergyChartMode.Combined, EnergyChartMode.PerDevice];
 
-    private readonly StatusPill _pill = new();
+    private readonly StatusPill _pill = new() { Clickable = true, AccessibleName = "Shelly status: open Manage Shellys" };
 
     // Total, AC, DC, Loss, Other: the first is shown only with additional devices.
     private readonly StatCard[] _stats = [new(), new(), new(), new(), new()];
@@ -56,6 +55,7 @@ internal sealed class MainForm : ThemedForm
     private readonly TextLink _runWizard = new() { Text = "Run setup wizard", Semibold = true };
     private readonly TextLink _settings = new() { Text = "Settings", Semibold = true };
     private readonly TextLink _pause = new() { Text = "Pause polling", Semibold = true };
+    private readonly TextLink _about = new() { Text = "About", Semibold = true };
     private IReadOnlyList<ChartLegendItem> _legend = [];
     private MainViewState? _state;
     private SettingsPage? _settingsPage;
@@ -64,7 +64,7 @@ internal sealed class MainForm : ThemedForm
 
     public MainForm()
     {
-        Text = "ShellyHwinfoBridge";
+        Text = AppInfo.ProductName;
         SuspendLayout();
         Controls.Add(_pill);
         foreach (var card in _stats)
@@ -92,11 +92,14 @@ internal sealed class MainForm : ThemedForm
         Controls.Add(_config);
         Controls.Add(_settings);
         Controls.Add(_pause);
+        Controls.Add(_about);
         ResumeLayout(false);
 
         _settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
         _runWizard.Click += (_, _) => WizardRequested?.Invoke(this, EventArgs.Empty);
         _pause.Click += (_, _) => PauseToggleRequested?.Invoke(this, EventArgs.Empty);
+        _about.Click += (_, _) => AboutRequested?.Invoke(this, EventArgs.Empty);
+        _pill.Click += (_, _) => OnPillClicked();
         _period.SelectedIndexChanged += (_, _) => PeriodChanged?.Invoke(this, EventArgs.Empty);
         _chartMode.SelectedIndexChanged += (_, _) => ChartModeChanged?.Invoke(this, EventArgs.Empty);
         _howToEnable.Click += (_, _) => ShowHowToEnable();
@@ -112,6 +115,18 @@ internal sealed class MainForm : ThemedForm
 
     /// <summary>Raised when "Pause polling" / "Resume polling" is clicked.</summary>
     public event EventHandler? PauseToggleRequested;
+
+    /// <summary>Raised when "About" is clicked.</summary>
+    public event EventHandler? AboutRequested;
+
+    /// <summary>
+    /// Raised when the status pill is clicked on the dashboard: the owner opens the settings page, then Manage Shellys
+    /// (<see cref="OpenManageShellysFromSettings"/>). On the settings page the window opens Manage Shellys itself.
+    /// </summary>
+    public event EventHandler? ManageShellysRequested;
+
+    /// <summary>Gets or sets the factory of the gadget how-to model for the Other card's "How to enable?".</summary>
+    public Func<Core.Presentation.Wizard.GadgetStepModel>? CreateGadgetModel { get; set; }
 
     /// <summary>Raised when the Hours/Days/Months selection changes; the owner pushes a new chart.</summary>
     public event EventHandler? PeriodChanged;
@@ -151,7 +166,7 @@ internal sealed class MainForm : ThemedForm
         Controls.Add(page);
         UpdateVisibility();
         ResumeLayout(true);
-        Text = "Settings · ShellyHwinfoBridge";
+        Text = "Settings";
         if (Visible)
         {
             page.FocusFirstField();
@@ -179,7 +194,7 @@ internal sealed class MainForm : ThemedForm
         Controls.Add(page);
         UpdateVisibility();
         ResumeLayout(true);
-        Text = "Manage Shellys · ShellyHwinfoBridge";
+        Text = "Manage Shellys";
         if (Visible)
         {
             page.FocusFirstField();
@@ -203,7 +218,7 @@ internal sealed class MainForm : ThemedForm
         page.Dispose();
         if (_settingsPage is { } settings)
         {
-            Text = "Settings · ShellyHwinfoBridge";
+            Text = "Settings";
             settings.RefreshState();
             settings.FocusManageShellys();
         }
@@ -211,11 +226,13 @@ internal sealed class MainForm : ThemedForm
         Invalidate();
     }
 
-    /// <summary>Shows the settings page (closing Manage Shellys) and scrolls it to the About section.</summary>
-    public void ScrollSettingsToAbout()
+    /// <summary>Opens Manage Shellys over the open settings page (the status pill, also from the tray context).</summary>
+    public void OpenManageShellysFromSettings()
     {
-        CloseManageShellys();
-        _settingsPage?.ScrollToAbout();
+        if (_settingsPage is { } page && _managePage is null)
+        {
+            OpenManageShellys(new ManageShellysPage(page.CreateManageShellysModel()));
+        }
     }
 
     /// <summary>Gets the selected chart period.</summary>
@@ -238,6 +255,7 @@ internal sealed class MainForm : ThemedForm
     {
         _settings.Enabled = enabled;
         _runWizard.Enabled = enabled;
+        _pill.Clickable = enabled;
     }
 
     /// <summary>Shows a new state; repaints only what changed.</summary>
@@ -260,7 +278,7 @@ internal sealed class MainForm : ThemedForm
 
         var showHowTo = state.Other.OtherState?.ShowHowToEnable == true;
         _howToEnable.Visible = showHowTo;
-        _stats[4].ReservedBottomDip = showHowTo ? HowToHeight + 6 : 0;
+        _stats[4].ReservedBottomDip = showHowTo ? HowToHeight + 4 : 0;
 
         var modeIndex = Math.Max(0, Array.IndexOf(ChartModes, state.ChartMode));
         if (_chartMode.SelectedIndex != modeIndex)
@@ -280,8 +298,8 @@ internal sealed class MainForm : ThemedForm
         }
         else if (previous.Status.Text != state.Status.Text)
         {
-            // The status text (with the live voltage) changes on nearly every poll: re-place only the pill. A layout pass
-            // of the whole window would also make WinForms scroll the open settings page back to its focused control.
+            // The status text changed: re-place only the pill. A layout pass of the whole window would also make WinForms
+            // scroll the open settings page back to its focused control.
             LayoutHeader();
             Invalidate(new Rectangle(0, 0, ClientSize.Width, this.Px(HeaderTop + HeaderHeight)));
         }
@@ -403,9 +421,10 @@ internal sealed class MainForm : ThemedForm
         var right = w - pad;
         LayoutHeader();
 
-        // Stats row: four (or five, with Total first) equal cards; taller while the Other card shows "How to enable?".
+        // Stats row: four (or five, with Total first) equal cards of one height (the Other card's hint and "How to
+        // enable?" fit under its caption, which lines up with the other captions).
         var statsTop = this.Px(StatsTop);
-        var statsHeight = this.Px(_howToEnable.Visible ? StatsHeightWithHowTo : StatsHeight);
+        var statsHeight = this.Px(StatsHeight);
         var shown = _stats.Where((_, i) => i > 0 || _state?.Total is not null).ToList();
         var cardWidth = (w - (2 * pad) - ((shown.Count - 1) * gap)) / shown.Count;
         for (var i = 0; i < shown.Count; i++)
@@ -420,18 +439,21 @@ internal sealed class MainForm : ThemedForm
         var howToLeft = other.TextLeft;
         var howToSize = _howToEnable.GetPreferredSize(Size.Empty);
         var howToWidth = Math.Min(other.Width - howToLeft - this.Px(6), howToSize.Width);
-        _howToEnable.Bounds = new Rectangle(howToLeft, other.Height - this.Px(8) - this.Px(HowToHeight), Math.Max(0, howToWidth), this.Px(HowToHeight));
+        var howToTop = Math.Min(other.PlaceholderTextBottom + this.Px(2), other.Height - this.Px(6) - this.Px(HowToHeight));
+        _howToEnable.Bounds = new Rectangle(howToLeft, howToTop, Math.Max(0, howToWidth), this.Px(HowToHeight));
 
-        // Bottom row: the configuration card and, right of it, the Settings and Pause polling commands (one per config line).
+        // Bottom row: the configuration card and, right of it, the Settings, Pause polling and About commands, right-aligned,
+        // one per configuration line.
         var bottomTop = h - this.Px(BottomMargin) - this.Px(BottomHeight);
         var commandsLeft = right - this.Px(CommandsWidth);
         _config.Bounds = new Rectangle(pad, bottomTop, commandsLeft - gap - pad, this.Px(BottomHeight));
         var firstLine = bottomTop + ConfigFirstLineTop();
-        foreach (var (command, line) in new[] { (_settings, 0), (_pause, 1) })
+        foreach (var (command, line) in new[] { (_settings, 0), (_pause, 1), (_about, 2) })
         {
             var size = command.GetPreferredSize(Size.Empty);
             var lineTop = firstLine + this.Px(line * ConfigLineStep);
-            command.Bounds = new Rectangle(commandsLeft, lineTop + ((this.Px(ConfigLineStep) - size.Height) / 2), Math.Min(size.Width, right - commandsLeft), size.Height);
+            var width = Math.Min(size.Width, right - commandsLeft);
+            command.Bounds = new Rectangle(right - width, lineTop + ((this.Px(ConfigLineStep) - size.Height) / 2), width, size.Height);
         }
 
         // Energy card fills the space between the stats and the bottom row. The period selector sits at the top right,
@@ -449,7 +471,7 @@ internal sealed class MainForm : ThemedForm
         var chartTop = this.Px(ChartTop);
         _chart.Bounds = new Rectangle(cardPad, chartTop, energy.Width - (2 * cardPad), Math.Max(this.Px(60), energy.Height - chartTop - this.Px(TotalsHeight)));
 
-        // Settings page (and Manage Shellys over it): everything under the header.
+        // Settings page (and Manage Shellys over it): everything under the status pill.
         var pageTop = this.Px(SettingsPageTop);
         var pageBounds = new Rectangle(0, pageTop, w, Math.Max(0, h - pageTop));
         if (_settingsPage is not null)
@@ -472,25 +494,19 @@ internal sealed class MainForm : ThemedForm
     {
         base.OnPaint(e);
         var g = e.Graphics;
-        var logoHeight = this.Px(LogoHeight);
-        var top = this.Px(HeaderTop) + ((this.Px(HeaderHeight) - logoHeight) / 2);
-        var logoLeft = this.Px(Pad + 4);
-        var logoWidth = AppAssets.DrawLogo(g, new Point(logoLeft, top), logoHeight);
-        var titleLeft = logoLeft + logoWidth + this.Px(10);
-        Gfx.Text(g, "ShellyHwinfoBridge", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop), Math.Max(0, _pill.Left - titleLeft - this.Px(10)), this.Px(HeaderHeight)), Theme.Ink);
 
         // The app version, very small, in the bottom margin under the command column (clear of the cards and commands).
         var tiny = Fonts.Get(FontRole.Tiny);
         var versionHeight = Gfx.Measure("Ag", tiny).Height;
         var version = new Rectangle(0, ClientSize.Height - this.Px(BottomMargin / 2) - (versionHeight / 2), ClientSize.Width - this.Px(Pad), versionHeight);
-        Gfx.Text(g, SettingsPage.VersionText, tiny, version, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.Right);
+        Gfx.Text(g, AboutWindow.VersionText, tiny, version, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.Right);
     }
 
-    /// <summary>Places the status pill: right-aligned, sized to its text (at least 180 DIP), centred on the header line.</summary>
+    /// <summary>Places the status pill: right-aligned, sized to its text (at least 150 DIP), centred on the header line.</summary>
     private void LayoutHeader()
     {
         var right = ClientSize.Width - this.Px(Pad);
-        var pillWidth = Math.Max(this.Px(180), _pill.GetPreferredSize(Size.Empty).Width);
+        var pillWidth = Math.Max(this.Px(150), _pill.GetPreferredSize(Size.Empty).Width);
         var pillHeight = this.Px(28);
         _pill.Bounds = new Rectangle(right - pillWidth, this.Px(HeaderTop) + ((this.Px(HeaderHeight) - pillHeight) / 2), pillWidth, pillHeight);
     }
@@ -521,7 +537,7 @@ internal sealed class MainForm : ThemedForm
         UpdateVisibility();
         ResumeLayout(true);
         page.Dispose();
-        Text = "ShellyHwinfoBridge";
+        Text = AppInfo.ProductName;
         Invalidate();
         if (raise)
         {
@@ -543,7 +559,7 @@ internal sealed class MainForm : ThemedForm
 
     private void ShowHowToEnable()
     {
-        if (_state?.Other.OtherState is not { } other)
+        if (CreateGadgetModel is not { } create)
         {
             return;
         }
@@ -551,11 +567,29 @@ internal sealed class MainForm : ThemedForm
         _modalDepth++;
         try
         {
-            GadgetHelpDialog.Show(this, other.HowToText);
+            GadgetHelpDialog.Show(this, create());
         }
         finally
         {
             _modalDepth--;
+        }
+    }
+
+    /// <summary>The status pill: opens Manage Shellys (on the dashboard through the owner, which opens Settings first).</summary>
+    private void OnPillClicked()
+    {
+        if (!_pill.Clickable || IsShowingDialog || _state?.IsConfigured == false)
+        {
+            return;
+        }
+
+        if (_settingsPage is null)
+        {
+            ManageShellysRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            BeginInvoke(new Action(OpenManageShellysFromSettings));
         }
     }
 
@@ -577,6 +611,7 @@ internal sealed class MainForm : ThemedForm
         _config.Visible = dashboard;
         _settings.Visible = dashboard;
         _pause.Visible = dashboard;
+        _about.Visible = dashboard;
         if (_settingsPage is not null)
         {
             _settingsPage.Visible = _managePage is null;

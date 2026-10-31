@@ -11,9 +11,9 @@ public class EnergyAggregatorTests
         new(hourUtc, acWh, dcWh, 3600, acWh, acWh, acWh);
 
     [Theory]
-    [InlineData(EnergyPeriod.Hours, 48)]
-    [InlineData(EnergyPeriod.Days, 60)]
-    [InlineData(EnergyPeriod.Months, 24)]
+    [InlineData(EnergyPeriod.Hours, 24)]
+    [InlineData(EnergyPeriod.Days, 30)]
+    [InlineData(EnergyPeriod.Months, 12)]
     public void BucketCounts(EnergyPeriod period, int expected)
     {
         var buckets = EnergyAggregator.Aggregate([], period, Utc(2026, 10, 30, 18, 40), Cet);
@@ -28,7 +28,7 @@ public class EnergyAggregatorTests
     public void HoursEndWithTheCurrentHourAndLabelInLocalTime()
     {
         var now = Utc(2026, 10, 30, 18, 40);
-        var rows = new[] { Row(Utc(2026, 10, 30, 18), 340, 310), Row(Utc(2026, 10, 28, 19), 100), Row(Utc(2026, 10, 30, 19), 999) };
+        var rows = new[] { Row(Utc(2026, 10, 30, 18), 340, 310), Row(Utc(2026, 10, 29, 19), 100), Row(Utc(2026, 10, 30, 19), 999) };
 
         var buckets = EnergyAggregator.Aggregate(rows, EnergyPeriod.Hours, now, Cet);
 
@@ -37,7 +37,7 @@ public class EnergyAggregatorTests
         Assert.Equal(0.34, buckets[^1].AcKwh, 9);
         Assert.Equal(0.31, buckets[^1].DcEstKwh, 9);
         Assert.True(buckets[^1].HasData);
-        Assert.Equal(Utc(2026, 10, 28, 19), buckets[0].StartUtc);
+        Assert.Equal(Utc(2026, 10, 29, 19), buckets[0].StartUtc);
         Assert.Equal(0.1, buckets[0].AcKwh, 9);
         Assert.Equal(2, buckets.Count(b => b.HasData));
     }
@@ -51,7 +51,7 @@ public class EnergyAggregatorTests
 
         var buckets = EnergyAggregator.Aggregate(rows, EnergyPeriod.Hours, now, Cet);
 
-        Assert.Equal(48, buckets.Select(b => b.StartUtc).Distinct().Count());
+        Assert.Equal(24, buckets.Select(b => b.StartUtc).Distinct().Count());
         var twos = buckets.Where(b => b.StartLocal == new DateTime(2026, 10, 25, 2, 0, 0)).ToList();
         Assert.Equal(2, twos.Count);
         Assert.Equal([0.1, 0.2], twos.Select(b => Math.Round(b.AcKwh, 9)));
@@ -64,7 +64,7 @@ public class EnergyAggregatorTests
 
         Assert.DoesNotContain(buckets, b => b.StartLocal == new DateTime(2026, 3, 29, 2, 0, 0));
         Assert.Contains(buckets, b => b.StartLocal == new DateTime(2026, 3, 29, 3, 0, 0));
-        Assert.Equal(48, buckets.Select(b => b.StartLocal).Distinct().Count());
+        Assert.Equal(24, buckets.Select(b => b.StartLocal).Distinct().Count());
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class EnergyAggregatorTests
         Assert.Equal(0.1, buckets.Single(b => b.StartLocal == new DateTime(2026, 3, 28)).AcKwh, 9);
         Assert.Equal(0.1, buckets.Single(b => b.StartLocal == new DateTime(2026, 3, 30)).AcKwh, 9);
         Assert.Equal(new DateTime(2026, 3, 30), buckets[^1].StartLocal);
-        Assert.Equal(new DateTime(2026, 1, 30), buckets[0].StartLocal);
+        Assert.Equal(new DateTime(2026, 3, 1), buckets[0].StartLocal);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class EnergyAggregatorTests
         Assert.Equal(Utc(2026, 10, 31, 23), buckets[^1].StartUtc);
         Assert.Equal(0.5, buckets[^1].AcKwh, 9);
         Assert.Equal(0.3, buckets[^2].AcKwh, 9);
-        Assert.Equal(new DateTime(2024, 12, 1), buckets[0].StartLocal);
+        Assert.Equal(new DateTime(2025, 12, 1), buckets[0].StartLocal);
         Assert.Equal(2, buckets.Count(b => b.HasData));
     }
 
@@ -147,9 +147,9 @@ public class EnergyAggregatorTests
     public void RangeCoversAllBuckets()
     {
         var now = Utc(2026, 10, 30, 18, 40);
-        Assert.Equal((Utc(2026, 10, 28, 19), Utc(2026, 10, 30, 19)), EnergyAggregator.RangeFor(EnergyPeriod.Hours, now, Cet));
-        Assert.Equal((Utc(2026, 8, 31, 22), Utc(2026, 10, 30, 23)), EnergyAggregator.RangeFor(EnergyPeriod.Days, now, Cet));
-        Assert.Equal((Utc(2024, 10, 31, 23), Utc(2026, 10, 31, 23)), EnergyAggregator.RangeFor(EnergyPeriod.Months, now, Cet));
+        Assert.Equal((Utc(2026, 10, 29, 19), Utc(2026, 10, 30, 19)), EnergyAggregator.RangeFor(EnergyPeriod.Hours, now, Cet));
+        Assert.Equal((Utc(2026, 9, 30, 22), Utc(2026, 10, 30, 23)), EnergyAggregator.RangeFor(EnergyPeriod.Days, now, Cet));
+        Assert.Equal((Utc(2025, 10, 31, 23), Utc(2026, 10, 31, 23)), EnergyAggregator.RangeFor(EnergyPeriod.Months, now, Cet));
     }
 
     [Fact]

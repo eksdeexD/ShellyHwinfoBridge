@@ -15,7 +15,7 @@ internal sealed class HwinfoStepView : WizardStepView
     private readonly HwinfoStepModel _model;
     private readonly CardPanel _status = new() { Title = "Status" };
     private readonly InfoLine[] _lines = [new(), new(), new()];
-    private readonly PillButton _checkAgain = new() { Text = "Check again" };
+    private readonly TextLink _checkAgain = new() { Text = "Check again", Semibold = true };
     private readonly InfoLine _warning = new() { Tone = InfoTone.Warning };
     private readonly InfoLine _freeNote = new() { Text = HwinfoStepModel.FreeVersionNote };
     private readonly CardPanel _howTo = new() { Title = "Turn on Shared Memory" };
@@ -89,7 +89,7 @@ internal sealed class HwinfoStepView : WizardStepView
         }
 
         var checkSize = _checkAgain.GetPreferredSize(Size.Empty);
-        _checkAgain.Bounds = new Rectangle(p, y + Px(4), checkSize.Width, checkSize.Height);
+        _checkAgain.Bounds = new Rectangle(statusWidth - p - checkSize.Width, y + Px(2), checkSize.Width, checkSize.Height);
         _status.Bounds = new Rectangle(0, 0, statusWidth, _checkAgain.Bottom + p);
 
         var noteTop = _status.Bottom + Px(gap);

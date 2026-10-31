@@ -25,7 +25,7 @@ public enum OtherCardKind
     HwinfoNotRunning,
 
     /// <summary>
-    /// HWiNFO runs but no component source works: hint "Needs HWiNFO's Gadget export for: …" and a "How to enable?"
+    /// HWiNFO runs but no component source works: hint "Needs HWiNFO's Gadget export." and a "How to enable?"
     /// button that opens the gadget how-to (<see cref="OtherCardState.HowToText"/>).
     /// </summary>
     NeedsGadgetExport,
@@ -98,8 +98,8 @@ public sealed class MainWindowPresenter
     /// <summary>The Other card's hint while HWiNFO is not running.</summary>
     public const string HwinfoNotRunningHint = "Only available if HWiNFO is running";
 
-    /// <summary>The start of the Other card's hint when no component source works ("Needs HWiNFO's Gadget export for: GPU Power").</summary>
-    public const string GadgetExportHintPrefix = "Needs HWiNFO's Gadget export for: ";
+    /// <summary>The Other card's hint when HWiNFO runs but no component source works (the help dialog names the sensors).</summary>
+    public const string GadgetExportHint = "Needs HWiNFO's Gadget export.";
 
     /// <summary>The caption of the "How to enable?" button.</summary>
     public const string HowToEnableText = "How to enable?";
@@ -115,7 +115,7 @@ public sealed class MainWindowPresenter
     /// <param name="totals">The energy totals.</param>
     /// <param name="culture">The culture; defaults to the current culture.</param>
     public MainViewState Build(HwinfoMonitorSnapshot hwinfo, EnergyTotals totals, CultureInfo? culture = null) =>
-        Build(_runtime.LastReading, _runtime.State, _runtime.OnlineState, hwinfo, totals, _runtime.Settings, _runtime.Database, culture ?? CultureInfo.CurrentCulture, _runtime.Other, _runtime.TotalWatts);
+        Build(_runtime.LastReading, _runtime.State, _runtime.OnlineState, hwinfo, totals, _runtime.Settings, _runtime.Database, culture ?? CultureInfo.CurrentCulture, _runtime.Other, _runtime.TotalWatts, _runtime.Devices);
 
     /// <summary>Builds the state (pure).</summary>
     /// <param name="last">The PC's last reading, or <c>null</c>.</param>
@@ -128,6 +128,7 @@ public sealed class MainWindowPresenter
     /// <param name="culture">The culture for numbers.</param>
     /// <param name="other">The app-computed Other Components, or <c>null</c> when unknown.</param>
     /// <param name="totalWatts">Total Power (AC), or <c>null</c> when not live.</param>
+    /// <param name="devices">Every device's status (status pill); <c>null</c> derives it from <paramref name="online"/> (PC) and the settings.</param>
     public static MainViewState Build(
         PowerReadingEventArgs? last,
         RuntimeState state,
@@ -138,7 +139,8 @@ public sealed class MainWindowPresenter
         PsuDatabase database,
         CultureInfo culture,
         OtherComponentsState? other = null,
-        double? totalWatts = null)
+        double? totalWatts = null,
+        IReadOnlyList<DeviceStatus>? devices = null)
     {
         ArgumentNullException.ThrowIfNull(hwinfo);
         ArgumentNullException.ThrowIfNull(totals);
@@ -157,7 +159,7 @@ public sealed class MainWindowPresenter
 
         return new MainViewState(
             state != RuntimeState.Unconfigured,
-            Status(state, online, last, settings, culture),
+            Status(state, devices ?? DevicesFromSettings(settings, online)),
             ac,
             dc,
             loss,
@@ -175,7 +177,7 @@ public sealed class MainWindowPresenter
 
     /// <summary>
     /// Builds the Other card: the value while HWiNFO runs and a component source works; "Only available if HWiNFO is
-    /// running" while it does not run; "Needs HWiNFO's Gadget export for: …" with "How to enable?" otherwise.
+    /// running" while it does not run; "Needs HWiNFO's Gadget export." with "How to enable?" otherwise.
     /// </summary>
     /// <param name="live">The PC's live reading, or <c>null</c>.</param>
     /// <param name="hwinfo">The HWiNFO snapshot.</param>
@@ -203,7 +205,7 @@ public sealed class MainWindowPresenter
         }
 
         var missing = other.MissingGadgetSensors.Count > 0 ? other.MissingGadgetSensors : selected;
-        var hint = GadgetExportHintPrefix + string.Join(", ", missing);
+        const string hint = GadgetExportHint;
         return new StatCardState(caption, hint, string.Empty, Tone.Ink, true, new OtherCardState(OtherCardKind.NeedsGadgetExport, hint, missing, true, howTo));
     }
 
@@ -251,30 +253,67 @@ public sealed class MainWindowPresenter
     }
 
 
-    /// <summary>Builds the status pill.</summary>
+    /// <summary>The status pill when every device answers ("Shelly online" with one device).</summary>
+    public const string AllOnlineText = "Shellys online";
+
+    /// <summary>The status pill when no device answers ("Shelly offline" with one device).</summary>
+    public const string AllOfflineText = "Shellys offline";
+
+    /// <summary>The status pill when some devices answer and some do not.</summary>
+    public const string SomeOfflineText = "Some Shellys offline";
+
+    /// <summary>
+    /// Builds the status pill: a summary over every device (SPEC "Status pill"), without plug name or voltage. Green
+    /// "Shellys online" when every device answers, yellow "Some Shellys offline" when some do not, red "Shellys offline"
+    /// when none does (singular "Shelly online" / "Shelly offline" with one device). Devices whose state is not known
+    /// yet are left out; while none is known the pill reads "Connecting…". "Not set up", "No PSU curve" and "Paused"
+    /// replace the summary in those runtime states. Clicking the pill opens Manage Shellys, which shows each device.
+    /// </summary>
     /// <param name="state">The runtime state.</param>
-    /// <param name="online">The online state.</param>
-    /// <param name="last">The last reading.</param>
+    /// <param name="devices">Every device's status (PC first).</param>
+    public static StatusPillState Status(RuntimeState state, IReadOnlyList<DeviceStatus> devices)
+    {
+        ArgumentNullException.ThrowIfNull(devices);
+        switch (state)
+        {
+            case RuntimeState.Unconfigured:
+                return new StatusPillState(Tone.Secondary, "Not set up");
+            case RuntimeState.CurveUnavailable:
+                return new StatusPillState(Tone.Warning, "No PSU curve");
+            case RuntimeState.Paused:
+                return new StatusPillState(Tone.Secondary, "Paused");
+        }
+
+        var single = devices.Count <= 1;
+        var online = devices.Count(d => d.State == OnlineState.Online);
+        var offline = devices.Count(d => d.State == OnlineState.Offline);
+        if (online == 0 && offline == 0)
+        {
+            return new StatusPillState(Tone.Secondary, "Connecting…");
+        }
+
+        if (offline == 0)
+        {
+            return new StatusPillState(Tone.Success, single ? "Shelly online" : AllOnlineText);
+        }
+
+        return online == 0
+            ? new StatusPillState(Tone.Error, single ? "Shelly offline" : AllOfflineText)
+            : new StatusPillState(Tone.Warning, SomeOfflineText);
+    }
+
+    /// <summary>
+    /// Derives the device states for the pill without a runtime: the PC with <paramref name="online"/>, every additional
+    /// device of the settings as not known yet.
+    /// </summary>
     /// <param name="settings">The settings.</param>
-    /// <param name="culture">The culture.</param>
-    public static StatusPillState Status(RuntimeState state, OnlineState online, PowerReadingEventArgs? last, AppSettings settings, CultureInfo culture)
+    /// <param name="online">The PC's online state.</param>
+    public static IReadOnlyList<DeviceStatus> DevicesFromSettings(AppSettings settings, OnlineState online)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        var name = DeviceName(settings);
-        return state switch
-        {
-            RuntimeState.Unconfigured => new StatusPillState(Tone.Secondary, "Not set up"),
-            RuntimeState.CurveUnavailable => new StatusPillState(Tone.Warning, "No PSU curve · " + name),
-            RuntimeState.Paused => new StatusPillState(Tone.Secondary, "Paused · " + name),
-            _ => online switch
-            {
-                OnlineState.Online => new StatusPillState(
-                    Tone.Success,
-                    last?.Raw.Volts is double v && double.IsFinite(v) ? $"Online · {name} · {UiFormat.Volts(v, culture)}" : "Online · " + name),
-                OnlineState.Offline => new StatusPillState(Tone.Error, "Offline · " + name),
-                _ => new StatusPillState(Tone.Secondary, "Connecting · " + name),
-            },
-        };
+        var devices = new List<DeviceStatus> { new(AppSettings.PrimaryDeviceId, AppSettings.PrimaryLabel, settings.Device.Host, settings.Device.Name, settings.Device.Model, online, null, true) };
+        devices.AddRange(settings.AdditionalDevices.Select(d => new DeviceStatus(d.Id, d.Label, d.Host, d.Name, d.Model, OnlineState.Unknown, null, d.IncludeInTotals)));
+        return devices;
     }
 
     /// <summary>Returns the device's display name: its name, or the host.</summary>

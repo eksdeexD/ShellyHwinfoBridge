@@ -108,7 +108,9 @@ public sealed class SensorStepModel
                 }
             }
 
-            foreach (var duplicate in SensorSelectionAnalyzer.FindDuplicateNames(selected.Select(s => s.Name), IsManual ? null : _allNames))
+            // A sensor picked from HWiNFO's list is read by name and device, so a name shared with another device (the
+            // "Total Power" of each DIMM) is not ambiguous; typed names and selections HWiNFO no longer reports are read by name.
+            foreach (var duplicate in SensorSelectionAnalyzer.FindDuplicateNames(selected.Where(s => s.Device is null).Select(s => s.Name), IsManual ? null : _allNames))
             {
                 var count = duplicate.Count == 2 ? "Two" : duplicate.Count.ToString(_culture);
                 warnings.Add($"{count} sensors are called \"{duplicate.Name}\". The app reads component sensors by name, so this is ambiguous. Rename one of them in HWiNFO (right-click the sensor › Rename).");
@@ -129,11 +131,28 @@ public sealed class SensorStepModel
     }
 
     /// <summary>
-    /// Gets the calculation the app performs each poll, for the preview: "PC Power (DC) − CPU Package Power − GPU Power"
-    /// (the valid selected names; just "PC Power (DC)" when none are selected).
+    /// Gets the calculation the app performs each poll, for the preview: "PC Power (DC) − CPU Package Power − GPU Power =
+    /// PC Other Components" (the valid selected names; "PC Power (DC) = PC Other Components" when none are selected),
+    /// with the sensor names HWiNFO shows (<see cref="UseSensorNames"/>).
     /// </summary>
     public string CalculationPreview =>
-        string.Join(" − ", Selected.Select(s => s.Name).Where(SensorNaming.IsValidName).Prepend(SensorNaming.PcDcName));
+        string.Join(" − ", SensorDisplay.Labels(Selected.Where(s => SensorNaming.IsValidName(s.Name)).ToList()).Prepend(DcName)) + " = " + OtherName;
+
+    /// <summary>Gets the name of the DC sensor in the preview (default "PC Power (DC)").</summary>
+    public string DcName { get; private set; } = SensorNaming.PcDcName;
+
+    /// <summary>Gets the name of the Other Components sensor the preview ends with (default "PC Other Components").</summary>
+    public string OtherName { get; private set; } = SensorNaming.PcOtherName;
+
+    /// <summary>Uses the sensor names HWiNFO shows for DC and Other Components (custom names from the settings).</summary>
+    /// <param name="settings">The settings.</param>
+    public void UseSensorNames(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        DcName = SensorNaming.ResolveName(SensorKey.PcDc, settings);
+        OtherName = SensorNaming.ResolveName(SensorKey.PcOther, settings);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>Gets whether Next is allowed: no invalid names.</summary>
     public bool IsValid => InvalidNames.Count == 0;
@@ -191,7 +210,7 @@ public sealed class SensorStepModel
         {
             var all = sources.SelectMany(g => g.Readings.Select(r => new SensorInfo(g.Device, r.Label.Trim()))).ToList();
             picked = SensorHeuristics.SuggestSelection(all)
-                .ToDictionary(s => (s.Device, s.Name), s => SensorHeuristics.GetCandidateCategory(s.Name) ?? SensorHeuristics.GuessCategory(s.Name));
+                .ToDictionary(s => (s.Device, s.Name), s => SensorHeuristics.GetCandidateCategory(s.Name, s.Device) ?? SensorHeuristics.GuessCategory(s.Name, s.Device));
         }
 
         var id = 0;

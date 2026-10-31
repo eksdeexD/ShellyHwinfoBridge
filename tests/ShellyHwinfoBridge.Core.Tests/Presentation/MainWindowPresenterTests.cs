@@ -31,7 +31,7 @@ public class MainWindowPresenterTests
         var view = Build();
 
         Assert.True(view.IsConfigured);
-        Assert.Equal(new StatusPillState(Tone.Success, "Online · PlugMGen3-2 · 226.9 V"), view.Status);
+        Assert.Equal(new StatusPillState(Tone.Success, "Shelly online"), view.Status);
         Assert.Equal(new StatCardState("PC Power (AC)", "312.4 W", "from Shelly plug", Tone.Ink, false), view.Ac);
         Assert.Equal(new StatCardState("PC Power (DC)", "294.8 W", "via TX-700 curve", Tone.Accent, false), view.Dc);
         Assert.Equal(new StatCardState("PC PSU Loss", "17.6 W", "94.4 % efficiency", Tone.Ink, false), view.Loss);
@@ -65,7 +65,7 @@ public class MainWindowPresenterTests
 
         Assert.Equal("312,4 W", view.Ac.Value);
         Assert.Equal("94,4 % efficiency", view.Loss.Sub);
-        Assert.Equal("Online · PlugMGen3-2 · 226,9 V", view.Status.Text);
+        Assert.Equal("Shelly online", view.Status.Text);
         Assert.Equal("2,41 kWh", view.Energy.TodayValue);
     }
 
@@ -101,7 +101,7 @@ public class MainWindowPresenterTests
             other: new OtherComponentsState(0, OtherSource.None, true, ["GPU Power", "CPU Package Power"], false));
 
         Assert.True(view.Other.Placeholder);
-        Assert.Equal("Needs HWiNFO's Gadget export for: GPU Power, CPU Package Power", view.Other.Value);
+        Assert.Equal("Needs HWiNFO's Gadget export.", view.Other.Value);
         var state = view.Other.OtherState!;
         Assert.Equal(OtherCardKind.NeedsGadgetExport, state.Kind);
         Assert.True(state.ShowHowToEnable);
@@ -117,7 +117,8 @@ public class MainWindowPresenterTests
         var view = Build(
             hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, ComponentSource = OtherSource.None },
             other: new OtherComponentsState(0, OtherSource.None, true, [], false));
-        Assert.Equal("Needs HWiNFO's Gadget export for: CPU Package Power, GPU Power, DIMM1 Power, DIMM3 Power", view.Other.Value);
+        Assert.Equal(MainWindowPresenter.GadgetExportHint, view.Other.Value);
+        Assert.Equal(["CPU Package Power", "GPU Power", "DIMM1 Power", "DIMM3 Power"], view.Other.OtherState!.MissingSensorNames);
         Assert.Equal("running · shared memory off", view.HwinfoLine);
     }
 
@@ -165,26 +166,22 @@ public class MainWindowPresenterTests
     public void OfflinePausedAndUnconfigured()
     {
         var offline = Build(online: OnlineState.Offline);
-        Assert.Equal(new StatusPillState(Tone.Error, "Offline · PlugMGen3-2"), offline.Status);
+        Assert.Equal(new StatusPillState(Tone.Error, "Shelly offline"), offline.Status);
         Assert.Equal("—", offline.Ac.Value);
         Assert.Equal("—", offline.Other.Value);
         Assert.Equal("— % efficiency", offline.Loss.Sub);
 
         var paused = Build(state: RuntimeState.Paused, online: OnlineState.Unknown);
-        Assert.Equal(new StatusPillState(Tone.Secondary, "Paused · PlugMGen3-2"), paused.Status);
+        Assert.Equal(new StatusPillState(Tone.Secondary, "Paused"), paused.Status);
         Assert.Equal("Resume polling", paused.PauseButtonText);
 
         var connecting = Build(online: OnlineState.Unknown);
-        Assert.Equal("Connecting · PlugMGen3-2", connecting.Status.Text);
+        Assert.Equal("Connecting…", connecting.Status.Text);
 
         var unconfigured = MainWindowPresenter.Build(null, RuntimeState.Unconfigured, OnlineState.Unknown, HwinfoMonitorSnapshot.Unknown, EnergyTotals.Zero, null, BriefExample.Database(), EnUs);
         Assert.False(unconfigured.IsConfigured);
         Assert.Equal("Not set up", unconfigured.Status.Text);
         Assert.False(unconfigured.PauseEnabled);
-
-        var noName = BriefExample.Settings();
-        noName.Device.Name = null;
-        Assert.Equal("Offline · 192.168.1.42", Build(noName, online: OnlineState.Offline).Status.Text);
     }
 
     [Fact]
@@ -227,5 +224,49 @@ public class MainWindowPresenterTests
         settings.Psu = new PsuSettings { Mode = PsuSelectionMode.Manual, ManualCurve = Enumerable.Range(1, 12).Select(i => new CurvePoint(i * 60, i * 55)).ToList() };
         settings.VoltageMode = InputVoltageMode.V115;
         Assert.Equal("Manual curve (12 points) · 115 V curve", MainWindowPresenter.PsuLine(settings, null, null, EnUs));
+    }
+
+    [Fact]
+    public void StatusPillSummarisesEveryDevice()
+    {
+        static DeviceStatus Device(string id, OnlineState state) => new(id, id, "host-" + id, null, null, state, null, true);
+        StatusPillState Status(params OnlineState[] states) =>
+            MainWindowPresenter.Status(RuntimeState.Running, states.Select((s, i) => Device(i == 0 ? "pc" : "d" + i, s)).ToList());
+
+        Assert.Equal(new StatusPillState(Tone.Success, "Shellys online"), Status(OnlineState.Online, OnlineState.Online));
+        Assert.Equal(new StatusPillState(Tone.Warning, "Some Shellys offline"), Status(OnlineState.Online, OnlineState.Offline, OnlineState.Online));
+        Assert.Equal(new StatusPillState(Tone.Warning, "Some Shellys offline"), Status(OnlineState.Offline, OnlineState.Online));
+        Assert.Equal(new StatusPillState(Tone.Error, "Shellys offline"), Status(OnlineState.Offline, OnlineState.Offline));
+        Assert.Equal(new StatusPillState(Tone.Success, "Shelly online"), Status(OnlineState.Online));
+        Assert.Equal(new StatusPillState(Tone.Error, "Shelly offline"), Status(OnlineState.Offline));
+
+        // Devices not known yet are left out; with none known the pill says it is connecting.
+        Assert.Equal(new StatusPillState(Tone.Success, "Shellys online"), Status(OnlineState.Online, OnlineState.Unknown));
+        Assert.Equal(new StatusPillState(Tone.Secondary, "Connecting…"), Status(OnlineState.Unknown, OnlineState.Unknown));
+
+        // Runtime states replace the summary; no plug name or voltage anywhere.
+        var two = new[] { Device("pc", OnlineState.Online), Device("d1", OnlineState.Offline) };
+        Assert.Equal(new StatusPillState(Tone.Secondary, "Paused"), MainWindowPresenter.Status(RuntimeState.Paused, two));
+        Assert.Equal(new StatusPillState(Tone.Secondary, "Not set up"), MainWindowPresenter.Status(RuntimeState.Unconfigured, two));
+        Assert.Equal(new StatusPillState(Tone.Warning, "No PSU curve"), MainWindowPresenter.Status(RuntimeState.CurveUnavailable, two));
+    }
+
+    [Fact]
+    public void BuildUsesTheRuntimeDevicesForThePill()
+    {
+        var settings = BriefExample.Settings();
+        settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Id = "11111111-1111-1111-1111-111111111111", Label = "Monitor", Host = "192.168.1.43" });
+        var devices = new[]
+        {
+            new DeviceStatus("pc", "PC", "192.168.1.42", null, null, OnlineState.Online, 312.4, true),
+            new DeviceStatus("11111111-1111-1111-1111-111111111111", "Monitor", "192.168.1.43", null, null, OnlineState.Offline, null, true),
+        };
+
+        var view = MainWindowPresenter.Build(BriefExample.Reading(), RuntimeState.Running, OnlineState.Online, BriefExample.Hwinfo(), Totals, settings, BriefExample.Database(), EnUs, BriefExample.Other(), 312.4, devices);
+        Assert.Equal(new StatusPillState(Tone.Warning, "Some Shellys offline"), view.Status);
+
+        // Without the runtime's devices, additional devices count as not known yet.
+        var derived = MainWindowPresenter.Build(BriefExample.Reading(), RuntimeState.Running, OnlineState.Online, BriefExample.Hwinfo(), Totals, settings, BriefExample.Database(), EnUs);
+        Assert.Equal(new StatusPillState(Tone.Success, "Shellys online"), derived.Status);
     }
 }

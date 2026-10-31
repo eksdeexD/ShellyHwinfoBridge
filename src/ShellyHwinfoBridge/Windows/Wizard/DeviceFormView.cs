@@ -24,7 +24,7 @@ internal sealed class DeviceFormView : WizardStepView
     private readonly CardPanel _found = new() { Title = "Found on your network" };
     private readonly SelectableList _list = new() { RowHeightDip = 44, AccessibleName = "Shelly plugs found" };
     private readonly TextLabel _discoveryStatus = new() { Tone = UiTone.Secondary };
-    private readonly PillButton _searchAgain = new() { Text = "Search again" };
+    private readonly TextLink _searchAgain = new() { Text = "Search again", Semibold = true };
 
     private readonly CardPanel _device = new();
     private readonly TextLabel _labelCaption = new() { Text = "Label", Tone = UiTone.Secondary };
@@ -34,7 +34,7 @@ internal sealed class DeviceFormView : WizardStepView
     private readonly TextLabel _passwordLabel = new() { Text = "Password", Tone = UiTone.Secondary };
     private readonly ThemedTextBox _host = new() { Placeholder = "IP address or host name", AccessibleName = "Host" };
     private readonly ThemedTextBox _password = new() { Placeholder = "leave empty if not set", UseSystemPasswordChar = true, AccessibleName = "Password" };
-    private readonly PillButton _test = new() { Text = "Test connection" };
+    private readonly TextLink _test = new() { Text = "Test connection", Semibold = true };
     private readonly InfoLine _result = new();
     private readonly ValueTile _power = new() { Caption = "Power" };
     private readonly ValueTile _voltage = new() { Caption = "Voltage" };
@@ -45,6 +45,7 @@ internal sealed class DeviceFormView : WizardStepView
     private readonly PillButton _cancel = new() { Text = "Cancel" };
     private IReadOnlyList<DiscoveredShelly>? _shownDevices;
     private bool _showHowShown;
+    private HoverTip? _includeTip;
 
     /// <summary>Creates the form view.</summary>
     /// <param name="form">The form model.</param>
@@ -77,6 +78,7 @@ internal sealed class DeviceFormView : WizardStepView
 
         _label.ReadOnly = !form.CanEditLabel;
         _include.Visible = form.ShowIncludeInTotals;
+        _includeTip = HoverTip.Attach(_include, DeviceFormModel.IncludeInTotalsTooltip);
 
         var connection = form.Connection;
         _label.TextChanged += (_, _) =>
@@ -132,6 +134,15 @@ internal sealed class DeviceFormView : WizardStepView
 
     /// <summary>Gets the form model.</summary>
     public DeviceFormModel Form => _form;
+
+    /// <summary>Shows the "Include in totals" tooltip at once (screen renderer).</summary>
+    internal void PreviewShowIncludeTip()
+    {
+        _includeTip?.ShowTip();
+
+        // DrawToBitmap paints sibling controls in reverse z-order: put the tip last so the capture shows it on top.
+        _includeTip?.SendToBack();
+    }
 
     /// <summary>Returns why the form cannot be saved yet, or <c>null</c> when it can.</summary>
     public string? ValidationMessage =>
@@ -268,12 +279,13 @@ internal sealed class DeviceFormView : WizardStepView
         _host.Bounds = Dip(p, hostTop + 20, fieldWidth, Theme.FieldHeight);
         _password.Bounds = Dip(right, hostTop + 20, fieldWidth, Theme.FieldHeight);
         var testTop = hostTop + 20 + Theme.FieldHeight + 10;
+        // "Test connection" right-aligned; its result line to the left of it.
         var test = _test.GetPreferredSize(Size.Empty);
-        _test.Bounds = new Rectangle(Px(p), Px(testTop), test.Width, test.Height);
-        var resultLeft = _test.Right + Px(10);
-        var resultWidth = Math.Max(0, Px(p + cw) - resultLeft);
-        var resultHeight = Math.Min(Px(40), Math.Max(Px(Theme.LineHeight), _result.GetPreferredHeight(resultWidth)));
-        _result.Bounds = new Rectangle(resultLeft, _test.Top + ((_test.Height - resultHeight) / 2), resultWidth, resultHeight);
+        _test.Bounds = new Rectangle(Px(p + cw) - test.Width, Px(testTop) + ((Px(Theme.ButtonHeight) - test.Height) / 2), test.Width, test.Height);
+        var resultLeft = Px(p);
+        var resultWidth = Math.Max(0, _test.Left - Px(12) - resultLeft);
+        var resultHeight = Math.Min(Px(44), Math.Max(Px(Theme.LineHeight), _result.GetPreferredHeight(resultWidth)));
+        _result.Bounds = new Rectangle(resultLeft, Px(testTop) + ((Px(Theme.ButtonHeight) - resultHeight) / 2), resultWidth, resultHeight);
 
         var tilesTop = testTop + Theme.ButtonHeight + 10;
         var tileWidth = (cw - 16) / 3;

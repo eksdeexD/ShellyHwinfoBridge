@@ -6,12 +6,12 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
 /// Step 5: the summary card, "Start with Windows" and what Apply does (Apply is the form's Next button). A failed Apply
-/// shows its error here; a successful one moves the wizard on to step 6 (<see cref="VerifyStepView"/>).
+/// shows its error here; a successful one moves the wizard on to step 6 (<see cref="GadgetStepView"/>).
 /// </summary>
 internal sealed class ApplyStepView : WizardStepView
 {
-    private const float LeftWidth = 430;
-    private const float LabelWidth = 84;
+    private const float LeftWidth = 560;
+    private const float LabelWidth = 144;
 
     private readonly ApplyStepModel _model;
     private readonly CardPanel _summary = new() { Title = "Summary" };
@@ -20,7 +20,7 @@ internal sealed class ApplyStepView : WizardStepView
     private readonly InfoLine _applyError = new() { Tone = InfoTone.Error };
     private readonly InfoLine _beforeApply = new()
     {
-        Text = "Apply saves the settings, writes the Shelly Power sensors to HWiNFO's registry key and starts polling. HWiNFO then has to be restarted to show the new sensors; the next page helps with that and checks the result.",
+        Text = "Apply saves the settings, writes the Shelly Power sensors to HWiNFO's registry key and starts polling.\n\nHWiNFO then has to be restarted to show the new sensors; the next pages help with that and check the result.",
     };
 
     public ApplyStepView(WizardSession session)
@@ -86,8 +86,8 @@ internal sealed class ApplyStepView : WizardStepView
         var y = _summary.ContentBounds.Top;
         foreach (var (label, value) in _lines.Where(l => l.Label.Visible))
         {
-            var height = Math.Max(value.GetPreferredHeight(valueWidth), Px(18));
-            label.Bounds = new Rectangle(Px(p), y, valueLeft - Px(p + 6), Px(18));
+            var height = Math.Max(value.GetPreferredHeight(valueWidth), Px(20));
+            label.Bounds = new Rectangle(Px(p), y, valueLeft - Px(p + 6), Px(20));
             value.Bounds = new Rectangle(valueLeft, y, valueWidth, height);
             y += height + Px(6);
         }

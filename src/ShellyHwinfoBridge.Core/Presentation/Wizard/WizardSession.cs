@@ -6,14 +6,14 @@ using ShellyHwinfoBridge.Core.Settings;
 namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 
 /// <summary>
-/// The setup wizard's state machine: six steps (the last one, Verify, only after Apply), Back/Next, and a draft of the settings. Nothing touches the registry,
+/// The setup wizard's state machine: seven steps (the last two, Gadget and Verify, only after Apply), Back/Next, and a draft of the settings. Nothing touches the registry,
 /// the settings file or autostart before <see cref="Apply"/>: the steps only read (process list, shared memory, mDNS,
 /// HTTP GET). Cancel = drop the session.
 /// </summary>
 public sealed class WizardSession
 {
     /// <summary>The step labels for the step indicator.</summary>
-    public static IReadOnlyList<string> StepLabels { get; } = ["HWiNFO", "Shelly", "PSU", "Sensors", "Apply", "Verify"];
+    public static IReadOnlyList<string> StepLabels { get; } = ["HWiNFO", "Shelly", "PSU", "Sensors", "Apply", "Gadget", "Verify"];
 
     private readonly WizardDependencies _dependencies;
     private readonly PsuDatabase _database;
@@ -39,6 +39,7 @@ public sealed class WizardSession
         Psu = new PsuStepModel(database, culture);
         Sensors = new SensorStepModel(culture);
         Apply = new ApplyStepModel(dependencies, IsFirstRun || Draft.StartWithWindows, culture);
+        Gadget = new GadgetStepModel(dependencies.ReadGadgetExport ?? (() => null));
 
         Shelly.LoadFrom(Draft.Device, currentPassword);
         Shelly.LoadAdditional(Draft.AdditionalDevices);
@@ -84,10 +85,19 @@ public sealed class WizardSession
     /// <summary>Gets step 4.</summary>
     public SensorStepModel Sensors { get; }
 
-    /// <summary>Gets steps 5 (summary and Apply) and 6 (HWiNFO restart and verification).</summary>
+    /// <summary>Gets steps 5 (summary and Apply) and 7 (HWiNFO restart and verification).</summary>
     public ApplyStepModel Apply { get; }
 
-    /// <summary>Gets whether the settings were applied (the wizard is on step 6: Back and Cancel are gone).</summary>
+    /// <summary>Gets step 6 (report the component sensors to the HWiNFO Gadget).</summary>
+    public GadgetStepModel Gadget { get; }
+
+    /// <summary>
+    /// Gets whether Next on the current step should first ask "Continue anyway" / "Go back": on step 6 while a selected
+    /// sensor is not reported to the gadget yet (<see cref="GadgetStepModel.ShouldConfirmNext"/>).
+    /// </summary>
+    public bool NeedsNextConfirmation => Current == WizardStep.Gadget && Gadget.ShouldConfirmNext;
+
+    /// <summary>Gets whether the settings were applied (the wizard is on step 6 or 7: Back is gone).</summary>
     public bool IsApplied => Apply.IsApplied;
 
     /// <summary>Gets whether a Next transition (connection test) is running.</summary>
@@ -104,10 +114,11 @@ public sealed class WizardSession
         WizardStep.Psu => Psu.IsValid,
         WizardStep.Sensors => Sensors.IsValid,
         WizardStep.Apply => !IsApplied,
+        WizardStep.Gadget => true,
         _ => !Apply.IsRestarting,
     };
 
-    /// <summary>Gets the Next button text: "Next", "Apply" on step 5, "Finish" on step 6.</summary>
+    /// <summary>Gets the Next button text: "Next", "Apply" on step 5, "Finish" on step 7.</summary>
     public string NextText => Current switch
     {
         WizardStep.Apply => "Apply",
@@ -123,6 +134,7 @@ public sealed class WizardSession
         WizardStep.Psu => "Choose your power supply",
         WizardStep.Sensors => "Choose the component sensors",
         WizardStep.Apply => "Review and apply",
+        WizardStep.Gadget => GadgetStepModel.Heading,
         _ => "Verify in HWiNFO",
     };
 
@@ -136,17 +148,18 @@ public sealed class WizardSession
             ShellySetupMode.Guide => "Set the plug up once in its own web page, then search for it.",
             _ => "Pick your plug or type its IP address. The password is only needed if you set one in the Shelly app.",
         },
-        WizardStep.Psu => "Pick it from the database for the most accurate curve. If it is missing, use a generic curve by rating or enter your own.",
-        WizardStep.Sensors => "These HWiNFO power sensors are subtracted from DC power to compute Other Components. Likely candidates are already ticked.",
+        WizardStep.Psu => "Pick it from the database for the most accurate curve. If it is missing, use a generic or your own curve.",
+        WizardStep.Sensors => "These power sensors are subtracted from DC power to compute Other Components; likely ones are ticked.",
         WizardStep.Apply => "Nothing has been changed yet. Check the summary, then click Apply.",
+        WizardStep.Gadget => GadgetStepModel.Subtitle,
         _ => "The sensors are written and polling runs. Restart HWiNFO so it shows them, then verify.",
     };
 
     /// <summary>
     /// Goes to the next step. On step 2 it runs the connection test first unless the last successful test matches or the
     /// user chose "Continue anyway"; a failed test keeps the step (see <see cref="ShellyStepModel.OfferContinueAnyway"/>).
-    /// On step 5 it applies and, when that worked, moves on to step 6 (which starts the verification). On step 6 it
-    /// returns <c>false</c> ("Finish" closes the wizard).
+    /// On step 5 it applies and, when that worked, moves on to step 6 (the gadget how-to); step 7 starts the verification.
+    /// On step 7 it returns <c>false</c> ("Finish" closes the wizard).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns><c>true</c> when the step changed or Apply succeeded.</returns>
@@ -260,11 +273,19 @@ public sealed class WizardSession
             case WizardStep.Psu:
                 Psu.MeasuredVolts = Shelly.MeasuredVolts;
                 break;
-            case WizardStep.Sensors when !Sensors.IsLoaded:
-                Sensors.Load(_dependencies.ReadSharedMemory()?.GetPowerSensors(), Draft.Sensors);
+            case WizardStep.Sensors:
+                Sensors.UseSensorNames(Draft);
+                if (!Sensors.IsLoaded)
+                {
+                    Sensors.Load(_dependencies.ReadSharedMemory()?.GetPowerSensors(), Draft.Sensors);
+                }
+
                 break;
             case WizardStep.Apply:
                 Apply.Prepare(Draft, _database, Shelly.MeasuredVolts);
+                break;
+            case WizardStep.Gadget:
+                Gadget.Load(Draft.Sensors);
                 break;
             case WizardStep.Verify:
                 // Right after Apply: HWiNFO may already show the sensors (a re-run); the grace period covers a slow start.

@@ -123,7 +123,7 @@ internal sealed class ControlGalleryForm : ThemedForm
         _layout.Place(buttons, new TextLink { Text = "Cancel", Tone = LinkTone.Ink }, 20, 130, 80, 30);
         _layout.Place(buttons, new TextLink { Text = "Change", Underline = true }, 110, 130, 80, 30);
         _layout.Place(buttons, new TextLink { Text = "Change", Semibold = true }, 200, 130, 90, 30);
-        _layout.Place(buttons, new TextLink { Text = "Remove HWiNFO sensors", Tone = LinkTone.Danger }, 300, 130, 200, 30);
+        _layout.Place(buttons, new TextLink { Text = "Remove HWiNFO sensors", Semibold = true }, 300, 130, 200, 30);
 
         // Status pills and segmented controls.
         var states = _layout.Place(this, new CardPanel { Title = "Status and segments" }, 560, 92, 516, 190);
@@ -316,7 +316,7 @@ internal sealed class ControlGalleryForm : ThemedForm
 
         var maintenance = _layout.Place(this, new CardPanel { Title = "Maintenance" }, 558, 593, 518, 95);
         _layout.Place(maintenance, new PillButton { Text = "Open log folder" }, 20, 50, 168, 36);
-        _layout.Place(maintenance, new TextLink { Text = "Remove HWiNFO sensors", Tone = LinkTone.Danger }, 206, 53, 180, 30);
+        _layout.Place(maintenance, new TextLink { Text = "Remove HWiNFO sensors", Semibold = true }, 206, 53, 180, 30);
     }
 
     private void BuildPage5()

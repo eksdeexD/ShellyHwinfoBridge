@@ -1,5 +1,6 @@
 using ShellyHwinfoBridge.Controls;
 using ShellyHwinfoBridge.Core.Hwinfo;
+using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
 using ShellyHwinfoBridge.Core.Sensors;
 using ShellyHwinfoBridge.Theming;
@@ -28,7 +29,7 @@ internal sealed class SensorStepView : WizardStepView
     private readonly List<InfoLine> _warnings = [];
     private readonly CardPanel _formulaCard = new() { AccessibleName = "Formula preview" };
     private readonly TextLabel _formulaCaption = new() { Text = "Formula preview", Caption = true, Tone = UiTone.Secondary };
-    private readonly TextLabel _formula = new() { Role = FontRole.Mono, AccessibleName = "Formula" };
+    private readonly TextLabel _formula = new() { Role = FontRole.Mono, WordWrap = true, AccessibleName = "Formula" };
     private readonly TextLink _advanced = new() { Text = "Advanced: edit formula", Semibold = true };
     private readonly ThemedTextBox _editor = new() { Multiline = true, Monospace = true, AccessibleName = "Formula" };
     private readonly TextLink _reset = new() { Text = "Reset to generated", Semibold = true };
@@ -136,13 +137,14 @@ internal sealed class SensorStepView : WizardStepView
         const float gap = Theme.Gap;
         const float p = Theme.CardPadding;
 
-        var formulaHeight = _editorOpen ? 120f : 62f;
+        var formulaTextHeight = Math.Max(20f, _formula.GetPreferredHeight(Px(w - (2 * p))) * 96f / DeviceDpi);
+        var formulaHeight = _editorOpen ? 120f : 32 + formulaTextHeight + 10;
         var formulaTop = h - formulaHeight;
         _formulaCard.Bounds = Dip(0, formulaTop, w, formulaHeight);
-        _formulaCaption.Bounds = Dip(p, 10, 300, 18);
+        _formulaCaption.Bounds = Dip(p, 10, 300, 20);
         var linkSize = _advanced.GetPreferredSize(Size.Empty);
         _advanced.Bounds = new Rectangle(_formulaCard.Width - Px(p) - linkSize.Width, Px(9), linkSize.Width, linkSize.Height);
-        _formula.Bounds = Dip(p, 32, w - (2 * p), 20);
+        _formula.Bounds = Dip(p, 32, w - (2 * p), formulaTextHeight);
         _editor.Bounds = Dip(p, 32, w - (2 * p), formulaHeight - 32 - 12);
         var resetSize = _reset.GetPreferredSize(Size.Empty);
         _reset.Bounds = new Rectangle(_advanced.Left - Px(20) - resetSize.Width, Px(9), resetSize.Width, resetSize.Height);
@@ -258,7 +260,8 @@ internal sealed class SensorStepView : WizardStepView
 
             _addSensor = new TextLink { Text = "Add sensor", Semibold = true };
             _addSensor.Click += (_, _) => BeginInvoke(() => _model.AddManual());
-            Place(_addSensor, left, y + 2, _addSensor.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi, 20);
+            var addWidth = _addSensor.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi;
+            Place(_addSensor, -(addWidth + 14), y + 2, addWidth, 24);
             y += 30;
         }
         else
@@ -272,7 +275,7 @@ internal sealed class SensorStepView : WizardStepView
                     y += 12;
                 }
 
-                Place(new TextLabel { Text = group.Device, Caption = true, Tone = UiTone.Secondary }, left + 4, y, -1, 20);
+                Place(new TextLabel { Text = group.Device, Role = FontRole.SmallSemibold, Tone = UiTone.Secondary }, left + 4, y, -2, 20);
                 y += HeaderHeight;
                 foreach (var row in group.Rows)
                 {
@@ -296,7 +299,16 @@ internal sealed class SensorStepView : WizardStepView
                         }
                     };
 
-                    Place(box, left, y, 420, RowHeight);
+                    var boxWidth = Math.Min(420, (box.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi) + 4);
+                    Place(box, left, y, boxWidth, RowHeight);
+
+                    // The device next to the name, so sensors with the same name ("Total Power" of each DIMM) differ.
+                    if (group.Device != SensorStepModel.MissingGroup && SensorDisplay.ShortDevice(group.Device) is { Length: > 0 } shortDevice)
+                    {
+                        Place(new TextLabel { Text = shortDevice, Role = FontRole.Small, Tone = UiTone.Secondary, AccessibleName = row.Name + " device: " + shortDevice }, left + boxWidth + 8, y, -3, RowHeight);
+                        box.AccessibleName = row.Name + " (" + shortDevice + ")";
+                    }
+
                     Place(value, float.NaN, y, 110, RowHeight);
                     Place(category, -CategoryWidth - 18, y + 2, CategoryWidth, RowHeight - 4);
                     _sensorControls[id] = (box, value, category);
@@ -312,7 +324,7 @@ internal sealed class SensorStepView : WizardStepView
 
     /// <summary>
     /// Records a row control. X &lt; 0 is measured from the right edge, NaN means "value column" (58 % of the width);
-    /// a width of -1 stretches to the category column, -2 to the right edge.
+    /// a width of -1 stretches to the category column, -2 to the right edge, -3 to the value column.
     /// </summary>
     private void Place(Control control, float x, float y, float width, float height)
     {
@@ -342,7 +354,12 @@ internal sealed class SensorStepView : WizardStepView
                 left = x < 0 ? width + Px(x) : Px(x);
             }
 
-            var right = w == -2 ? width - Px(18) : width - Px(CategoryWidth + 44 + 10);
+            var right = w switch
+            {
+                -2 => width - Px(18),
+                -3 => (int)(width * 0.58f) - Px(14) - Px(10),
+                _ => width - Px(CategoryWidth + 44 + 10),
+            };
             var controlWidth = w < 0 ? Math.Max(Px(40), right - left) : Px(w);
             if (!float.IsNaN(x) && x >= 0 && w > 0 && control is ThemedCheckBox)
             {

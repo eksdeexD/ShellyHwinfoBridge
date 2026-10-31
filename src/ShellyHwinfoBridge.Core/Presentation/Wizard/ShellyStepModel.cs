@@ -76,7 +76,7 @@ public sealed class ShellyStepModel
     ];
 
     /// <summary>The tip about a fixed IP and the firewall (<see cref="InlineMarkup"/>: bold in <c>**</c>).</summary>
-    public const string FixedIpTip = "Give the plug a fixed IP or a DHCP reservation in your router. If the plug is on another network or VLAN, allow **TCP port 80** from this PC to the plug.";
+    public const string FixedIpTip = "Give the plug a fixed IP or a DHCP reservation in your router.\nIf the plug is on another network or VLAN, allow **TCP port 80** from this PC to the plug.";
 
     private readonly Func<CancellationToken, Task<IReadOnlyList<DiscoveredShelly>>> _discover;
     private readonly Func<string, string?, CancellationToken, Task<ConnectionTestResult>> _test;

@@ -82,10 +82,13 @@ internal static class SampleData
 
     public static EnergyTotals Totals() => new(2.41, 48.7, 2.2, 45.1);
 
-    public static MainViewState MainView(RuntimeState state = RuntimeState.Running, OnlineState online = OnlineState.Online, HwinfoMonitorSnapshot? hwinfo = null, AppSettings? settings = null, PsuDatabase? database = null, OtherComponentsState? other = null)
+    public static MainViewState MainView(RuntimeState state = RuntimeState.Running, OnlineState online = OnlineState.Online, HwinfoMonitorSnapshot? hwinfo = null, AppSettings? settings = null, PsuDatabase? database = null, OtherComponentsState? other = null, OnlineState additionalState = OnlineState.Online)
     {
         var effective = state == RuntimeState.Unconfigured ? null : settings ?? Settings();
         var total = effective is { HasAdditionalDevices: true } ? Reading().Power.AcWatts + MonitorWatts : (double?)null;
+        var devices = effective is null
+            ? null
+            : MainWindowPresenter.DevicesFromSettings(effective, online).Select((d, i) => i == 0 ? d : d with { State = additionalState }).ToList();
         return MainWindowPresenter.Build(
             Reading(),
             state,
@@ -96,7 +99,8 @@ internal static class SampleData
             database ?? PsuDatabaseLoader.LoadEmbedded(),
             Culture,
             other ?? Other(),
-            total);
+            total,
+            devices);
     }
 
     /// <summary>The sample settings with the preview's 230 V-only PSU and the 115 V override (shows the curve note).</summary>
@@ -108,7 +112,7 @@ internal static class SampleData
         return settings;
     }
 
-    /// <summary>A plausible 48-hour profile ending with the current hour, as the chart model.</summary>
+    /// <summary>A plausible profile ending with the current hour, as the chart model.</summary>
     public static EnergyChartModel Chart(EnergyPeriod period) =>
         EnergyChartModel.Build(EnergyAggregator.Aggregate(PcRows(period), period, NowUtc, TimeZoneInfo.Utc), period, Culture);
 

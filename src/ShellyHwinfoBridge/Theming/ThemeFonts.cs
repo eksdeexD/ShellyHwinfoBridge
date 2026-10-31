@@ -123,27 +123,18 @@ internal static class ThemeFonts
     /// <summary>The application default font (Body, in points so WinForms scales it per monitor).</summary>
     public static Font CreateApplicationDefault() => new(RegularFamily, Spec(FontRole.Body).Points, FontStyle.Regular, GraphicsUnit.Point);
 
-    /// <summary>
-    /// The compact type scale: every role is drawn at 80 % of the size measured from the design images, except
-    /// <see cref="FontRole.Tiny"/> (the version text), which keeps its size.
-    /// </summary>
-    internal const float CompactScale = 0.8f;
-
     /// <remarks>
-    /// The base sizes were measured from the accepted design images (text widths at the 1100 × 740 DIP client size) and
-    /// are scaled by <see cref="CompactScale"/>. The "semibold" roles render Bold: GDI (TextRenderer) maps System.Drawing
-    /// fonts to weight 400 or 700 only, and the Segoe UI Variable "Semibold" named instances render at 400 through GDI.
+    /// The sizes were measured from the accepted design images (text widths at the 1100 × 740 DIP client size). The UI
+    /// pass of 2026-10-31 reverted beta.4's 80 % type scale, except the large page titles (<see cref="FontRole.PageTitle"/>
+    /// and <see cref="FontRole.AppTitle"/>: 85 % of their beta.4 size, 17 pt) and <see cref="FontRole.Tiny"/> (the version
+    /// text, 8 pt). <see cref="FontRole.Caption"/> (the uppercase card captions) stays close to its beta.4 size (8 pt), so
+    /// "PC OTHER COMPONENTS" fits a stat card of the five-card row. The "semibold" roles render Bold: GDI (TextRenderer)
+    /// maps System.Drawing fonts to weight 400 or 700 only, and the Segoe UI Variable "Semibold" named instances render at 400 through GDI.
     /// </remarks>
-    internal static (string Family, float Points, FontStyle Style) Spec(FontRole role)
+    internal static (string Family, float Points, FontStyle Style) Spec(FontRole role) => role switch
     {
-        var (family, points, style) = BaseSpec(role);
-        return role == FontRole.Tiny ? (family, points, style) : (family, points * CompactScale, style);
-    }
-
-    private static (string Family, float Points, FontStyle Style) BaseSpec(FontRole role) => role switch
-    {
-        FontRole.AppTitle => (DisplayFamily, 21f, FontStyle.Bold),
-        FontRole.PageTitle => (DisplayFamily, 25f, FontStyle.Bold),
+        FontRole.AppTitle => (DisplayFamily, 17f, FontStyle.Bold),
+        FontRole.PageTitle => (DisplayFamily, 17f, FontStyle.Bold),
         FontRole.Subtitle => (RegularFamily, 12.5f, FontStyle.Regular),
         FontRole.CardTitle => (DisplayFamily, 17f, FontStyle.Bold),
         FontRole.StatValue => (DisplayFamily, 30f, FontStyle.Bold),
@@ -152,7 +143,7 @@ internal static class ThemeFonts
         FontRole.BodySemibold => (RegularFamily, 11f, FontStyle.Bold),
         FontRole.Small => (RegularFamily, 10f, FontStyle.Regular),
         FontRole.SmallSemibold => (RegularFamily, 10f, FontStyle.Bold),
-        FontRole.Caption => (RegularFamily, 9.5f, FontStyle.Regular),
+        FontRole.Caption => (RegularFamily, 8f, FontStyle.Regular),
         FontRole.Mono => (MonoFamily, 10f, FontStyle.Regular),
         FontRole.ItemTitle => (DisplayFamily, 13f, FontStyle.Bold),
         FontRole.Tiny => (RegularFamily, 8f, FontStyle.Regular),

@@ -35,23 +35,23 @@ internal static class ScreenRenderer
         ("main-window-months-hover", () =>
         {
             var form = MainWindow(SampleData.MainView(), EnergyPeriod.Months);
-            form.PreviewHover(22);
+            form.PreviewHover(10);
             return form;
         }),
         ("main-window-hours-hover", () =>
         {
             var form = MainWindow(SampleData.MainView(), EnergyPeriod.Hours);
-            form.PreviewHover(30);
+            form.PreviewHover(15);
             return form;
         }),
         ("main-window-hours-hover-tallest", () =>
         {
             var form = MainWindow(SampleData.MainView(), EnergyPeriod.Hours);
-            form.PreviewHover(47);
+            form.PreviewHover(23);
             return form;
         }),
         ("main-window-price-offline-no-shm", () => MainWindow(PriceOfflineNoSharedMemory(), EnergyPeriod.Hours)),
-        ("dialog-confirm", () => ThemedDialog.CreateForPreview("Remove HWiNFO sensors?", "This deletes the Shelly Power sensors from HWiNFO and pauses polling. Resume polling to create them again.", "Remove", "Cancel")),
+        ("dialog-confirm-remove-sensors", () => ThemedDialog.CreateForPreview("Remove HWiNFO sensors?", SettingsPage.RemoveSensorsConfirmText, "Remove", "Cancel")),
         ("main-window-unconfigured",() => MainWindow(SampleData.MainView(RuntimeState.Unconfigured, OnlineState.Unknown, HwinfoMonitorSnapshot.Unknown), EnergyPeriod.Hours)),
         ("wizard-1-hwinfo", () => WizardPreview.At(WizardStep.Hwinfo)),
         ("wizard-1-hwinfo-off", () => WizardPreview.At(WizardStep.Hwinfo, snapshot: WizardPreview.Snapshot.None)),
@@ -115,30 +115,25 @@ internal static class ScreenRenderer
             s.Sensors.SetManualName(s.Sensors.AddManual(), "GPU Power");
         })),
         ("wizard-5-apply", () => WizardPreview.At(WizardStep.Apply)),
-        ("wizard-6-verify-pending", () => WizardPreview.At(WizardStep.Apply, afterApply: WizardPreview.Snapshot.None, tweak: s =>
+        ("wizard-6-gadget-mixed", () => WizardPreview.At(WizardStep.Apply, gadgetExport: WizardPreview.GadgetExport.Partial, tweak: s =>
             s.GoNextAsync().GetAwaiter().GetResult())),
-        ("wizard-6-verify-could-not-close", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.Desktop, tweak: s =>
+        ("wizard-6-gadget-all-reported", () => WizardPreview.At(WizardStep.Apply, gadgetExport: WizardPreview.GadgetExport.All, tweak: s =>
+            s.GoNextAsync().GetAwaiter().GetResult())),
+        ("wizard-6-gadget-hwinfo-not-running", () => WizardPreview.At(WizardStep.Apply, gadgetExport: WizardPreview.GadgetExport.NotRunning, tweak: s =>
+            s.GoNextAsync().GetAwaiter().GetResult())),
+        ("wizard-6-gadget-confirm", () =>
         {
-            s.GoNextAsync().GetAwaiter().GetResult();
+            var model = new GadgetStepModel(() => WizardPreview.Export(WizardPreview.GadgetExport.Partial));
+            model.Load(WizardPreview.SelectedSensors());
+            return ThemedDialog.CreateForPreview(GadgetStepModel.ConfirmTitle, model.ConfirmText, GadgetStepModel.ContinueText, GadgetStepModel.GoBackText);
+        }),
+        ("wizard-7-verify-pending", () => WizardPreview.At(WizardStep.Apply, afterApply: WizardPreview.Snapshot.None, tweak: ApplyAndSkipGadget)),
+        ("wizard-7-verify-could-not-close", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.Desktop, tweak: s =>
+        {
+            ApplyAndSkipGadget(s);
             s.Apply.RestartHwinfoAsync().GetAwaiter().GetResult();
         })),
-        ("wizard-6-verify-verified", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: s =>
-            s.GoNextAsync().GetAwaiter().GetResult())),
-        ("wizard-6-verify-with-gadget-image", () =>
-        {
-            // Until Assets/hwinfo-gadget.png exists, preview the layout with the shared-memory screenshot as a stand-in.
-            var source = VerifyStepView.GadgetScreenshotSource;
-            VerifyStepView.GadgetScreenshotSource = () => source() ?? Theming.AppAssets.TryLoadHwinfoScreenshot();
-            try
-            {
-                return WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: s =>
-                    s.GoNextAsync().GetAwaiter().GetResult());
-            }
-            finally
-            {
-                VerifyStepView.GadgetScreenshotSource = source;
-            }
-        }),
+        ("wizard-7-verify-verified", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: ApplyAndSkipGadget)),
         ("main-settings", () => Settings()),
         ("main-settings-single-voltage", () => Settings(out _, SampleData.SingleVoltageSettings(), WizardPreview.DatabaseWithSingleVoltage())),
         ("main-window-single-voltage", () => MainWindow(SampleData.MainView(settings: SampleData.SingleVoltageSettings(), database: WizardPreview.DatabaseWithSingleVoltage()), EnergyPeriod.Hours)),
@@ -201,7 +196,7 @@ internal static class ScreenRenderer
             var model = new PsuStepModel(WizardPreview.Database(), SampleData.Culture);
             model.LoadFrom(SampleData.Settings());
             model.MeasuredVolts = 226.9;
-            return new StepDialog("Power supply", "Pick it from the database for the most accurate curve. If it is missing, use a generic curve by rating or enter your own.", new PsuStepView(model), () => null);
+            return new StepDialog("Power supply", "Pick it from the database for the most accurate curve. If it is missing, use a generic or your own curve.", new PsuStepView(model), () => null);
         }),
         ("step-dialog-sensors", () =>
         {
@@ -215,13 +210,13 @@ internal static class ScreenRenderer
         ("m4-main-2-devices", () =>
         {
             var form = TwoDeviceWindow(EnergyChartMode.Combined);
-            form.PreviewHover(42);
+            form.PreviewHover(20);
             return form;
         }),
         ("m4-main-2-devices-per-device", () =>
         {
             var form = TwoDeviceWindow(EnergyChartMode.PerDevice);
-            form.PreviewHover(42, 1);
+            form.PreviewHover(10, 1);
             return form;
         }),
         ("m4-main-2-devices-per-device-days", () => TwoDeviceWindow(EnergyChartMode.PerDevice, EnergyPeriod.Days)),
@@ -232,7 +227,8 @@ internal static class ScreenRenderer
             return MainWindow(SampleData.MainView(hwinfo: SampleData.HwinfoWithoutComponents(), settings: settings, other: OtherComponentsState.Unknown), EnergyPeriod.Hours, SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings));
         }),
         ("m4-main-other-hwinfo-not-running", () => MainWindow(SampleData.MainView(hwinfo: new HwinfoMonitorSnapshot(true, false, false, false, null), other: OtherComponentsState.Unknown), EnergyPeriod.Hours)),
-        ("m4-gadget-help-dialog", () => new GadgetHelpDialog(HwinfoTips.GadgetExportFor(SampleData.Settings().Sensors.Select(s => s.Name)))),
+        ("m4-gadget-help-dialog", () => new GadgetHelpDialog(GadgetModel())),
+        ("gadget-help-dialog-hwinfo-not-running", () => new GadgetHelpDialog(GadgetModel(WizardPreview.GadgetExport.NotRunning))),
         ("m4-rename-help-dialog", () => new RenameHelpDialog(HwinfoRenameHelp.ForDeviceRelabel(SampleData.MonitorId, "Monitor", "Desk monitor"))),
         ("m4-rename-help-dialog-many", () => new RenameHelpDialog(new HwinfoRenameHelp(
         [
@@ -245,11 +241,48 @@ internal static class ScreenRenderer
             new SensorRename("Monitor Online", "Screen Online"),
         ]))),
         ("m4-settings-2-devices", () => Settings(out _, SampleData.TwoDeviceSettings())),
-        ("m4-settings-about", () =>
+        ("about-window", () => new AboutWindow()),
+
+        // UI pass of 2026-10-31: status pill states, the accent colour, the Include in totals tooltip.
+        ("pass2-main-2-devices-some-offline", () =>
         {
-            var form = Settings(out _, SampleData.TwoDeviceSettings());
-            form.Tag = new Action(form.ScrollSettingsToAbout);
-            return form;
+            var settings = SampleData.TwoDeviceSettings();
+            return MainWindow(SampleData.MainView(settings: settings, additionalState: OnlineState.Offline), EnergyPeriod.Hours, SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings));
+        }),
+        ("pass2-main-2-devices-offline", () =>
+        {
+            var settings = SampleData.TwoDeviceSettings();
+            return MainWindow(SampleData.MainView(online: OnlineState.Offline, settings: settings, additionalState: OnlineState.Offline), EnergyPeriod.Hours, SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings));
+        }),
+        ("pass2-main-paused", () => MainWindow(SampleData.MainView(RuntimeState.Paused, OnlineState.Unknown), EnergyPeriod.Hours)),
+        ("pass2-accent-teal-main-per-device", () =>
+        {
+            var settings = TealSettings();
+            return MainWindow(SampleData.MainView(settings: settings), EnergyPeriod.Hours, SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings));
+        }),
+        ("pass2-accent-teal-settings", () => Settings(out _, TealSettings())),
+        ("pass2-accent-teal-manage-shellys", () => ManageShellys(TealSettings())),
+        ("pass2-accent-teal-wizard-4", () =>
+        {
+            Theming.Theme.SetAccent(Color.FromArgb(0x1F, 0xA8, 0x9A));
+            return WizardPreview.At(WizardStep.Sensors);
+        }),
+        ("pass2-accent-teal-tray-icons", () =>
+        {
+            Theming.Theme.SetAccent(Color.FromArgb(0x1F, 0xA8, 0x9A));
+            return new IconPreviewForm();
+        }),
+        ("pass2-device-form-include-tooltip", () =>
+        {
+            var dialog = DeviceForm(m => m.BeginAdd());
+            dialog.Tag = new Action(() => (dialog.View as DeviceFormView)?.PreviewShowIncludeTip());
+            return dialog;
+        }),
+        ("pass2-settings-sensors-dialog-dimms", () =>
+        {
+            var model = new SensorStepModel(SampleData.Culture);
+            model.Load(WizardPreview.Sensors(withBridge: false).GetPowerSensors(), []);
+            return new StepDialog("Choose the component sensors", "These HWiNFO power sensors are subtracted from DC power to compute Other Components.", new SensorStepView(model, () => { }), () => null, "Sensors");
         }),
         ("m4-settings-retired-formula", () =>
         {
@@ -286,6 +319,30 @@ internal static class ScreenRenderer
 
     private static MainForm Settings() => Settings(out _);
 
+    /// <summary>The two-device settings with a teal accent colour (applied to the theme as the running app does).</summary>
+    private static AppSettings TealSettings()
+    {
+        var settings = SampleData.TwoDeviceSettings(EnergyChartMode.PerDevice);
+        settings.BaseColour = "#1FA89A";
+        Theming.Theme.SetAccent(Color.FromArgb(0x1F, 0xA8, 0x9A));
+        return settings;
+    }
+
+    /// <summary>Applies on step 5 and moves on past step 6 (the gadget how-to) to step 7.</summary>
+    private static void ApplyAndSkipGadget(WizardSession session)
+    {
+        session.GoNextAsync().GetAwaiter().GetResult();
+        session.GoNextAsync().GetAwaiter().GetResult();
+    }
+
+    /// <summary>The gadget how-to model over the preview's export, loaded with the sample sensors.</summary>
+    private static GadgetStepModel GadgetModel(WizardPreview.GadgetExport export = WizardPreview.GadgetExport.Partial)
+    {
+        var model = new GadgetStepModel(() => WizardPreview.Export(export));
+        model.Load(WizardPreview.SelectedSensors());
+        return model;
+    }
+
     /// <summary>The main window on its settings page, over the sample settings (price 0.32 DKK, autostart on, a stored password).</summary>
     private static MainForm Settings(out SettingsPresenter presenter, AppSettings? sample = null, PsuDatabase? database = null)
     {
@@ -296,7 +353,7 @@ internal static class ScreenRenderer
         var runtime = new PreviewRuntime(settings, hasPassword: true, database);
         presenter = new SettingsPresenter(runtime, SampleData.Culture);
         var form = MainWindow(SampleData.MainView(settings: settings, database: database), EnergyPeriod.Hours, settings.HasAdditionalDevices ? SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings) : null);
-        form.OpenSettings(new SettingsPage(presenter, runtime, () => WizardPreview.Sensors(withBridge: false), WizardPreview.Discover));
+        form.OpenSettings(new SettingsPage(presenter, runtime, () => WizardPreview.Sensors(withBridge: false), WizardPreview.Discover, () => GadgetModel()));
         return form;
     }
 
@@ -408,6 +465,11 @@ internal static class ScreenRenderer
             catch (Exception ex)
             {
                 errors.Add($"{name}: {ex}");
+            }
+            finally
+            {
+                // A screen may preview another accent colour.
+                Theming.Theme.SetAccent(Theming.Theme.DefaultAccent);
             }
         }
 
