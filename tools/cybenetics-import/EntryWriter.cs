@@ -37,6 +37,58 @@ public sealed class EntryMetadata
 
     /// <summary>Gets or sets the report URL.</summary>
     public string Url { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Builds and checks metadata from named values (keys, case-insensitive: id, brand, series, model, revision,
+    /// wattage, rating80plus, ratingcybenetics, reportid, url).
+    /// </summary>
+    /// <param name="values">The values.</param>
+    /// <exception cref="ArgumentException">A required value is missing or malformed.</exception>
+    public static EntryMetadata FromValues(IReadOnlyDictionary<string, string?> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        string? Get(string key) =>
+            values.FirstOrDefault(kv => kv.Key.Equals(key, StringComparison.OrdinalIgnoreCase)).Value?.Trim();
+
+        foreach (var required in new[] { "id", "brand", "series", "model", "wattage", "rating80plus", "reportid", "url" })
+        {
+            if (string.IsNullOrWhiteSpace(Get(required)))
+            {
+                throw new ArgumentException($"--{required} is required.");
+            }
+        }
+
+        if (!int.TryParse(Get("wattage"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var watts) || watts <= 0)
+        {
+            throw new ArgumentException("--wattage must be a positive whole number.");
+        }
+
+        var rating = Get("rating80plus")!;
+        var canonical = PsuDatabaseValidator.AllowedRatings.FirstOrDefault(n => n.Equals(rating, StringComparison.OrdinalIgnoreCase))
+            ?? throw new ArgumentException($"--rating80plus must be one of {string.Join(", ", PsuDatabaseValidator.AllowedRatings)}.");
+
+        var url = Get("url")!;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+        {
+            throw new ArgumentException("--url must be the absolute http(s) URL of the report page.");
+        }
+
+        var revision = Get("revision");
+        var ratingCybenetics = Get("ratingcybenetics");
+        return new EntryMetadata
+        {
+            Id = Get("id")!,
+            Brand = Get("brand")!,
+            Series = Get("series")!,
+            Model = Get("model")!,
+            Revision = string.IsNullOrWhiteSpace(revision) ? null : revision,
+            Wattage = watts,
+            Rating80Plus = canonical,
+            RatingCybenetics = string.IsNullOrWhiteSpace(ratingCybenetics) ? null : ratingCybenetics,
+            ReportId = Get("reportid")!,
+            Url = url,
+        };
+    }
 }
 
 /// <summary>Builds, validates and formats one <c>psu-database.json</c> entry.</summary>

@@ -251,6 +251,7 @@ public class ReportParserTests
     [InlineData(new[] { "--id", "x" }, "No input file")]
     [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "abc", "--rating80plus", "Gold", "--reportId", "R", "--url", "u" }, "--wattage")]
     [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "700", "--rating80plus", "Gold", "--reportId", "R", "--url", "https://e.com/", "--load-row", "(" }, "error")]
+    [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "700", "--rating80plus", "Gold", "--reportId", "R", "--url", "evaluations/psus/1872" }, "--url must be the absolute")]
     [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "700", "--rating80plus", "Gold", "--reportId", "R", "--url", "https://e.com/", "--bogus", "1" }, "Unknown option --bogus")]
     public void CommandRejectsBadArguments(string[] args, string message)
     {
