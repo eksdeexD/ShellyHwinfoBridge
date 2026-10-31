@@ -1,6 +1,7 @@
 using System.Net;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Database;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
 using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
 using ShellyHwinfoBridge.Core.Polling;
@@ -33,11 +34,7 @@ internal static class WizardPreview
                 Snapshot.WithBridge => Sensors(withBridge: true),
                 _ => Sensors(withBridge: false),
             },
-            _ => Task.FromResult<IReadOnlyList<DiscoveredShelly>>(
-            [
-                new("shellyplugmg3-1", "PlugMGen3-2", "S3PL-10112EU", "PlugMG3", 3, IPAddress.Parse("192.168.1.42"), 80, false),
-                new("shellyplugsg3-2", "Desk lamp", "S3PL-00112EU", "PlugSG3", 3, IPAddress.Parse("192.168.1.57"), 80, false),
-            ]),
+            Discover,
             _ => Task.FromResult(HwinfoRestartResult.CouldNotClose),
             () => true,
             TimeProvider.System);
@@ -71,6 +68,14 @@ internal static class WizardPreview
         tweak?.Invoke(session);
         return new WizardForm(session);
     }
+
+    /// <summary>The preview's network: the design image's plug and a second one (no mDNS, no network).</summary>
+    internal static Task<IReadOnlyList<DiscoveredShelly>> Discover(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<DiscoveredShelly>>(
+        [
+            new("shellyplugmg3-1", "PlugMGen3-2", "S3PL-10112EU", "PlugMG3", 3, IPAddress.Parse("192.168.1.42"), 80, false),
+            new("shellyplugsg3-2", "PlugSG3-1", "S3PL-00112EU", "PlugSG3", 3, IPAddress.Parse("192.168.1.57"), 80, false),
+        ]);
 
     /// <summary>What the preview's shared memory returns.</summary>
     internal enum Snapshot
@@ -159,10 +164,10 @@ internal static class WizardPreview
         };
         if (withBridge)
         {
-            readings.Add(W(9, "Shelly Power", "AC Power (Wall)", 312.4));
-            readings.Add(W(9, "Shelly Power", "DC Power (Est.)", 294.8));
-            readings.Add(W(9, "Shelly Power", "PSU Loss", 17.6));
-            readings.Add(W(9, "Shelly Power", "Other Components", 48.1));
+            readings.Add(W(9, SensorNaming.DeviceName, SensorNaming.PcAcName, 312.4));
+            readings.Add(W(9, SensorNaming.DeviceName, SensorNaming.PcDcName, 294.8));
+            readings.Add(W(9, SensorNaming.DeviceName, SensorNaming.PcLossName, 17.6));
+            readings.Add(W(9, SensorNaming.DeviceName, SensorNaming.PcOtherName, 48.1));
         }
 
         return new HwinfoSnapshot(2, 1, SampleData.NowUtc, [], readings);

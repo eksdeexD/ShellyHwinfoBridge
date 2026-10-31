@@ -1,5 +1,6 @@
 using System.Globalization;
 using ShellyHwinfoBridge.Controls;
+using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
 using ShellyHwinfoBridge.Core.Shelly.Discovery;
 using ShellyHwinfoBridge.Theming;
@@ -10,7 +11,9 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 /// Step 2. It opens with the question card ("Is your Shelly plug already on your Wi-Fi network?" with "Yes, find it"
 /// and "No, show me how to set it up"). "No" shows the setup guide card (numbered steps, "Done, search now"); "Yes"
 /// and "Done, search now" show "Found on your network" (mDNS list, "Search again") and "Connection" (host, password,
-/// "Test connection", Power/Voltage/Current tiles, result line with "Continue anyway"), plus the fixed-IP tip.
+/// "Test connection", Power/Voltage/Current tiles, result line with "Continue anyway"), plus the fixed-IP tip. After a
+/// successful test the "Add a Shelly for your monitor or another device" card lists the added devices (Remove) and
+/// opens the shared <see cref="DeviceFormView"/> in place of the step content while a device is being added.
 /// </summary>
 internal sealed class ShellyStepView : WizardStepView
 {
@@ -42,6 +45,14 @@ internal sealed class ShellyStepView : WizardStepView
     private readonly ValueTile _current = new() { Caption = "Current" };
     private readonly InfoLine _result = new();
     private readonly InfoLine _tip = new() { Text = ShellyStepModel.FixedIpTip };
+
+    // Additional devices (after a successful test of the PC's plug).
+    private readonly CardPanel _addCard = new() { AccessibleName = DeviceFormModel.AddTitle };
+    private readonly TextLabel _addTitle = new() { Text = DeviceFormModel.AddTitle, Role = FontRole.CardTitle, WordWrap = true };
+    private readonly PillButton _addDevice = new() { Text = "Add device" };
+    private readonly InfoLine _addHint = new();
+    private readonly List<(TextLabel Text, TextLink Remove)> _addedRows = [];
+    private DeviceFormView? _formView;
     private IReadOnlyList<DiscoveredShelly>? _shownDevices;
     private ShellySetupMode? _shownMode;
 
@@ -61,7 +72,9 @@ internal sealed class ShellyStepView : WizardStepView
         _guide.Controls.Add(_done);
         _found.Controls.AddRange([_list, _discoveryStatus, _searchAgain]);
         _connection.Controls.AddRange([_hostLabel, _passwordLabel, _host, _password, _test, _power, _voltage, _current, _result]);
-        Controls.AddRange([_question, _guide, _found, _connection, _tip]);
+        _addCard.Controls.AddRange([_addTitle, _addDevice, _addHint]);
+        Controls.AddRange([_question, _guide, _found, _connection, _tip, _addCard]);
+        _addDevice.Click += (_, _) => _model.BeginAddDevice();
 
         _yes.Click += async (_, _) => await _model.FindAsync();
         _no.Click += (_, _) => _model.ShowGuide();
@@ -109,12 +122,17 @@ internal sealed class ShellyStepView : WizardStepView
     protected override void OnRefreshView()
     {
         var mode = _model.SetupMode;
+        SyncFormView();
+        var formOpen = _formView is not null;
         _question.Visible = mode == ShellySetupMode.Unanswered;
         _guide.Visible = mode == ShellySetupMode.Guide;
         foreach (var control in new Control[] { _found, _connection, _tip })
         {
-            control.Visible = mode == ShellySetupMode.Ready;
+            control.Visible = mode == ShellySetupMode.Ready && !formOpen;
         }
+
+        _addCard.Visible = _model.ShowAddDeviceCard && !formOpen;
+        RefreshAdded();
 
         if (!ReferenceEquals(_shownDevices, _model.Devices))
         {
@@ -162,6 +180,10 @@ internal sealed class ShellyStepView : WizardStepView
         LayoutQuestion();
         LayoutGuide();
         LayoutDiscovery();
+        if (_formView is not null)
+        {
+            _formView.Bounds = new Rectangle(Point.Empty, Size);
+        }
     }
 
     protected override void Dispose(bool disposing)
@@ -172,6 +194,100 @@ internal sealed class ShellyStepView : WizardStepView
         }
 
         base.Dispose(disposing);
+    }
+
+    /// <summary>Creates the inline device form when the model opened one, and removes it when it closed.</summary>
+    private void SyncFormView()
+    {
+        var form = _model.DeviceForm;
+        if (ReferenceEquals(_formView?.Form, form))
+        {
+            return;
+        }
+
+        if (_formView is { } old)
+        {
+            _formView = null;
+            Controls.Remove(old);
+            old.Dispose();
+            if (Visible && IsHandleCreated)
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    if (!IsDisposed && _addDevice.Visible && _addDevice.Enabled)
+                    {
+                        _addDevice.Focus();
+                    }
+                }));
+            }
+        }
+
+        if (form is null)
+        {
+            return;
+        }
+
+        var view = new DeviceFormView(form, inline: true) { TabIndex = 0 };
+        view.SaveRequested += (_, _) => _model.CommitDeviceForm();
+        view.CancelRequested += (_, _) => _model.CancelDeviceForm();
+        _formView = view;
+        Controls.Add(view);
+        view.BringToFront();
+        view.Bounds = new Rectangle(Point.Empty, Size);
+        if (IsHandleCreated)
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (ReferenceEquals(_formView, view) && !view.IsDisposed)
+                {
+                    view.OnStepShown();
+                }
+            }));
+        }
+    }
+
+    /// <summary>Fills the add-device card: the hint at the cap and one row per added device with a Remove link.</summary>
+    private void RefreshAdded()
+    {
+        _addDevice.Enabled = _model.CanAddDevice;
+        var hint = _model.AddDeviceHint;
+        _addHint.Text = hint ?? (_model.AdditionalDevices.Count == 0
+            ? "Optional. An added plug is measured on the AC side and counts in Total Power and the energy totals."
+            : string.Empty);
+        _addHint.Visible = _addHint.Text.Length > 0;
+
+        var devices = _model.AdditionalDevices;
+        while (_addedRows.Count < devices.Count)
+        {
+            var text = new TextLabel();
+            var remove = new TextLink { Text = "Remove", Tone = LinkTone.Danger };
+            var index = _addedRows.Count;
+            remove.Click += (_, _) =>
+            {
+                if (index < _model.AdditionalDevices.Count)
+                {
+                    _model.RemoveAdditionalDevice(_model.AdditionalDevices[index].Id);
+                }
+            };
+            _addCard.Controls.Add(text);
+            _addCard.Controls.Add(remove);
+            _addedRows.Add((text, remove));
+        }
+
+        for (var i = 0; i < _addedRows.Count; i++)
+        {
+            var visible = i < devices.Count;
+            var (text, remove) = _addedRows[i];
+            text.Visible = visible;
+            remove.Visible = visible;
+            if (visible)
+            {
+                var d = devices[i];
+                var parts = new[] { d.Label, d.Host, d.IncludeInTotals ? null : "not in totals" }.Where(s => !string.IsNullOrWhiteSpace(s));
+                text.Text = string.Join(" · ", parts);
+                remove.AccessibleName = "Remove " + d.Label;
+            }
+        }
     }
 
     private void LayoutQuestion()
@@ -213,9 +329,40 @@ internal sealed class ShellyStepView : WizardStepView
         const float gap = 16;
         var half = (w - gap) / 2;
 
-        _found.Bounds = Dip(0, 0, half, h);
+        // With the add-device card, the left column splits: the discovery card on top, the add-device card under it
+        // (Add device and its hint, then one row per added device with Remove).
+        var addHeight = 0f;
+        if (_addCard.Visible)
+        {
+            // The title wraps (the card is half the step wide).
+            var rows = _addedRows.Count(r => r.Text.Visible);
+            var titleHeight = _addTitle.GetPreferredHeight(Px(half - 40)) * 96f / DeviceDpi;
+            var buttonTop = 18 + titleHeight + 10;
+            addHeight = buttonTop + 36 + 12 + (rows * 30) + (rows > 0 ? 4 : 6);
+            _addCard.Bounds = Dip(0, h - addHeight, half, addHeight);
+            var addInner = _addCard.Width - Px(40);
+            _addTitle.Bounds = new Rectangle(Px(20), Px(18), addInner, Px(titleHeight));
+            var addWidth = Math.Max(Px(140), _addDevice.GetPreferredSize(Size.Empty).Width);
+            _addDevice.Bounds = new Rectangle(Px(20), Px(buttonTop), addWidth, Px(36));
+            var hintLeft = _addDevice.Right + Px(16);
+            var hintWidth = Math.Max(0, Px(20) + addInner - hintLeft);
+            var hintHeight = Math.Min(Px(48), Math.Max(Px(28), _addHint.GetPreferredHeight(hintWidth)));
+            _addHint.Bounds = new Rectangle(hintLeft, _addDevice.Top + ((_addDevice.Height - hintHeight) / 2), hintWidth, hintHeight);
+            var y = Px(buttonTop + 36 + 12);
+            foreach (var (text, remove) in _addedRows.Where(r => r.Text.Visible))
+            {
+                var removeSize = remove.GetPreferredSize(Size.Empty);
+                remove.Bounds = new Rectangle(Px(20) + addInner - removeSize.Width, y + ((Px(28) - removeSize.Height) / 2), removeSize.Width, removeSize.Height);
+                text.Bounds = new Rectangle(Px(20), y, Math.Max(0, remove.Left - Px(36)), Px(28));
+                y += Px(30);
+            }
+
+            addHeight += gap;
+        }
+
+        _found.Bounds = Dip(0, 0, half, h - addHeight);
         var inner = _found.Width - Px(40);
-        _list.Bounds = new Rectangle(Px(20), Px(60), inner, _found.Height - Px(60 + 20 + 40 + 16));
+        _list.Bounds = new Rectangle(Px(20), Px(60), inner, Math.Max(Px(56), _found.Height - Px(60 + 20 + 40 + 16)));
         _searchAgain.Bounds = new Rectangle(_found.Width - Px(20 + 150), _found.Height - Px(20 + 40), Px(150), Px(40));
         _discoveryStatus.Bounds = new Rectangle(Px(20), _searchAgain.Top, _searchAgain.Left - Px(36), Px(40));
 

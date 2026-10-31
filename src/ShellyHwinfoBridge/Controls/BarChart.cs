@@ -6,17 +6,27 @@ namespace ShellyHwinfoBridge.Controls;
 /// <param name="Value">The value in chart units (kWh); bars without data use 0.</param>
 /// <param name="Label">The X label under the bar, or null for none.</param>
 /// <param name="TooltipLines">The hover tooltip, one entry per line ("Thu 18:00", "0.34 kWh", "PC est. 0.31 kWh").</param>
-internal sealed record ChartBar(double Value, string? Label, IReadOnlyList<string> TooltipLines);
+/// <param name="Colour">The bar colour, or null for Accent.</param>
+internal sealed record ChartBar(double Value, string? Label, IReadOnlyList<string> TooltipLines, Color? Colour = null);
+
+/// <summary>One period of a grouped chart: the bars drawn side by side (one per device).</summary>
+/// <param name="Label">The X label under the group, or null for none.</param>
+/// <param name="Bars">The bars, left to right.</param>
+internal sealed record ChartGroup(string? Label, IReadOnlyList<ChartBar> Bars);
 
 /// <summary>
 /// The energy bar chart (GDI+, no library): Y labels at the left with horizontal grid lines only (Grid colour), square
-/// Accent bars 60 % of their slot, X labels under labelled bars. The hovered bar turns AccentHover and the chart draws
-/// its own themed tooltip over it (Surface fill, 1 px Border, 8 px radius, Body text): above the bar, or inside the
-/// plot when there is no room above. No WinForms ToolTip is involved; leaving the chart hides it.
+/// bars, X labels under labelled bars. Combined: one Accent bar per period, 60 % of its slot. Grouped
+/// (<see cref="SetData"/> with groups): each period shows its bars side by side in their own colours, the group 80 % of
+/// its slot. The hovered bar turns lighter (AccentHover for Accent) and the chart draws its own themed tooltip over it
+/// (Surface fill, 1 px Border, 8 px radius, Body text): above the bar, or inside the plot when there is no room above.
+/// No WinForms ToolTip is involved; leaving the chart hides it.
 /// </summary>
 internal sealed class BarChart : ThemedControl
 {
     private IReadOnlyList<ChartBar> _bars = [];
+    private IReadOnlyList<ChartGroup> _groups = [];
+    private List<(int Group, int Bar)> _flat = [];
     private IReadOnlyList<string> _yLabels = [];
     private double _yMax = 1;
     private int _hovered = -1;
@@ -29,41 +39,70 @@ internal sealed class BarChart : ThemedControl
     /// <summary>Raised when the hovered bar changes (-1 when none).</summary>
     public event EventHandler? HoveredIndexChanged;
 
-    /// <summary>Gets the bars.</summary>
+    /// <summary>Gets the combined bars.</summary>
     public IReadOnlyList<ChartBar> Bars => _bars;
 
-    /// <summary>Gets the hovered bar index, or -1.</summary>
+    /// <summary>Gets the groups (empty for the combined chart).</summary>
+    public IReadOnlyList<ChartGroup> Groups => _groups;
+
+    /// <summary>Gets whether the chart draws grouped bars.</summary>
+    public bool IsGrouped => _groups.Count > 0;
+
+    /// <summary>Gets the hovered bar index (into <see cref="Bars"/>, or into the groups' bars in reading order), or -1.</summary>
     public int HoveredIndex => _hovered;
 
     /// <summary>Gets the hovered bar's tooltip on one line ("Thu 18:00 · 0.34 kWh"), or null.</summary>
-    public string? HoveredTooltip => _hovered >= 0 && _hovered < _bars.Count ? string.Join(" · ", _bars[_hovered].TooltipLines) : null;
+    public string? HoveredTooltip => ItemAt(_hovered) is { } bar ? string.Join(" · ", bar.TooltipLines) : null;
 
     /// <summary>Gets or sets the height reserved for X labels in DIP (default 28).</summary>
     public int XLabelHeightDip { get; set; } = 28;
 
+    private int ItemCount => IsGrouped ? _flat.Count : _bars.Count;
+
+    private int SlotCount => IsGrouped ? _groups.Count : _bars.Count;
+
     /// <summary>
     /// Sets the data. <paramref name="yLabels"/> are drawn evenly from 0 (first) to <paramref name="yMax"/> (last), one
-    /// grid line each, e.g. ["0", "0.2", "0.4 kWh"].
+    /// grid line each, e.g. ["0", "0.2", "0.4 kWh"]. With non-empty <paramref name="groups"/> the grouped bars are drawn
+    /// instead of <paramref name="bars"/>.
     /// </summary>
-    public void SetData(IReadOnlyList<ChartBar> bars, double yMax, IReadOnlyList<string> yLabels)
+    public void SetData(IReadOnlyList<ChartBar> bars, double yMax, IReadOnlyList<string> yLabels, IReadOnlyList<ChartGroup>? groups = null)
     {
         _bars = bars ?? [];
+        _groups = groups ?? [];
+        _flat = [];
+        for (var g = 0; g < _groups.Count; g++)
+        {
+            for (var b = 0; b < _groups[g].Bars.Count; b++)
+            {
+                _flat.Add((g, b));
+            }
+        }
+
         _yMax = yMax > 0 && double.IsFinite(yMax) ? yMax : 1;
         _yLabels = yLabels ?? [];
-        if (_hovered >= _bars.Count)
+        if (_hovered >= ItemCount)
         {
             _hovered = -1;
+            AccessibleDescription = null;
+        }
+        else if (_hovered >= 0)
+        {
+            AccessibleDescription = HoveredTooltip;
         }
 
         Invalidate();
     }
 
     /// <summary>Highlights a bar as if hovered (-1 for none); used by the screen renderer.</summary>
-    public void SetHoveredIndex(int index) => SetHovered(index >= 0 && index < _bars.Count ? index : -1);
+    public void SetHoveredIndex(int index) => SetHovered(index >= 0 && index < ItemCount ? index : -1);
+
+    /// <summary>Highlights bar <paramref name="bar"/> of group <paramref name="group"/> as if hovered (screen renderer).</summary>
+    public void SetHoveredBar(int group, int bar) => SetHovered(_flat.IndexOf((group, bar)));
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        SetHovered(BarAt(e.Location));
+        SetHovered(ItemAtPoint(e.Location));
         base.OnMouseMove(e);
     }
 
@@ -94,47 +133,90 @@ internal sealed class BarChart : ThemedControl
             }
         }
 
-        if (_bars.Count == 0)
+        if (ItemCount == 0)
         {
             return;
         }
 
-        var slot = plot.Width / (float)_bars.Count;
-        var barWidth = Math.Max(1f, slot * 0.6f);
-        using var bar = new SolidBrush(Theme.Accent);
-        using var hover = new SolidBrush(Theme.AccentHover);
-        for (var i = 0; i < _bars.Count; i++)
+        for (var i = 0; i < ItemCount; i++)
         {
-            var height = BarHeight(i, plot);
-            var x = plot.Left + (i * slot) + ((slot - barWidth) / 2f);
-            if (height > 0)
+            var bar = ItemAt(i)!;
+            var rect = BarRect(i, plot);
+            if (rect.Height > 0)
             {
-                g.FillRectangle(i == _hovered ? hover : bar, x, plot.Bottom - height, barWidth, height);
-            }
+                var colour = bar.Colour ?? Theme.Accent;
+                if (i == _hovered)
+                {
+                    colour = bar.Colour is null ? Theme.AccentHover : Theme.Blend(colour, Color.White, 0.12f);
+                }
 
-            if (_bars[i].Label is { } label)
+                using var brush = new SolidBrush(colour);
+                g.FillRectangle(brush, rect);
+            }
+        }
+
+        var slot = plot.Width / (float)SlotCount;
+        for (var s = 0; s < SlotCount; s++)
+        {
+            if ((IsGrouped ? _groups[s].Label : _bars[s].Label) is { } label)
             {
                 var size = Gfx.Measure(label, labelFont);
-                var cx = plot.Left + (i * slot) + (slot / 2f);
+                var cx = plot.Left + (s * slot) + (slot / 2f);
                 var left = Math.Min((int)Math.Round(cx - (size.Width / 2f)), Width - size.Width - this.Px(2));
                 var rect = new Rectangle(left, plot.Bottom + this.Px(10), size.Width + this.Px(2), size.Height);
                 Gfx.Text(g, label, labelFont, rect, Theme.InkSecondary, Gfx.SingleLine);
             }
         }
 
-        if (_hovered >= 0 && _hovered < _bars.Count)
+        if (_hovered >= 0 && _hovered < ItemCount)
         {
-            DrawTooltip(g, plot, slot);
+            DrawTooltip(g, plot);
         }
     }
 
-    private float BarHeight(int index, Rectangle plot) =>
-        (float)(plot.Height * Math.Clamp(_bars[index].Value, 0, _yMax) / _yMax);
+    private ChartBar? ItemAt(int index)
+    {
+        if (index < 0 || index >= ItemCount)
+        {
+            return null;
+        }
+
+        if (!IsGrouped)
+        {
+            return _bars[index];
+        }
+
+        var (group, bar) = _flat[index];
+        return _groups[group].Bars[bar];
+    }
+
+    /// <summary>Returns the drawn rectangle of an item (height 0 for an empty bar).</summary>
+    private RectangleF BarRect(int index, Rectangle plot)
+    {
+        var bar = ItemAt(index)!;
+        var height = (float)(plot.Height * Math.Clamp(bar.Value, 0, _yMax) / _yMax);
+        var slot = plot.Width / (float)SlotCount;
+        if (!IsGrouped)
+        {
+            var width = Math.Max(1f, slot * 0.6f);
+            return new RectangleF(plot.Left + (index * slot) + ((slot - width) / 2f), plot.Bottom - height, width, height);
+        }
+
+        var (group, position) = _flat[index];
+        var count = Math.Max(1, _groups[group].Bars.Count);
+        var groupWidth = Math.Max(count, slot * 0.8f);
+        var barWidth = groupWidth / count;
+        var x = plot.Left + (group * slot) + ((slot - groupWidth) / 2f) + (position * barWidth);
+
+        // A 1 px gap between neighbouring bars when they are wide enough to keep it.
+        var drawn = barWidth >= this.PxF(4) && position < count - 1 ? barWidth - Math.Max(1f, this.PxF(1)) : barWidth;
+        return new RectangleF(x, plot.Bottom - height, Math.Max(1f, drawn), height);
+    }
 
     /// <summary>Draws the hovered bar's tooltip: centred over the bar, kept inside the control.</summary>
-    private void DrawTooltip(Graphics g, Rectangle plot, float slot)
+    private void DrawTooltip(Graphics g, Rectangle plot)
     {
-        var lines = _bars[_hovered].TooltipLines;
+        var lines = ItemAt(_hovered)!.TooltipLines;
         if (lines.Count == 0)
         {
             return;
@@ -148,8 +230,9 @@ internal sealed class BarChart : ThemedControl
         var height = sizes.Sum(s => s.Height) + (lineGap * (lines.Count - 1)) + (2 * pad);
         var offset = this.Px(8);
 
-        var centre = plot.Left + (_hovered * slot) + (slot / 2f);
-        var barTop = plot.Bottom - (int)Math.Ceiling(BarHeight(_hovered, plot));
+        var rect = BarRect(_hovered, plot);
+        var centre = rect.Left + (rect.Width / 2f);
+        var barTop = (int)Math.Floor(rect.Top);
         var x = (int)Math.Round(centre - (width / 2f));
         x = Math.Clamp(x, 0, Math.Max(0, Width - width));
 
@@ -158,7 +241,7 @@ internal sealed class BarChart : ThemedControl
         var y = barTop - offset - height;
         if (y < 0)
         {
-            var half = (slot * 0.6f / 2f) + offset;
+            var half = (rect.Width / 2f) + offset;
             x = centre > plot.Left + (plot.Width / 2f)
                 ? (int)Math.Floor(centre - half - width)
                 : (int)Math.Ceiling(centre + half);
@@ -188,15 +271,32 @@ internal sealed class BarChart : ThemedControl
         return new Rectangle(left, top, Math.Max(1, Width - left), Math.Max(1, bottom - top));
     }
 
-    private int BarAt(Point p)
+    private int ItemAtPoint(Point p)
     {
         var plot = PlotBounds();
-        if (_bars.Count == 0 || p.X < plot.Left || p.X >= plot.Right || p.Y < 0 || p.Y > Height)
+        if (ItemCount == 0 || p.X < plot.Left || p.X >= plot.Right || p.Y < 0 || p.Y > Height)
         {
             return -1;
         }
 
-        return Math.Clamp((int)((p.X - plot.Left) / (plot.Width / (float)_bars.Count)), 0, _bars.Count - 1);
+        var slot = plot.Width / (float)SlotCount;
+        var s = Math.Clamp((int)((p.X - plot.Left) / slot), 0, SlotCount - 1);
+        if (!IsGrouped)
+        {
+            return s;
+        }
+
+        // Inside a group: the bar under the pointer, or the nearest one in the gap between groups.
+        var count = _groups[s].Bars.Count;
+        if (count == 0)
+        {
+            return -1;
+        }
+
+        var groupWidth = Math.Max(count, slot * 0.8f);
+        var groupLeft = plot.Left + (s * slot) + ((slot - groupWidth) / 2f);
+        var position = Math.Clamp((int)((p.X - groupLeft) / (groupWidth / count)), 0, count - 1);
+        return _flat.IndexOf((s, position));
     }
 
     private void SetHovered(int index)

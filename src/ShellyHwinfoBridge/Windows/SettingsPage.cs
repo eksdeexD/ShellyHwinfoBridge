@@ -7,6 +7,7 @@ using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
 using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
 using ShellyHwinfoBridge.Core.Settings;
+using ShellyHwinfoBridge.Core.Shelly.Discovery;
 using ShellyHwinfoBridge.Theming;
 using ShellyHwinfoBridge.Windows.Wizard;
 
@@ -14,14 +15,22 @@ namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
 /// The settings page, shown inside the main window in place of the dashboard (layout after design/final/settings.png):
-/// a title row ("Settings", the footnote "Changes apply immediately." and "Done") and two columns of cards (Shelly
-/// device, Power supply, Sensors and formula, Polling, Energy, PSU database, Startup and tray, Maintenance). Every change goes
-/// through <see cref="SettingsPresenter"/> and is applied at once; sliders apply when released, text fields on Enter or
-/// when focus leaves. "Change…" and "Edit…" open a modal <see cref="StepDialog"/> owned by the main window. The page
-/// scrolls when the window is shorter than its content.
+/// a title row ("Settings", the footnote "Changes apply immediately." and "Done"), two columns of cards (Shelly plugs
+/// with "Manage Shellys", Power supply, Sensors and formula with "Customize HWiNFO sensor names", Polling, Energy, PSU
+/// database, Startup and tray, Maintenance) and the About card at the bottom. Every change goes through
+/// <see cref="SettingsPresenter"/> and is applied at once; sliders apply when released, text fields on Enter or when
+/// focus leaves. "Change…", "Edit…" and the sensor names open a modal <see cref="StepDialog"/> owned by the main
+/// window; "Manage Shellys" asks the main window to open <see cref="ManageShellysPage"/>. The page scrolls when the
+/// window is shorter than its content.
 /// </summary>
 internal sealed class SettingsPage : ThemedPanel
 {
+    /// <summary>The project's issues page (About).</summary>
+    public const string IssuesUrl = "https://github.com/eksdeexD/ShellyHwinfoBridge/issues";
+
+    /// <summary>The feedback address (About).</summary>
+    public const string FeedbackEmail = "zapador@zapador.net";
+
     // Layout in DIP, page coordinates. At the default 1100×740 main window the page starts under the header (y 68).
     private const float Pad = 24;
     private const float Gap = 16;
@@ -35,8 +44,7 @@ internal sealed class SettingsPage : ThemedPanel
     private const float Row2MinHeight = 150;
     private const float EnergyHeight = 132;
     private const float SmallCardHeight = 88;
-    private const float FootnoteGap = 2;
-    private const float FootnoteHeight = 20;
+    private const float BottomMargin = 20;
     private const float FormulaMinHeight = 88;
     private const int FormulaMaxLines = 10;
 
@@ -45,18 +53,15 @@ internal sealed class SettingsPage : ThemedPanel
     private readonly SettingsPresenter _presenter;
     private readonly IBridgeRuntime _runtime;
     private readonly Func<HwinfoSnapshot?> _readSharedMemory;
+    private readonly Func<CancellationToken, Task<IReadOnlyList<DiscoveredShelly>>> _discover;
 
     private readonly PillButton _done = new() { Text = "Done", AccessibleName = "Done" };
 
-    // Shelly device.
-    private readonly CardPanel _shellyCard = new() { Title = "Shelly device" };
-    private readonly TextLabel _hostLabel = new() { Text = "Host", Tone = UiTone.Secondary };
-    private readonly TextLabel _passwordLabel = new() { Text = "Password", Tone = UiTone.Secondary };
-    private readonly TextLink _clearPassword = new() { Text = "Clear", AccessibleName = "Clear the stored password" };
-    private readonly ThemedTextBox _host = new() { AccessibleName = "Host" };
-    private readonly ThemedTextBox _password = new() { UseSystemPasswordChar = true, AccessibleName = "Password" };
-    private readonly PillButton _test = new() { Text = "Test connection" };
-    private readonly InfoLine _testResult = new() { Visible = false };
+    // Shelly plugs.
+    private readonly CardPanel _shellyCard = new() { Title = "Shelly plugs" };
+    private readonly TextLabel _devicesText = new() { Role = FontRole.Subtitle };
+    private readonly TextLabel _devicesHint = new() { Text = "Add a Shelly for your monitor or another device.", Tone = UiTone.Secondary };
+    private readonly PillButton _manage = new() { Text = "Manage Shellys" };
 
     // Power supply.
     private readonly CardPanel _psuCard = new() { Title = "Power supply" };
@@ -72,6 +77,8 @@ internal sealed class SettingsPage : ThemedPanel
     private readonly ThemedTextBox _formula = new() { Multiline = true, Monospace = true, ReadOnly = true, AccessibleName = "Formula" };
     private readonly TextLink _edit = new() { Text = "Edit…", Semibold = true, AccessibleName = "Edit sensors and formula" };
     private readonly TextLabel _gadgetTip = new() { Text = HwinfoTips.GadgetExport, Role = FontRole.Small, Tone = UiTone.Secondary, WordWrap = true };
+    private readonly PillButton _sensorNames = new() { Text = "Customize HWiNFO sensor names" };
+    private readonly InfoLine _retiredNote = new() { Visible = false };
 
     // Polling.
     private readonly CardPanel _pollingCard = new() { Title = "Polling" };
@@ -110,24 +117,35 @@ internal sealed class SettingsPage : ThemedPanel
     private readonly TextLink _remove = new() { Text = "Remove HWiNFO sensors", Tone = LinkTone.Danger };
     private readonly TextLink _exit = new() { Text = "Exit ShellyHwinfoBridge", Tone = LinkTone.Danger };
 
+    // About.
+    private readonly CardPanel _aboutCard = new() { Title = "About" };
+    private readonly TextLabel _aboutName = new() { Text = "ShellyHwinfoBridge " + VersionText, Role = FontRole.BodySemibold };
+    private readonly TextLabel _feedbackStart = new() { Text = "Feedback and feature requests are welcome at", Tone = UiTone.Secondary };
+    private readonly TextLink _email = new() { Text = FeedbackEmail, AccessibleName = "Send feedback to " + FeedbackEmail };
+    private readonly TextLabel _feedbackMiddle = new() { Text = "or as", Tone = UiTone.Secondary };
+    private readonly TextLink _issues = new() { Text = "issues on GitHub", AccessibleName = "Open the issues page on GitHub" };
+    private readonly TextLabel _licence = new() { Text = "MIT licence", Tone = UiTone.Secondary };
+    private readonly TextLabel _attribution = new() { Text = "PSU efficiency data: Cybenetics, used with attribution; each PSU links to its report", Tone = UiTone.Secondary, WordWrap = true };
+
     private readonly InfoLine _applyError = new() { Tone = InfoTone.Error, Visible = false };
 
     private bool _applying;
     private int _modalDepth;
     private int _formulaLines = 1;
     private float _footnoteLeft;
-    private float _bottomLineTop;
     private bool _committed;
 
     /// <summary>Creates the page.</summary>
     /// <param name="presenter">The presenter that applies every change.</param>
     /// <param name="runtime">The runtime (PSU database and last reading for the PSU dialog).</param>
     /// <param name="readSharedMemory">Reads HWiNFO's shared memory for the sensor dialog (null when it is off).</param>
-    public SettingsPage(SettingsPresenter presenter, IBridgeRuntime runtime, Func<HwinfoSnapshot?> readSharedMemory)
+    /// <param name="discover">Browses the network for plugs (the Manage Shellys device form).</param>
+    public SettingsPage(SettingsPresenter presenter, IBridgeRuntime runtime, Func<HwinfoSnapshot?> readSharedMemory, Func<CancellationToken, Task<IReadOnlyList<DiscoveredShelly>>> discover)
     {
         _presenter = presenter ?? throw new ArgumentNullException(nameof(presenter));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _readSharedMemory = readSharedMemory ?? throw new ArgumentNullException(nameof(readSharedMemory));
+        _discover = discover ?? throw new ArgumentNullException(nameof(discover));
         AccessibleName = "Settings";
         AccessibleRole = AccessibleRole.Pane;
         AutoScroll = true;
@@ -136,14 +154,15 @@ internal sealed class SettingsPage : ThemedPanel
         _voltage.SetItems(["Auto", "115 V", "230 V"], 0);
         _done.TabIndex = 0;
         Controls.Add(_done);
-        AddCard(_shellyCard, _hostLabel, _host, _passwordLabel, _password, _clearPassword, _test, _testResult);
+        AddCard(_shellyCard, _devicesText, _devicesHint, _manage);
         AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage, _curveNote);
-        AddCard(_sensorsCard, _formula, _edit, _gadgetTip);
+        AddCard(_sensorsCard, _formula, _edit, _gadgetTip, _sensorNames, _retiredNote);
         AddCard(_pollingCard, _intervalLabel, _interval, _intervalValue, _smoothingLabel, _smoothing, _smoothingValue);
         AddCard(_energyCard, _logEnergy, _openEnergy, _priceLabel, _price, _currencyLabel, _currency, _priceError);
         AddCard(_databaseCard, _databaseText, _checkUpdate, _databaseResult);
         AddCard(_startupCard, _startWithWindows, _showTrayIcon);
         AddCard(_maintenanceCard, _exit, _openLog, _rerun, _remove);
+        AddCard(_aboutCard, _aboutName, _feedbackStart, _email, _feedbackMiddle, _issues, _licence, _attribution);
         _applyError.TabIndex = Controls.Count;
         Controls.Add(_applyError);
         ResumeLayout(false);
@@ -165,17 +184,34 @@ internal sealed class SettingsPage : ThemedPanel
     /// <summary>Raised after "Remove HWiNFO sensors" (the tray and main window should refresh).</summary>
     public event EventHandler? SensorsRemoved;
 
+    /// <summary>Raised when "Manage Shellys" is clicked (the main window opens <see cref="ManageShellysPage"/>).</summary>
+    public event EventHandler? ManageShellysRequested;
+
     /// <summary>Gets whether a dialog (step dialog or confirmation) is open over the page.</summary>
     public bool IsShowingDialog => _modalDepth > 0;
+
+    /// <summary>Gets the app version for the About card ("v0.1.0-beta.2"; build metadata after '+' dropped).</summary>
+    internal static string VersionText { get; } = "v" + (typeof(SettingsPage).Assembly
+        .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+        .FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "0.0.0");
 
     /// <summary>Re-reads the presenter state into the controls (fields being edited keep their text).</summary>
     public void RefreshState() => ApplyState();
 
-    /// <summary>Puts the keyboard focus into the host field (when the page is opened).</summary>
-    public void FocusFirstField()
+    /// <summary>Creates the Manage Shellys model over the same runtime.</summary>
+    public ManageShellysModel CreateManageShellysModel() => _presenter.CreateManageShellys(_discover);
+
+    /// <summary>Puts the keyboard focus on "Manage Shellys" (when the page is opened).</summary>
+    public void FocusFirstField() => FocusManageShellys();
+
+    /// <summary>Puts the keyboard focus on "Manage Shellys" (also after coming back from that page).</summary>
+    public void FocusManageShellys()
     {
-        _host.Focus();
-        _host.InnerTextBox.Select(_host.Text.Length, 0);
+        if (_manage.CanFocus)
+        {
+            _manage.Focus();
+        }
     }
 
     /// <summary>Applies a field that is still being edited, so leaving the page never loses a typed change.</summary>
@@ -186,7 +222,7 @@ internal sealed class SettingsPage : ThemedPanel
             return;
         }
 
-        foreach (var box in new[] { _host, _password, _price, _currency })
+        foreach (var box in new[] { _price, _currency })
         {
             if (box.ContainsFocus && box.IsModified)
             {
@@ -201,6 +237,21 @@ internal sealed class SettingsPage : ThemedPanel
         PerformLayout();
         AutoScrollPosition = new Point(0, short.MaxValue);
         PerformLayout();
+        Invalidate(true);
+    }
+
+    /// <summary>Scrolls the About card into view (tray "About…").</summary>
+    public void ScrollToAbout()
+    {
+        PerformLayout();
+        var top = _aboutCard.Top - AutoScrollPosition.Y - this.Px(Pad);
+        AutoScrollPosition = new Point(-AutoScrollPosition.X, Math.Max(0, top));
+        PerformLayout();
+        Invalidate(true);
+        if (_email.CanFocus)
+        {
+            _email.Focus();
+        }
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -258,10 +309,10 @@ internal sealed class SettingsPage : ThemedPanel
 
         // Rows 1 and 2 pair the cards (row 2 gives Sensors and formula more room for the formula and the gadget tip);
         // below them the left column has Energy over PSU database and the right column Startup and tray over
-        // Maintenance, so both columns end at the same height.
+        // Maintenance, so both columns end at the same height. The About card spans both columns at the bottom.
         var sensorsWidth = (float)Math.Round(2 * column * SensorsShare);
         var pollingWidth = (2 * column) - sensorsWidth;
-        var row2 = Math.Max(Row2MinHeight, 50 + Math.Max(FormulaHeight(), TipHeight(sensorsWidth)) + 16);
+        var row2 = Math.Max(Row2MinHeight, SensorsHeight(sensorsWidth));
         var energy = EnergyHeight + (_priceError.Visible ? 30 : 0);
         var y = CardsTop;
         // A single-voltage PSU adds its curve note under the voltage segments; both cards of the row grow with it.
@@ -276,16 +327,19 @@ internal sealed class SettingsPage : ThemedPanel
         _databaseCard.Bounds = At(left, y + energy + RowGap, column, SmallCardHeight);
         _startupCard.Bounds = At(right, y, column, SmallCardHeight);
         _maintenanceCard.Bounds = At(right, y + SmallCardHeight + RowGap, column, energy);
-        y += energy + RowGap + SmallCardHeight;
+        y += energy + RowGap + SmallCardHeight + RowGap;
+        var aboutWidth = (2 * column) + Gap;
+        var aboutHeight = AboutHeight(aboutWidth);
+        _aboutCard.Bounds = At(left, y, aboutWidth, aboutHeight);
+        y += aboutHeight;
 
-        // The footnote (or an apply error) sits in the title row, after "Settings"; the bottom line is kept free.
+        // The footnote (or an apply error) sits in the title row, after "Settings".
         _footnoteLeft = Pad + 2 + (Gfx.Measure("Settings", ThemeFonts.For(dpi).CardTitle).Width * 96f / dpi) + 16;
         var footnoteWidth = Math.Max(0, contentWidth - Pad - doneWidth - 16 - _footnoteLeft);
         _applyError.Bounds = At(_footnoteLeft, TitleRowTop + ((TitleRowHeight - 28) / 2), footnoteWidth, 28);
-        _bottomLineTop = y + FootnoteGap;
-        var contentHeight = _bottomLineTop + FootnoteHeight;
+        var contentHeight = y + BottomMargin;
 
-        LayoutCards(column, sensorsWidth, pollingWidth);
+        LayoutCards(column, sensorsWidth, pollingWidth, aboutWidth);
 
         var minSize = new Size(contentWidth > Dip(ClientSize.Width) + 0.5f ? this.Px(contentWidth) : 0, this.Px(contentHeight));
         if (AutoScrollMinSize != minSize)
@@ -315,18 +369,20 @@ internal sealed class SettingsPage : ThemedPanel
             var footnote = new Rectangle(this.Px(_footnoteLeft) + scroll.X, top, Math.Max(0, _done.Left - this.Px(_footnoteLeft + 16) - scroll.X), smallText);
             Gfx.Text(g, "Changes apply immediately.", f.Small, footnote, Theme.InkSecondary, Gfx.SingleLine);
         }
-
-        // The version at the bottom right, under the last cards.
-        var contentRight = Math.Max(ClientSize.Width, this.Px(MinContentWidth)) - this.Px(Pad);
-        var version = new Rectangle(scroll.X, this.Px(_bottomLineTop) + scroll.Y, contentRight, this.Px(FootnoteHeight));
-        Gfx.Text(g, VersionText, f.Small, version, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
     }
 
-    /// <summary>Gets the app version for the bottom line ("v0.1.0-beta.2"; build metadata after '+' dropped).</summary>
-    internal static string VersionText { get; } = "v" + (typeof(SettingsPage).Assembly
-        .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
-        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
-        .FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "0.0.0");
+    /// <summary>Opens a link or a mailto: address with the default handler.</summary>
+    internal static void OpenWithShell(IWin32Window? owner, string target)
+    {
+        try
+        {
+            using var _ = Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
+        {
+            ThemedDialog.Show(owner, "Could not open the link", target + Environment.NewLine + ex.Message);
+        }
+    }
 
     private static void SetField(ThemedTextBox box, string text)
     {
@@ -369,19 +425,12 @@ internal sealed class SettingsPage : ThemedPanel
         // Both close (and dispose) the page: raise them after the click has been handled.
         _done.Click += (_, _) => Defer(() => DoneRequested?.Invoke(this, EventArgs.Empty));
         _rerun.Click += (_, _) => Defer(() => WizardRequested?.Invoke(this, EventArgs.Empty));
-
-        _host.TextCommitted += (_, _) => CommitField(_host);
-        _password.TextCommitted += (_, _) => CommitField(_password);
-        _clearPassword.Click += (_, _) =>
-        {
-            _password.SetText(string.Empty);
-            _presenter.ClearPassword();
-        };
-        _test.Click += async (_, _) => await _presenter.TestConnectionAsync(_host.Text, _password.Text);
+        _manage.Click += (_, _) => Defer(() => ManageShellysRequested?.Invoke(this, EventArgs.Empty));
 
         _change.Click += (_, _) => ChangePsu();
         _voltage.SelectedIndexChanged += (_, _) => Guard(() => _presenter.SetVoltageMode(VoltageModes[Math.Max(0, _voltage.SelectedIndex)]));
         _edit.Click += (_, _) => EditSensors();
+        _sensorNames.Click += (_, _) => CustomizeSensorNames();
 
         _interval.ValueChanged += (_, _) => _intervalValue.Text = _interval.Value.ToString(System.Globalization.CultureInfo.CurrentCulture) + " ms";
         _interval.ValueCommitted += (_, _) => Guard(() => _presenter.SetIntervalMs(_interval.Value));
@@ -407,6 +456,17 @@ internal sealed class SettingsPage : ThemedPanel
                 Defer(() => ExitRequested?.Invoke(this, EventArgs.Empty));
             }
         };
+
+        _email.Click += (_, _) => ShowModal(() =>
+        {
+            OpenWithShell(FindForm(), "mailto:" + FeedbackEmail);
+            return DialogResult.OK;
+        });
+        _issues.Click += (_, _) => ShowModal(() =>
+        {
+            OpenWithShell(FindForm(), IssuesUrl);
+            return DialogResult.OK;
+        });
     }
 
     /// <summary>Runs <paramref name="action"/> once the current message is handled (on the window, which outlives the page).</summary>
@@ -438,18 +498,7 @@ internal sealed class SettingsPage : ThemedPanel
         }
 
         box.IsModified = false;
-        if (ReferenceEquals(box, _host))
-        {
-            _presenter.SetHost(_host.Text);
-        }
-        else if (ReferenceEquals(box, _password))
-        {
-            // The field stays empty ("unchanged"): only typed text replaces the stored password.
-            var typed = _password.Text;
-            _password.SetText(string.Empty);
-            _presenter.SetPassword(typed);
-        }
-        else if (ReferenceEquals(box, _price))
+        if (ReferenceEquals(box, _price))
         {
             _presenter.SetPrice(_price.Text);
         }
@@ -473,13 +522,8 @@ internal sealed class SettingsPage : ThemedPanel
         _applying = true;
         try
         {
-            // Shelly device.
-            SetField(_host, s.Host);
-            _host.HasError = s.HostError is not null;
-            _password.Placeholder = s.PasswordPlaceholder;
-            _clearPassword.Visible = s.HasPassword;
-            ShowResult(_testResult, s.HostError is { } hostError ? new ResultLine(Tone.Error, hostError) : s.TestResult);
-            _test.Enabled = !s.IsBusy;
+            // Shelly plugs.
+            _devicesText.Text = s.DevicesText;
 
             // Power supply.
             _psuTitle.Text = s.PsuTitle;
@@ -488,7 +532,7 @@ internal sealed class SettingsPage : ThemedPanel
             _curveNote.Visible = s.CurveNote is not null;
             _curveNote.Text = s.CurveNote ?? string.Empty;
 
-            // Sensors and formula.
+            // Sensors and formula: the calculation, the gadget how-to with the selected names, the retired formula note.
             if (_formula.Text != s.FormulaText)
             {
                 _formula.SetText(s.FormulaText);
@@ -497,6 +541,9 @@ internal sealed class SettingsPage : ThemedPanel
             var lines = s.FormulaText.Split('\n').Length;
             _formulaLines = Math.Clamp(lines, 1, FormulaMaxLines);
             _formula.InnerTextBox.ScrollBars = lines > FormulaMaxLines ? ScrollBars.Vertical : ScrollBars.None;
+            _gadgetTip.Text = s.GadgetTip.Length > 0 ? s.GadgetTip : HwinfoTips.GadgetExport;
+            _retiredNote.Visible = s.RetiredFormulaNote is not null;
+            _retiredNote.Text = s.RetiredFormulaNote ?? string.Empty;
 
             // Polling.
             _interval.Value = s.IntervalMs;
@@ -541,6 +588,8 @@ internal sealed class SettingsPage : ThemedPanel
 
     private const float FormulaWidth = 240;
     private const float SensorsShare = 0.62f;
+    private const float SensorNamesTop = 12;
+    private const float SensorNamesHeight = 36;
 
     private float TipHeight(float cardWidth)
     {
@@ -548,26 +597,62 @@ internal sealed class SettingsPage : ThemedPanel
         return _gadgetTip.GetPreferredHeight(width) * 96f / DeviceDpi;
     }
 
-    private void LayoutCards(float column, float sensorsWidth, float pollingWidth)
+    private float NoteHeight(float cardWidth) =>
+        _retiredNote.Visible ? _retiredNote.GetPreferredHeight(this.Px(cardWidth - 40)) * 96f / DeviceDpi : 0;
+
+    /// <summary>The Sensors card: formula and tip, then "Customize HWiNFO sensor names" and the retired formula note.</summary>
+    private float SensorsHeight(float cardWidth)
+    {
+        var note = NoteHeight(cardWidth);
+        return 50 + Math.Max(FormulaHeight(), TipHeight(cardWidth)) + SensorNamesTop + SensorNamesHeight + (note > 0 ? 8 + note : 0) + 16;
+    }
+
+    /// <summary>The About card: name and version, the feedback line (wraps as a flow), the licence and attribution lines.</summary>
+    private float AboutHeight(float cardWidth)
+    {
+        var flow = LayoutFeedback(cardWidth - 40, apply: false);
+        var attribution = _attribution.GetPreferredHeight(this.Px(cardWidth - 40)) * 96f / DeviceDpi;
+        return 50 + 26 + 4 + flow + 4 + 24 + 2 + Math.Max(24, attribution) + 18;
+    }
+
+    /// <summary>Places the feedback sentence's labels and links left to right, wrapping between them; returns its height in DIP.</summary>
+    private float LayoutFeedback(float innerWidth, bool apply)
+    {
+        var parts = new Control[] { _feedbackStart, _email, _feedbackMiddle, _issues };
+        const float lineHeight = 26;
+        const float space = 5;
+        var x = 0f;
+        var y = 0f;
+        foreach (var part in parts)
+        {
+            var width = part.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi;
+            if (x > 0 && x + width > innerWidth)
+            {
+                x = 0;
+                y += lineHeight;
+            }
+
+            if (apply)
+            {
+                part.Bounds = new Rectangle(this.Px(20 + x), this.Px(50 + 26 + 4 + y), this.Px(width), this.Px(lineHeight));
+            }
+
+            x += width + space;
+        }
+
+        return y + lineHeight;
+    }
+
+    private void LayoutCards(float column, float sensorsWidth, float pollingWidth, float aboutWidth)
     {
         var inner = column - 40;
         Rectangle R(float x, float y, float width, float height) => new(this.Px(x), this.Px(y), this.Px(width), this.Px(height));
         float PrefWidth(Control c) => c.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi;
 
-        // Shelly device: Host | Password, then Test connection with the result to its right.
-        var half = (inner - 16) / 2;
-        _hostLabel.Bounds = R(20, 48, half, 22);
-        _passwordLabel.Bounds = R(36 + half, 48, half - 60, 22);
-        var clearWidth = PrefWidth(_clearPassword);
-        _clearPassword.Bounds = R(20 + inner - clearWidth, 46, clearWidth, 26);
-        _host.Bounds = R(20, 70, half, 34);
-        _password.Bounds = R(36 + half, 70, half, 34);
-        _test.Bounds = R(20, 110, 174, 34);
-        var resultLeft = 20 + 174 + 16;
-        var resultWidth = this.Px(inner - 174 - 16);
-        // Centred on the button; two wrapped lines may extend a little above it.
-        var resultHeight = Math.Min(this.Px(46), _testResult.GetPreferredHeight(resultWidth));
-        _testResult.Bounds = new Rectangle(this.Px(resultLeft), this.Px(110) + ((this.Px(34) - resultHeight) / 2), resultWidth, resultHeight);
+        // Shelly plugs: the devices summary and the hint, then Manage Shellys.
+        _devicesText.Bounds = R(20, 48, inner, 26);
+        _devicesHint.Bounds = R(20, 74, inner, 22);
+        _manage.Bounds = R(20, 104, Math.Max(170, PrefWidth(_manage) - 16), 36);
 
         // Power supply: model and details with Change…, then the input voltage segments.
         var changeWidth = PrefWidth(_change);
@@ -578,12 +663,18 @@ internal sealed class SettingsPage : ThemedPanel
         _voltage.Bounds = R(134, 104, inner - 114, 36);
         _curveNote.Bounds = R(20, 146, inner, CurveNoteHeight - 2);
 
-        // Sensors and formula: Edit… in the title row, the read-only formula box and the gadget tip beside it.
+        // Sensors and formula: Edit… in the title row, the read-only formula box and the gadget tip beside it; under them
+        // "Customize HWiNFO sensor names" and, when a retired custom formula is stored, its note.
         var sensorsInner = sensorsWidth - 40;
         var editWidth = PrefWidth(_edit);
         _edit.Bounds = R(20 + sensorsInner - editWidth, 21, editWidth, 26);
-        _formula.Bounds = R(20, 50, FormulaWidth, FormulaHeight());
-        _gadgetTip.Bounds = R(20 + FormulaWidth + 16, 50, sensorsInner - FormulaWidth - 16, TipHeight(sensorsWidth));
+        var formulaHeight = FormulaHeight();
+        var tipHeight = TipHeight(sensorsWidth);
+        _formula.Bounds = R(20, 50, FormulaWidth, formulaHeight);
+        _gadgetTip.Bounds = R(20 + FormulaWidth + 16, 50, sensorsInner - FormulaWidth - 16, tipHeight);
+        var namesTop = 50 + Math.Max(formulaHeight, tipHeight) + SensorNamesTop;
+        _sensorNames.Bounds = R(20, namesTop, Math.Min(sensorsInner, PrefWidth(_sensorNames) - 16), SensorNamesHeight);
+        _retiredNote.Bounds = R(20, namesTop + SensorNamesHeight + 8, sensorsInner, NoteHeight(sensorsWidth));
 
         // Polling: label, slider, value.
         var sliderWidth = pollingWidth - 40 - 92 - 104;
@@ -623,6 +714,15 @@ internal sealed class SettingsPage : ThemedPanel
         _openLog.Bounds = R(20, 50, openLogWidth, 36);
         _rerun.Bounds = R(20 + openLogWidth + 12, 50, Math.Max(180, PrefWidth(_rerun) - 16), 36);
         _remove.Bounds = R(20, 96, PrefWidth(_remove), 26);
+
+        // About: name and version; the feedback sentence with its two links; licence; Cybenetics attribution.
+        var aboutInner = aboutWidth - 40;
+        _aboutName.Bounds = R(20, 50, aboutInner, 26);
+        var flow = LayoutFeedback(aboutInner, apply: true);
+        var licenceTop = 50 + 26 + 4 + flow + 4;
+        _licence.Bounds = R(20, licenceTop, aboutInner, 24);
+        var attribution = Math.Max(24, _attribution.GetPreferredHeight(this.Px(aboutInner)) * 96f / DeviceDpi);
+        _attribution.Bounds = R(20, licenceTop + 24 + 2, aboutInner, attribution);
     }
 
     private DialogResult ShowModal(Func<DialogResult> show)
@@ -677,6 +777,48 @@ internal sealed class SettingsPage : ThemedPanel
         {
             _presenter.Update(model.ApplyTo);
         }
+    }
+
+    /// <summary>"Customize HWiNFO sensor names": the names dialog; Save shows the rename warning first, then applies.</summary>
+    private void CustomizeSensorNames()
+    {
+        var model = _presenter.CreateSensorNames();
+        StepDialog? dialog = null;
+        using var created = new StepDialog(
+            "Customize HWiNFO sensor names",
+            "Leave a name empty to use the default. Names must be unique and contain no double quote.",
+            new SensorNamesView(model),
+            () => SaveSensorNames(model, dialog));
+        dialog = created;
+        void UpdateSave() => created.SaveEnabled = model.IsValid && model.HasChanges;
+        model.Changed += (_, _) => UpdateSave();
+        UpdateSave();
+        ShowModal(() => created.ShowDialog(FindForm()));
+
+        // The gadget tip and the summaries use the (possibly renamed) settings.
+        ApplyState();
+    }
+
+    private static string? SaveSensorNames(SensorNamesModel model, IWin32Window? owner)
+    {
+        if (!model.IsValid)
+        {
+            return "Fix the names marked in red first.";
+        }
+
+        if (!model.HasChanges)
+        {
+            return StepDialog.StayOpen;
+        }
+
+        if (model.ShowRenameWarning &&
+            ThemedDialog.Show(owner, "Rename the HWiNFO sensors?", DeviceFormModel.RenameWarningText, "Rename", "Cancel") != DialogResult.OK)
+        {
+            return StepDialog.StayOpen;
+        }
+
+        var outcome = model.Save();
+        return outcome is { Success: true } ? null : "Could not apply the names: " + (outcome?.Error ?? model.ApplyError ?? "unknown error");
     }
 
     private void RemoveSensors()

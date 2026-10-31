@@ -177,6 +177,67 @@ internal static class ScreenRenderer
             model.Load(WizardPreview.Sensors(withBridge: false).GetPowerSensors(), settings.Sensors);
             return new StepDialog("Sensors and formula", "These HWiNFO power sensors are subtracted from DC power to compute Other Components.", new SensorStepView(model, () => { }), () => null);
         }),
+
+        // Milestone 4: additional devices, the Other card states, Manage Shellys, sensor names, About.
+        ("m4-main-2-devices", () =>
+        {
+            var form = TwoDeviceWindow(EnergyChartMode.Combined);
+            form.PreviewHover(42);
+            return form;
+        }),
+        ("m4-main-2-devices-per-device", () =>
+        {
+            var form = TwoDeviceWindow(EnergyChartMode.PerDevice);
+            form.PreviewHover(42, 1);
+            return form;
+        }),
+        ("m4-main-2-devices-per-device-days", () => TwoDeviceWindow(EnergyChartMode.PerDevice, EnergyPeriod.Days)),
+        ("m4-main-2-devices-min-size", () =>
+        {
+            var form = TwoDeviceWindow(EnergyChartMode.PerDevice);
+            form.SetClientSizeDip(new Size(980, 680), new Size(980, 680));
+            return form;
+        }),
+        ("m4-main-other-needs-gadget", () => MainWindow(SampleData.MainView(hwinfo: SampleData.HwinfoWithoutComponents(), other: OtherComponentsState.Unknown), EnergyPeriod.Hours)),
+        ("m4-main-other-needs-gadget-2-devices", () =>
+        {
+            var settings = SampleData.TwoDeviceSettings();
+            return MainWindow(SampleData.MainView(hwinfo: SampleData.HwinfoWithoutComponents(), settings: settings, other: OtherComponentsState.Unknown), EnergyPeriod.Hours, SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings));
+        }),
+        ("m4-main-other-hwinfo-not-running", () => MainWindow(SampleData.MainView(hwinfo: new HwinfoMonitorSnapshot(true, false, false, false, null), other: OtherComponentsState.Unknown), EnergyPeriod.Hours)),
+        ("m4-gadget-help-dialog", () => new GadgetHelpDialog(HwinfoTips.GadgetExportFor(SampleData.Settings().Sensors.Select(s => s.Name)))),
+        ("m4-settings-2-devices", () => Settings(out _, SampleData.TwoDeviceSettings())),
+        ("m4-settings-about", () =>
+        {
+            var form = Settings(out _, SampleData.TwoDeviceSettings());
+            form.Tag = new Action(form.ScrollSettingsToAbout);
+            return form;
+        }),
+        ("m4-settings-retired-formula", () =>
+        {
+            var settings = SampleData.Settings();
+            settings.CustomFormula = "\"DC Power (Est.)\" - \"CPU Package Power\"";
+            return Settings(out _, settings);
+        }),
+        ("m4-manage-shellys", () => ManageShellys(ThreeDeviceSettings())),
+        ("m4-manage-shellys-custom-colours", () => ManageShellys(ThreeDeviceSettings(ColourMode.Custom), model => model.SetBaseColour("orange"))),
+        ("m4-manage-shellys-at-cap", () =>
+        {
+            var settings = ThreeDeviceSettings();
+            settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Id = "9d8c7b6a-5f4e-4d3c-b2a1-0f9e8d7c6b5a", Label = "Lamp", Host = "192.168.1.59", IncludeInTotals = true });
+            return ManageShellys(settings);
+        }),
+        ("m4-device-form-add", () => DeviceForm(m => m.BeginAdd(), f =>
+        {
+            f.Connection.SelectDevice(f.Connection.Devices[1]);
+            f.Connection.TestAsync().GetAwaiter().GetResult();
+        })),
+        ("m4-device-form-edit-rename", () => DeviceForm(m => m.BeginEdit(SampleData.MonitorId), f => f.Label = "Desk monitor")),
+        ("m4-device-form-edit-pc", () => DeviceForm(m => m.BeginEdit(AppSettings.PrimaryDeviceId))),
+        ("m4-device-form-label-error", () => DeviceForm(m => m.BeginAdd(), f => f.Label = "PC")),
+        ("m4-sensor-names-dialog", () => SensorNames()),
+        ("m4-wizard-2-add-device-card", () => WizardAddDevice(formOpen: false)),
+        ("m4-wizard-2-device-form", () => WizardAddDevice(formOpen: true)),
     ];
 
     private static MainForm Settings() => Settings(out _);
@@ -190,27 +251,100 @@ internal static class ScreenRenderer
         settings.StartWithWindows = true;
         var runtime = new PreviewRuntime(settings, hasPassword: true, database);
         presenter = new SettingsPresenter(runtime, SampleData.Culture);
-        var form = MainWindow(SampleData.MainView(settings: settings, database: database), EnergyPeriod.Hours);
-        form.OpenSettings(new SettingsPage(presenter, runtime, () => WizardPreview.Sensors(withBridge: false)));
+        var form = MainWindow(SampleData.MainView(settings: settings, database: database), EnergyPeriod.Hours, settings.HasAdditionalDevices ? SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings) : null);
+        form.OpenSettings(new SettingsPage(presenter, runtime, () => WizardPreview.Sensors(withBridge: false), WizardPreview.Discover));
         return form;
     }
 
     /// <summary>Builds a main window showing <paramref name="state"/> and the sample chart for <paramref name="period"/>.</summary>
-    private static MainForm MainWindow(MainViewState state, EnergyPeriod period)
+    private static MainForm MainWindow(MainViewState state, EnergyPeriod period, EnergyChartModel? chart = null)
     {
         var form = new MainForm();
         form.SelectPeriod(period);
         form.Apply(state);
-        form.ApplyChart(SampleData.Chart(period));
+        form.ApplyChart(chart ?? SampleData.Chart(period));
         return form;
     }
+
+    /// <summary>The main window with the sample monitor plug, in <paramref name="mode"/>.</summary>
+    private static MainForm TwoDeviceWindow(EnergyChartMode mode, EnergyPeriod period = EnergyPeriod.Hours)
+    {
+        var settings = SampleData.TwoDeviceSettings(mode);
+        return MainWindow(SampleData.MainView(settings: settings), period, SampleData.TwoDeviceChart(period, settings));
+    }
+
+    /// <summary>The sample settings with the monitor and a third plug that is offline and left out of the totals.</summary>
+    private static AppSettings ThreeDeviceSettings(ColourMode colours = ColourMode.AutomaticScheme)
+    {
+        var settings = SampleData.TwoDeviceSettings();
+        settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Id = "0b7e9d2c-3f4a-4e8b-a1c6-7d5e4f3a2b1c", Label = "Speakers", Host = "192.168.1.58", Name = "PlugSG3-2", Model = "S3PL-00112EU", IncludeInTotals = false });
+        settings.ColourMode = colours;
+        if (colours == ColourMode.Custom)
+        {
+            settings.Device.Colour = "#FF6600";
+            settings.AdditionalDevices[0].Colour = "#3FA7D6";
+            settings.AdditionalDevices[1].Colour = "#8BC34A";
+        }
+
+        return settings;
+    }
+
+    /// <summary>The settings page over <paramref name="settings"/> with Manage Shellys opened on top.</summary>
+    private static MainForm ManageShellys(AppSettings settings, Action<ManageShellysModel>? tweak = null)
+    {
+        var form = Settings(out var presenter, settings);
+        var model = presenter.CreateManageShellys(WizardPreview.Discover);
+        tweak?.Invoke(model);
+        form.OpenManageShellys(new ManageShellysPage(model));
+        return form;
+    }
+
+    /// <summary>The Manage Shellys device form in its step dialog (as Add / Edit open it).</summary>
+    private static StepDialog DeviceForm(Func<ManageShellysModel, DeviceFormModel?> open, Action<DeviceFormModel>? tweak = null)
+    {
+        var runtime = new PreviewRuntime(SampleData.TwoDeviceSettings(), hasPassword: true);
+        var model = new SettingsPresenter(runtime, SampleData.Culture).CreateManageShellys(WizardPreview.Discover);
+        var form = open(model) ?? throw new InvalidOperationException("The preview form did not open.");
+        form.Connection.DiscoverAsync().GetAwaiter().GetResult();
+        tweak?.Invoke(form);
+        return new StepDialog(form.Title, "Pick the plug from the list or type its address. It is measured on the AC side only.", new DeviceFormView(form, inline: false), () => null);
+    }
+
+    /// <summary>"Customize HWiNFO sensor names" over the two-device settings, with one custom name and one invalid one.</summary>
+    private static StepDialog SensorNames()
+    {
+        var runtime = new PreviewRuntime(SampleData.TwoDeviceSettings(), hasPassword: true);
+        var model = new SettingsPresenter(runtime, SampleData.Culture).CreateSensorNames();
+        var rows = model.Rows;
+        model.SetCustomName(rows[0].KeyId, "Wall Power");
+        model.SetCustomName(rows[2].KeyId, "PSU \"Loss\"");
+        var dialog = new StepDialog("Customize HWiNFO sensor names", "Leave a name empty to use the default. Names must be unique and contain no double quote.", new SensorNamesView(model), () => null);
+        dialog.SaveEnabled = model.IsValid && model.HasChanges;
+        return dialog;
+    }
+
+    /// <summary>Wizard step 2 after a successful test, with the monitor plug added (or its form still open).</summary>
+    private static WizardForm WizardAddDevice(bool formOpen) => WizardPreview.At(WizardStep.Shelly, tweak: s =>
+    {
+        s.Shelly.FindAsync().GetAwaiter().GetResult();
+        s.Shelly.SelectDevice(s.Shelly.Devices[0]);
+        s.Shelly.TestAsync().GetAwaiter().GetResult();
+        var form = s.Shelly.BeginAddDevice()!;
+        form.Connection.DiscoverAsync().GetAwaiter().GetResult();
+        form.Connection.SelectDevice(form.Connection.Devices[1]);
+        form.Connection.TestAsync().GetAwaiter().GetResult();
+        if (!formOpen)
+        {
+            s.Shelly.CommitDeviceForm();
+        }
+    });
 
     private static MainViewState PriceOfflineNoSharedMemory()
     {
         var settings = SampleData.Settings();
         settings.EnergyPricePerKwh = 0.32m;
         settings.EnergyCurrency = "DKK";
-        return SampleData.MainView(RuntimeState.Running, OnlineState.Offline, new HwinfoMonitorSnapshot(true, true, false, false, null), settings);
+        return SampleData.MainView(RuntimeState.Running, OnlineState.Offline, new HwinfoMonitorSnapshot(true, true, false, false, null), settings, other: OtherComponentsState.Unknown);
     }
 
     /// <summary>Renders every screen into <paramref name="directory"/>; returns the process exit code.</summary>

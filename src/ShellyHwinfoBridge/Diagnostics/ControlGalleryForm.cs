@@ -79,23 +79,27 @@ internal sealed class ControlGalleryForm : ThemedForm
         var x = 24f;
         foreach (var (caption, value, sub, tone, placeholder) in new[]
         {
-            ("AC Power (Wall)", "312.4 W", "from Shelly plug", UiTone.Ink, false),
-            ("DC Power (Est.)", "294.8 W", "via TX-700 curve", UiTone.Accent, false),
-            ("PSU Loss", "17.6 W", "94.4 % efficiency", UiTone.Ink, false),
-            ("Other Components", "48.1 W", "DC minus CPU, GPU, RAM", UiTone.Ink, false),
+            ("Total Power (AC)", "348.9 W", "PC + Monitor", UiTone.Ink, false),
+            ("PC Power (AC)", "312.4 W", "from Shelly plug", UiTone.Ink, false),
+            ("PC Power (DC)", "294.8 W", "via TX-700 curve", UiTone.Accent, false),
+            ("PC PSU Loss", "17.6 W", "94.4 % efficiency", UiTone.Ink, false),
+            ("PC Other Components", "48.1 W", "DC minus CPU, GPU, RAM", UiTone.Ink, false),
         })
         {
-            var card = _layout.Place(this, new StatCard(), x, 92, 251, 128);
+            var card = _layout.Place(this, new StatCard(), x, 92, 197.6f, 128);
             card.Apply(caption, value, sub, tone, placeholder);
-            x += 251 + 16;
+            x += 197.6f + 16;
         }
 
         var energy = _layout.Place(this, new CardPanel { Title = "Energy history" }, 24, 236, 1052, 300);
+        var mode = _layout.Place(energy, new SegmentedControl(), 1052 - 20 - 290 - 12 - 250, 14, 250, 40);
+        mode.SetItems(["Combined", "Per device"], 1);
         var segmented = _layout.Place(energy, new SegmentedControl(), 1052 - 20 - 290, 14, 290, 40);
         segmented.SetItems(["Hours", "Days", "Months"], 0);
         var chart = _layout.Place(energy, new BarChart(), 20, 74, 1012, 140);
-        chart.SetData(SampleHours(), 0.4, ["0", "0.2", "0.4 kWh"]);
-        var readout = _layout.Place(energy, new InfoLine { Text = "Hover a bar" }, 300, 20, 420, 26);
+        var hours = SampleHours();
+        chart.SetData(hours, 0.4, ["0", "0.2", "0.4 kWh"], SampleGroups(hours));
+        var readout = _layout.Place(energy, new InfoLine { Text = "Hover a bar" }, 220, 20, 280, 26);
         chart.HoveredIndexChanged += (_, _) => readout.Text = chart.HoveredTooltip ?? "Hover a bar";
         energy.Paint += (_, e) => PaintTotals(energy, e.Graphics);
 
@@ -148,8 +152,17 @@ internal sealed class ControlGalleryForm : ThemedForm
             x += 162;
         }
 
+        x = 20f;
+        foreach (var (colour, clickable) in new[] { (Theme.Accent, false), (Color.FromArgb(0x00, 0x99, 0xFF), true), (Color.FromArgb(0x8B, 0xC3, 0x4A), true) })
+        {
+            _layout.Place(tiles, new ColourSwatch { Colour = colour, Clickable = clickable }, x, 146, 28, 28);
+            x += 40;
+        }
+
         var placeholder = _layout.Place(this, new StatCard(), 560, 514, 251, 128);
-        placeholder.Apply("Other Components", "Only available with Shared Memory enabled in HWiNFO", string.Empty, UiTone.Ink, placeholder: true);
+        placeholder.Apply("PC Other Components", "Needs HWiNFO's Gadget export for: GPU Power", string.Empty, UiTone.Ink, placeholder: true);
+        placeholder.ReservedBottomDip = 46;
+        _layout.Place(placeholder, new PillButton { Text = "How to enable?" }, 24, 84, 132, 30);
         var selected = _layout.Place(this, new CardPanel { Title = "Selected", Selected = true }, 827, 514, 249, 128);
         _layout.Place(selected, new InfoLine { Text = "Accent border 1.5 px" }, 20, 60, 200, 26);
     }
@@ -171,6 +184,22 @@ internal sealed class ControlGalleryForm : ThemedForm
         }
 
         return bars;
+    }
+
+    /// <summary>The sample hours split into PC (orange) and Monitor (the complementary blue) for the grouped chart.</summary>
+    private static List<ChartGroup> SampleGroups(IReadOnlyList<ChartBar> hours)
+    {
+        var monitorColour = Color.FromArgb(0x00, 0x99, 0xFF);
+        return hours.Select(h =>
+        {
+            var monitor = h.Value > 0.09 ? 0.04 : 0.0;
+            var when = h.TooltipLines[0];
+            return new ChartGroup(h.Label,
+            [
+                new ChartBar(h.Value - monitor, h.Label, [when, "PC", $"{h.Value - monitor:0.00} kWh"], Theme.Accent),
+                new ChartBar(monitor, h.Label, [when, "Monitor", $"{monitor:0.00} kWh"], monitorColour),
+            ]);
+        }).ToList();
     }
 
     private static void PaintTotals(CardPanel card, Graphics g)
@@ -258,7 +287,7 @@ internal sealed class ControlGalleryForm : ThemedForm
             Multiline = true,
             Monospace = true,
             ReadOnly = true,
-            Text = "\"DC Power (Est.)\"\r\n - \"CPU Package Power\"\r\n - \"GPU Power\"\r\n - \"DIMM1 Power\"\r\n - \"DIMM3 Power\"",
+            Text = "PC Power (DC)\r\n − CPU Package Power\r\n − GPU Power\r\n − DIMM1 Power\r\n − DIMM3 Power",
         }, 20, 50, 410, 96);
         _layout.Place(sensors, new TextLink { Text = "Edit…", Semibold = true }, 446, 50, 60, 28);
 

@@ -38,6 +38,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _pauseItem;
     private readonly ToolStripMenuItem _settingsItem;
     private readonly ToolStripMenuItem _wizardItem;
+    private readonly ToolStripMenuItem _aboutItem;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly MainWindowPresenter _mainPresenter;
     private IconFactory _icons;
@@ -68,6 +69,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _menu.Items.Add(_wizardItem);
         _menu.Items.Add(_pauseItem);
         _menu.Items.Add(new ToolStripMenuItem("Open log folder", null, (_, _) => OpenFolder(AppPaths.LogDirectory)));
+        _aboutItem = new ToolStripMenuItem("About…", null, (_, _) => ShowAbout());
+        _menu.Items.Add(_aboutItem);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(new ToolStripMenuItem("Exit", null, async (_, _) => await ExitAsync()));
         _menu.Opening += (_, _) => UpdateMenu();
@@ -151,6 +154,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _mainForm.WizardRequested += (_, _) => ShowWizard();
             _mainForm.PauseToggleRequested += (_, _) => TogglePause();
             _mainForm.PeriodChanged += (_, _) => RefreshMainForm(force: true);
+            _mainForm.ChartModeChanged += (_, _) => SetChartMode();
             _mainForm.VisibleChanged += (_, _) => UpdateMonitorActivity();
             _mainForm.SettingsClosed += (_, _) =>
             {
@@ -208,7 +212,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         var runtime = _services.Runtime;
-        var page = new SettingsPage(new SettingsPresenter(runtime), runtime, _services.SharedMemory.TryGetSnapshot);
+        var page = new SettingsPage(new SettingsPresenter(runtime), runtime, _services.SharedMemory.TryGetSnapshot, ct => _services.Discovery.DiscoverAsync(cancellationToken: ct));
         page.WizardRequested += (_, _) => ShowWizard();
         page.ExitRequested += async (_, _) => await ExitAsync();
         page.SensorsRemoved += (_, _) =>
@@ -219,6 +223,30 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _logger.LogInformation("Settings opened.");
         _mainForm.OpenSettings(page);
     }
+
+    /// <summary>"About…": opens the main window on the settings page scrolled to the About section.</summary>
+    public void ShowAbout()
+    {
+        ShowSettings();
+        if (_mainForm is { IsDisposed: false } form && _wizardForm is null && form.SettingsPage is not null && !form.IsShowingDialog)
+        {
+            // After the page has been laid out in the shown window.
+            form.BeginInvoke(new Action(form.ScrollSettingsToAbout));
+        }
+    }
+
+    /// <summary>Stores the main window's Combined / Per device choice and redraws the chart.</summary>
+    private void SetChartMode()
+    {
+        if (_mainForm is null || _services.Runtime.Settings is not { } settings || settings.ChartMode == _mainForm.SelectedChartMode)
+        {
+            return;
+        }
+
+        new SettingsPresenter(_services.Runtime).SetChartMode(_mainForm.SelectedChartMode);
+        RefreshMainForm(force: true);
+    }
+
     /// <summary>
     /// Opens the setup wizard (or activates the open one). While it is open the main window's Settings and Run setup
     /// wizard buttons and the tray's Settings… item are disabled. Closing it before Apply changes nothing; a first-run cancel
@@ -239,9 +267,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         // Settings and the wizard are mutually exclusive. While the settings page shows a dialog (PSU, sensors, a
         // confirmation) it keeps the focus; otherwise the page closes (its changes are already applied) and the wizard opens.
-        if (_mainForm?.SettingsPage is { } settings)
+        if (_mainForm?.SettingsPage is not null)
         {
-            if (settings.IsShowingDialog)
+            if (_mainForm.IsShowingDialog)
             {
                 _mainForm.Activate();
                 return;
@@ -495,7 +523,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _pauseItem.Text = state == RuntimeState.Paused ? "Resume polling" : "Pause polling";
         _pauseItem.Enabled = state is RuntimeState.Running or RuntimeState.Paused;
         _settingsItem.Enabled = _wizardForm is null;
-        _wizardItem.Enabled = _mainForm?.SettingsPage is not { IsShowingDialog: true };
+        _wizardItem.Enabled = _mainForm?.IsShowingDialog != true;
+        _aboutItem.Enabled = _wizardForm is null;
     }
 
     private void TogglePause()

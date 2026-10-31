@@ -62,9 +62,14 @@ internal sealed class PreviewRuntime : IBridgeRuntime
     public PowerReadingEventArgs? LastReading => SampleData.Reading();
 
     public IReadOnlyList<DeviceStatus> Devices =>
-        [new(AppSettings.PrimaryDeviceId, AppSettings.PrimaryLabel, Settings?.Device.Host ?? string.Empty, Settings?.Device.Name, Settings?.Device.Model, OnlineState.Online, LastReading?.Power.AcWatts, true)];
+    [
+        new(AppSettings.PrimaryDeviceId, AppSettings.PrimaryLabel, Settings?.Device.Host ?? string.Empty, Settings?.Device.Name, Settings?.Device.Model, OnlineState.Online, LastReading?.Power.AcWatts, true),
+        .. (Settings?.AdditionalDevices ?? []).Select((d, i) => new DeviceStatus(d.Id, d.Label, d.Host, d.Name, d.Model, i == 0 ? OnlineState.Online : OnlineState.Offline, i == 0 ? SampleData.MonitorWatts : null, d.IncludeInTotals)),
+    ];
 
-    public double? TotalWatts => null;
+    public double? TotalWatts => Settings is { HasAdditionalDevices: true } s
+        ? LastReading!.Power.AcWatts + s.AdditionalDevices.Take(1).Where(d => d.IncludeInTotals).Sum(_ => SampleData.MonitorWatts)
+        : null;
 
     public OtherComponentsState Other => new(48.1, OtherSource.SharedMemory, true, [], true);
 

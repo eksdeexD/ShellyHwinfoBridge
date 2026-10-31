@@ -59,8 +59,21 @@ internal sealed class StepDialog : ThemedForm
         SetClientSizeDip(new Size(1100, 700), new Size(1000, 640));
     }
 
+    /// <summary>
+    /// What <c>validate</c> returns to keep the dialog open without an error line (e.g. the user cancelled a
+    /// confirmation shown by the validation).
+    /// </summary>
+    public const string StayOpen = "";
+
     /// <summary>Gets the hosted step view.</summary>
     public WizardStepView? View => _view;
+
+    /// <summary>Gets or sets whether Save is enabled (e.g. only when something changed).</summary>
+    public bool SaveEnabled
+    {
+        get => _save.Enabled;
+        set => _save.Enabled = value;
+    }
 
     protected override bool ProcessDialogKey(Keys keyData)
     {
@@ -122,7 +135,18 @@ internal sealed class StepDialog : ThemedForm
 
     private void Save()
     {
+        if (!_save.Enabled)
+        {
+            return;
+        }
+
         var problem = _validate();
+        if (problem is { Length: 0 })
+        {
+            _error.Visible = false;
+            return;
+        }
+
         if (problem is not null)
         {
             _error.Text = problem;

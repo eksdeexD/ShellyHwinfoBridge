@@ -20,7 +20,7 @@ internal sealed class ApplyStepView : WizardStepView
     private readonly InfoLine _applyError = new() { Tone = InfoTone.Error };
     private readonly InfoLine _beforeApply = new()
     {
-        Text = "Apply saves the settings, writes the Shelly Power sensors and the formula to HWiNFO's registry key and starts polling. HWiNFO then has to be restarted to show the new sensors; the next page helps with that and checks the result.",
+        Text = "Apply saves the settings, writes the Shelly Power sensors to HWiNFO's registry key and starts polling. HWiNFO then has to be restarted to show the new sensors; the next page helps with that and checks the result.",
     };
 
     public ApplyStepView(WizardSession session)

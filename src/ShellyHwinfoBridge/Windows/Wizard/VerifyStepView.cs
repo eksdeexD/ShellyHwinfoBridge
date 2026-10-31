@@ -71,6 +71,8 @@ internal sealed class VerifyStepView : WizardStepView
 
     protected override void OnRefreshView()
     {
+        _tip.Text = _model.GadgetTip;
+
         // HWiNFO card: the advice of the last attempt, else the status.
         var advice = _model.Advice;
         _hwinfoText.Text = advice?.Text ?? _model.HwinfoText;
