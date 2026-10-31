@@ -25,17 +25,17 @@ internal sealed class SettingsPage : ThemedPanel
     // Layout in DIP, page coordinates. At the default 1100×740 main window the page starts under the header (y 68).
     private const float Pad = 24;
     private const float Gap = 16;
-    private const float RowGap = 12;
-    private const float TitleRowTop = 8;
-    private const float TitleRowHeight = 36;
-    private const float CardsTop = 54;
+    private const float RowGap = 10;
+    private const float TitleRowTop = 6;
+    private const float TitleRowHeight = 34;
+    private const float CardsTop = 50;
     private const float MinContentWidth = 880;
-    private const float Row1Height = 150;
+    private const float Row1Height = 148;
     private const float Row2MinHeight = 150;
-    private const float EnergyHeight = 134;
-    private const float SmallCardHeight = 90;
-    private const float FootnoteGap = 4;
-    private const float FootnoteHeight = 22;
+    private const float EnergyHeight = 132;
+    private const float SmallCardHeight = 88;
+    private const float FootnoteGap = 2;
+    private const float FootnoteHeight = 20;
     private const float FormulaMinHeight = 88;
     private const int FormulaMaxLines = 10;
 
@@ -69,6 +69,7 @@ internal sealed class SettingsPage : ThemedPanel
     private readonly CardPanel _sensorsCard = new() { Title = "Sensors and formula" };
     private readonly ThemedTextBox _formula = new() { Multiline = true, Monospace = true, ReadOnly = true, AccessibleName = "Formula" };
     private readonly TextLink _edit = new() { Text = "Edit…", Semibold = true, AccessibleName = "Edit sensors and formula" };
+    private readonly TextLabel _gadgetTip = new() { Text = HwinfoTips.GadgetExport, Role = FontRole.Small, Tone = UiTone.Secondary, WordWrap = true };
 
     // Polling.
     private readonly CardPanel _pollingCard = new() { Title = "Polling" };
@@ -134,7 +135,7 @@ internal sealed class SettingsPage : ThemedPanel
         Controls.Add(_done);
         AddCard(_shellyCard, _hostLabel, _host, _passwordLabel, _password, _clearPassword, _test, _testResult);
         AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage);
-        AddCard(_sensorsCard, _formula, _edit);
+        AddCard(_sensorsCard, _formula, _edit, _gadgetTip);
         AddCard(_pollingCard, _intervalLabel, _interval, _intervalValue, _smoothingLabel, _smoothing, _smoothingValue);
         AddCard(_energyCard, _logEnergy, _openEnergy, _priceLabel, _price, _currencyLabel, _currency, _priceError);
         AddCard(_databaseCard, _databaseText, _checkUpdate, _databaseResult);
@@ -254,7 +255,7 @@ internal sealed class SettingsPage : ThemedPanel
 
         // Rows 1 and 2 pair the cards; below them the left column has Energy over PSU database and the right column
         // Startup and tray over Maintenance, so both columns end at the same height.
-        var row2 = Math.Max(Row2MinHeight, 50 + FormulaHeight() + 16);
+        var row2 = Math.Max(Row2MinHeight, 50 + Math.Max(FormulaHeight(), TipHeight(column)) + 16);
         var energy = EnergyHeight + (_priceError.Visible ? 30 : 0);
         var y = CardsTop;
         _shellyCard.Bounds = At(left, y, column, Row1Height);
@@ -516,6 +517,14 @@ internal sealed class SettingsPage : ThemedPanel
         return Math.Max(FormulaMinHeight, (_formulaLines * lineHeight) + 20);
     }
 
+    private static float FormulaWidth(float column) => (float)Math.Round(Math.Max(200, (column - 40) * 0.44f));
+
+    private float TipHeight(float column)
+    {
+        var width = this.Px(column - 40 - FormulaWidth(column) - 16);
+        return _gadgetTip.GetPreferredHeight(width) * 96f / DeviceDpi;
+    }
+
     private void LayoutCards(float column)
     {
         var inner = column - 40;
@@ -545,10 +554,12 @@ internal sealed class SettingsPage : ThemedPanel
         _voltageLabel.Bounds = R(20, 104, 110, 36);
         _voltage.Bounds = R(134, 104, inner - 114, 36);
 
-        // Sensors and formula: Edit… in the title row, the read-only formula box under it.
+        // Sensors and formula: Edit… in the title row, the read-only formula box and the gadget tip beside it.
         var editWidth = PrefWidth(_edit);
         _edit.Bounds = R(20 + inner - editWidth, 21, editWidth, 26);
-        _formula.Bounds = R(20, 50, inner, FormulaHeight());
+        var formulaWidth = FormulaWidth(column);
+        _formula.Bounds = R(20, 50, formulaWidth, FormulaHeight());
+        _gadgetTip.Bounds = R(20 + formulaWidth + 16, 50, inner - formulaWidth - 16, TipHeight(column));
 
         // Polling: label, slider, value.
         var sliderWidth = inner - 92 - 104;

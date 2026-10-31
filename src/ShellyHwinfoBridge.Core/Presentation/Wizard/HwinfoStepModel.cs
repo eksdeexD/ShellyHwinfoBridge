@@ -9,13 +9,16 @@ namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 /// </summary>
 public sealed class HwinfoStepModel
 {
-    /// <summary>The how-to steps for turning on Shared Memory Support, in order.</summary>
+    /// <summary>
+    /// The how-to steps for turning on Shared Memory Support, in order (<see cref="InlineMarkup"/>: names of tabs,
+    /// buttons and options are bold).
+    /// </summary>
     public static readonly IReadOnlyList<string> HowToSteps =
     [
-        "In HWiNFO, open the sensor window's Settings (gear icon), then click \"Main Settings\".",
-        "On the \"General / User Interface\" tab, tick \"Shared Memory Support\" and click OK.",
+        "In HWiNFO's sensor window, open **Settings** (the gear icon), then click **Main Settings**.",
+        "On the **General** tab, tick **Shared Memory Support** and click **OK**.",
         "Restart HWiNFO.",
-        "Click \"Check again\" here.",
+        "Click **Check again** below.",
     ];
 
     /// <summary>The note about the free version's 12-hour shared memory limit (the only note under the status card).</summary>

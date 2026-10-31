@@ -34,6 +34,9 @@ internal enum FontRole
     /// <summary>Small text (footnotes, chart labels).</summary>
     Small,
 
+    /// <summary>Small text, semibold (bold names inside small tips).</summary>
+    SmallSemibold,
+
     /// <summary>Uppercase tracked caption ("AC POWER (WALL)").</summary>
     Caption,
 
@@ -133,6 +136,7 @@ internal static class ThemeFonts
         FontRole.Body => (RegularFamily, 11f, FontStyle.Regular),
         FontRole.BodySemibold => (RegularFamily, 11f, FontStyle.Bold),
         FontRole.Small => (RegularFamily, 10f, FontStyle.Regular),
+        FontRole.SmallSemibold => (RegularFamily, 10f, FontStyle.Bold),
         FontRole.Caption => (RegularFamily, 9.5f, FontStyle.Regular),
         FontRole.Mono => (MonoFamily, 10f, FontStyle.Regular),
         FontRole.ItemTitle => (DisplayFamily, 13f, FontStyle.Bold),

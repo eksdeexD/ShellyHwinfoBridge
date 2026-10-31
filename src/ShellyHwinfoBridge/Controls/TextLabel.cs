@@ -1,10 +1,12 @@
+using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Theming;
 
 namespace ShellyHwinfoBridge.Controls;
 
 /// <summary>
 /// Static text in a theme font and tone: single line with ellipsis, wrapped (<see cref="WordWrap"/>), or an uppercase
-/// tracked caption (<see cref="Caption"/>). Paints the backdrop of its parent ("transparent").
+/// tracked caption (<see cref="Caption"/>). Wrapped text may use <c>**bold**</c> markup (<see cref="InlineMarkup"/>).
+/// Paints the backdrop of its parent ("transparent").
 /// </summary>
 internal sealed class TextLabel : ThemedControl
 {
@@ -76,6 +78,11 @@ internal sealed class TextLabel : ThemedControl
             return Gfx.MeasureTracked("A", font, 0).Height + this.Px(2);
         }
 
+        if (_wordWrap && RichText.HasMarkup(Text))
+        {
+            return RichText.Measure(Text, font, BoldFont(), Math.Max(1, width)).Height + this.Px(2);
+        }
+
         return _wordWrap ? Gfx.MeasureWrapped(Text, font, Math.Max(1, width)).Height + this.Px(2) : Gfx.Measure("Ag", font).Height + this.Px(2);
     }
 
@@ -88,7 +95,7 @@ internal sealed class TextLabel : ThemedControl
 
     protected override void OnTextChanged(EventArgs e)
     {
-        AccessibleName = Text;
+        AccessibleName = InlineMarkup.Strip(Text);
         base.OnTextChanged(e);
     }
 
@@ -103,9 +110,22 @@ internal sealed class TextLabel : ThemedControl
             return;
         }
 
+        if (_wordWrap && RichText.HasMarkup(Text))
+        {
+            RichText.Draw(e.Graphics, Text, font, BoldFont(), ClientRectangle, color);
+            return;
+        }
+
         var flags = _wordWrap
             ? TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis
             : Gfx.SingleLine | (VerticalCenter ? TextFormatFlags.VerticalCenter : TextFormatFlags.Top);
         Gfx.Text(e.Graphics, Text, font, ClientRectangle, color, flags);
     }
+
+    private Font BoldFont() => _role switch
+    {
+        FontRole.Body => Fonts.BodySemibold,
+        FontRole.Small => Fonts.Get(FontRole.SmallSemibold),
+        _ => Fonts.Get(_role),
+    };
 }

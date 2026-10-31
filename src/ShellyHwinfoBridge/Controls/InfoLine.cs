@@ -1,3 +1,4 @@
+using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Theming;
 
 namespace ShellyHwinfoBridge.Controls;
@@ -24,6 +25,7 @@ internal enum InfoTone
 /// <summary>
 /// A short status line with an optional icon and an optional trailing link ("Change", "Check again", "Continue
 /// anyway"). Text wraps when the control is taller than one line; <see cref="GetPreferredHeight"/> gives the height.
+/// Text without a link may use <c>**bold**</c> markup (<see cref="InlineMarkup"/>).
 /// </summary>
 internal sealed class InfoLine : ThemedControl
 {
@@ -68,25 +70,25 @@ internal sealed class InfoLine : ThemedControl
     public int GetPreferredHeight(int width)
     {
         var textWidth = Math.Max(1, width - TextLeft() - LinkWidth());
-        var lines = Gfx.MeasureWrapped(Text, Fonts.Body, textWidth).Height;
+        var lines = IsRich ? RichText.Measure(Text, Fonts.Body, Fonts.BodySemibold, textWidth).Height : Gfx.MeasureWrapped(Text, Fonts.Body, textWidth).Height;
         return Math.Max(lines, this.Px(24)) + this.Px(4);
     }
 
     public override Size GetPreferredSize(Size proposedSize)
     {
-        var width = TextLeft() + Gfx.Measure(Text, Fonts.Body).Width + LinkWidth() + this.Px(2);
+        var width = TextLeft() + (IsRich ? RichText.Measure(Text, Fonts.Body, Fonts.BodySemibold, int.MaxValue / 2).Width : Gfx.Measure(Text, Fonts.Body).Width) + LinkWidth() + this.Px(2);
         return new Size(width, GetPreferredHeight(width));
     }
 
     protected override void OnTextChanged(EventArgs e)
     {
-        AccessibleName = Text;
+        AccessibleName = InlineMarkup.Strip(Text);
         base.OnTextChanged(e);
     }
 
     protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
     {
-        NameText = () => _linkText is null ? Text : Text + " · " + _linkText,
+        NameText = () => _linkText is null ? InlineMarkup.Strip(Text) : InlineMarkup.Strip(Text) + " · " + _linkText,
         ActionName = () => _linkText,
         Action = () =>
         {
@@ -157,6 +159,15 @@ internal sealed class InfoLine : ThemedControl
         var left = TextLeft();
         var linkWidth = LinkWidth();
         var textBounds = new Rectangle(left, 0, Math.Max(0, Width - left - linkWidth), Height);
+        if (IsRich)
+        {
+            // Rich text is top-aligned on the first line like wrapped text, or centred when it fits one line.
+            var size = RichText.Measure(Text, f, Fonts.BodySemibold, textBounds.Width);
+            var top = Math.Max(0, (Height - size.Height) / 2);
+            RichText.Draw(g, Text, f, Fonts.BodySemibold, new Rectangle(left, top, textBounds.Width, Height - top), color);
+            return;
+        }
+
         var flags = wraps
             ? TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter
             : Gfx.SingleLine | TextFormatFlags.VerticalCenter;
@@ -179,6 +190,8 @@ internal sealed class InfoLine : ThemedControl
     }
 
     private bool HasIcon => _tone != InfoTone.Info;
+
+    private bool IsRich => _linkText is null && RichText.HasMarkup(Text);
 
     private int TextLeft() => HasIcon ? this.Px(20 + 12) : 0;
 
