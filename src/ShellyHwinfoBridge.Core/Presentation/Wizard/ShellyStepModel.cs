@@ -22,15 +22,58 @@ public enum ShellyTestState
     Failed,
 }
 
+/// <summary>Which view step 2 shows: the opening question, the discovery and connection cards, or the setup guide.</summary>
+public enum ShellySetupMode
+{
+    /// <summary>"Is your Shelly plug already on your Wi-Fi network?" has not been answered yet.</summary>
+    Unanswered,
+
+    /// <summary>The plug is on the network: show discovery and connection.</summary>
+    Ready,
+
+    /// <summary>The plug still needs setting up: show the setup guide.</summary>
+    Guide,
+}
+
 /// <summary>
 /// Wizard step 2: discover plugs through mDNS, pick one or type a host, and test the connection (3 s timeout). Only
 /// reads (mDNS, HTTP GET). Next requires a valid host; the session runs the test on Next when the last successful test
 /// does not match the host and password, and a failed test can be overridden with <see cref="SkipTest"/>.
+/// The step opens with a question (<see cref="SetupMode"/>); the answer is kept for the wizard session only, and a
+/// re-run with a configured host skips it.
 /// </summary>
 public sealed class ShellyStepModel
 {
     /// <summary>The connection test timeout.</summary>
     public static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(3);
+
+    /// <summary>The opening question.</summary>
+    public const string SetupQuestion = "Is your Shelly plug already on your Wi-Fi network?";
+
+    /// <summary>The "Yes" answer (shows discovery and connection).</summary>
+    public const string ReadyChoiceText = "Yes, find it";
+
+    /// <summary>The "No" answer (shows the setup guide).</summary>
+    public const string GuideChoiceText = "No, show me how to set it up";
+
+    /// <summary>The setup guide's title.</summary>
+    public const string GuideTitle = "Set up your Shelly plug";
+
+    /// <summary>The button under the setup guide (switches to discovery).</summary>
+    public const string GuideDoneText = "Done, search now";
+
+    /// <summary>
+    /// The setup guide steps, in order (<see cref="InlineMarkup"/>: names of settings and buttons are bold).
+    /// </summary>
+    public static readonly IReadOnlyList<string> GuideSteps =
+    [
+        "Plug it in. A new plug broadcasts its own open Wi-Fi network named like **ShellyPlugSG3-xxxxxxxxxxxx**. Ignore any phone prompt to set it up through an app.",
+        "Connect a phone or laptop to that network and open **http://192.168.33.1** in a browser.",
+        "**Settings › Wi-Fi**: enable the Wi-Fi client, enter your network name and password, save. The plug reboots and joins your network.",
+        "Find its IP in your router's client list, open **http://<ip>** and finish the setup: **Settings › Authentication** set a password (the app supports it), **Settings › Bluetooth** off, **Settings › Wi-Fi › Access Point** off, **Settings › Shelly Cloud** off unless you want it.",
+        "Give the plug a fixed IP or a DHCP reservation in your router. If the plug sits on another network or VLAN, allow **TCP port 80** from this PC to the plug.",
+        "Plug the PC's power cable into the Shelly.",
+    ];
 
     /// <summary>The tip about a fixed IP and the firewall (<see cref="InlineMarkup"/>: bold in <c>**</c>).</summary>
     public const string FixedIpTip = "Give the plug a fixed IP or a DHCP reservation in your router. If the plug is on another network or VLAN, allow **TCP port 80** from this PC to the plug.";
@@ -60,6 +103,15 @@ public sealed class ShellyStepModel
 
     /// <summary>Raised when anything visible changed.</summary>
     public event EventHandler? Changed;
+
+    /// <summary>Gets which view the step shows (the answer to <see cref="SetupQuestion"/>; session only).</summary>
+    public ShellySetupMode SetupMode { get; private set; }
+
+    /// <summary>Gets whether the discovery and connection cards are shown (Next is only possible then).</summary>
+    public bool IsReady => SetupMode == ShellySetupMode.Ready;
+
+    /// <summary>Gets whether a discovery should start when the step is shown (ready, and none ran or runs yet).</summary>
+    public bool ShouldDiscoverOnShow => IsReady && !HasDiscovered && !IsDiscovering;
 
     /// <summary>Gets the plugs found by the last discovery.</summary>
     public IReadOnlyList<DiscoveredShelly> Devices { get; private set; } = [];
@@ -218,7 +270,9 @@ public sealed class ShellyStepModel
     /// <summary>Gets the device model to store.</summary>
     public string? DeviceModel => DeviceInfo?.Model ?? _model;
 
-    /// <summary>Initialises the fields from existing settings (re-run).</summary>
+    /// <summary>
+    /// Initialises the fields from existing settings (re-run). A configured host skips the opening question.
+    /// </summary>
     /// <param name="device">The current device settings.</param>
     /// <param name="password">The current password.</param>
     public void LoadFrom(ShellyDeviceSettings device, string? password)
@@ -228,6 +282,35 @@ public sealed class ShellyStepModel
         _password = password;
         _name = device.Name;
         _model = device.Model;
+        if (!string.IsNullOrWhiteSpace(_host))
+        {
+            SetupMode = ShellySetupMode.Ready;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// "Yes, find it" or "Done, search now": shows discovery and connection and searches the network (unless a search
+    /// is already running).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public Task FindAsync(CancellationToken cancellationToken = default)
+    {
+        SetupMode = ShellySetupMode.Ready;
+        Changed?.Invoke(this, EventArgs.Empty);
+        return DiscoverAsync(cancellationToken);
+    }
+
+    /// <summary>"No, show me how to set it up": shows the setup guide.</summary>
+    public void ShowGuide()
+    {
+        if (SetupMode == ShellySetupMode.Guide)
+        {
+            return;
+        }
+
+        SetupMode = ShellySetupMode.Guide;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

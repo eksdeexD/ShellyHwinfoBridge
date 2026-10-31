@@ -36,6 +36,75 @@ public class ShellyStepModelTests
     }
 
     [Fact]
+    public async Task SetupQuestionLeadsToTheGuideOrToDiscovery()
+    {
+        var discoveries = 0;
+        var m = new ShellyStepModel(
+            _ =>
+            {
+                discoveries++;
+                return Task.FromResult<IReadOnlyList<DiscoveredShelly>>([WizardFixture.Plug("PlugMGen3-2", "192.168.1.42")]);
+            },
+            (_, _, _) => Task.FromResult(TestResults.Ok()),
+            EnUs);
+        var changes = 0;
+        m.Changed += (_, _) => changes++;
+
+        Assert.Equal(ShellySetupMode.Unanswered, m.SetupMode);
+        Assert.False(m.IsReady);
+        Assert.False(m.ShouldDiscoverOnShow);
+
+        m.ShowGuide();
+        Assert.Equal(ShellySetupMode.Guide, m.SetupMode);
+        Assert.False(m.ShouldDiscoverOnShow);
+        Assert.Equal(0, discoveries);
+        Assert.Equal(1, changes);
+        m.ShowGuide();
+        Assert.Equal(1, changes);
+
+        // "Done, search now" switches to discovery and searches.
+        await m.FindAsync();
+        Assert.Equal(ShellySetupMode.Ready, m.SetupMode);
+        Assert.True(m.IsReady);
+        Assert.Equal(1, discoveries);
+        Assert.Single(m.Devices);
+        Assert.False(m.ShouldDiscoverOnShow);
+    }
+
+    [Fact]
+    public void YesStartsDiscoveryAndAConfiguredHostSkipsTheQuestion()
+    {
+        var m = Model((_, _, _) => Task.FromResult(TestResults.Ok()));
+        var pending = new TaskCompletionSource<IReadOnlyList<DiscoveredShelly>>();
+        var slow = new ShellyStepModel(_ => pending.Task, (_, _, _) => Task.FromResult(TestResults.Ok()), EnUs);
+
+        var find = slow.FindAsync();
+        Assert.True(slow.IsReady);
+        Assert.True(slow.IsDiscovering);
+        Assert.False(slow.ShouldDiscoverOnShow);
+        pending.SetResult([]);
+        Assert.True(find.IsCompleted);
+
+        m.LoadFrom(new ShellyDeviceSettings(), null);
+        Assert.Equal(ShellySetupMode.Unanswered, m.SetupMode);
+        m.LoadFrom(new ShellyDeviceSettings { Host = "192.168.1.42" }, null);
+        Assert.Equal(ShellySetupMode.Ready, m.SetupMode);
+        Assert.True(m.ShouldDiscoverOnShow);
+    }
+
+    [Fact]
+    public void SetupGuideHasTheSixSpecStepsWithBoldNames()
+    {
+        Assert.Equal(6, ShellyStepModel.GuideSteps.Count);
+        Assert.Contains(new TextRun("ShellyPlugSG3-xxxxxxxxxxxx", true), InlineMarkup.Parse(ShellyStepModel.GuideSteps[0]));
+        Assert.Contains(new TextRun("http://<ip>", true), InlineMarkup.Parse(ShellyStepModel.GuideSteps[3]));
+        Assert.Contains(new TextRun("Settings › Wi-Fi › Access Point", true), InlineMarkup.Parse(ShellyStepModel.GuideSteps[3]));
+        Assert.Contains(new TextRun("TCP port 80", true), InlineMarkup.Parse(ShellyStepModel.GuideSteps[4]));
+        Assert.Equal("Plug the PC's power cable into the Shelly.", ShellyStepModel.GuideSteps[5]);
+        Assert.All(ShellyStepModel.GuideSteps, s => Assert.DoesNotContain("**", InlineMarkup.Strip(s), StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task FailedDiscoveryShowsTheEmptyText()
     {
         var m = new ShellyStepModel(_ => Task.FromException<IReadOnlyList<DiscoveredShelly>>(new IOException("no network")), (_, _, _) => Task.FromResult(TestResults.Ok()), EnUs);

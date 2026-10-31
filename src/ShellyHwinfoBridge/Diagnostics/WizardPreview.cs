@@ -51,6 +51,7 @@ internal static class WizardPreview
 
         if (step > WizardStep.Shelly)
         {
+            session.Shelly.FindAsync().GetAwaiter().GetResult();
             session.Shelly.SelectDevice(session.Shelly.Devices[0]);
             session.GoNextAsync().GetAwaiter().GetResult();
         }

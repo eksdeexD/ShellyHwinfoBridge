@@ -53,12 +53,15 @@ internal static class ScreenRenderer
         ("main-window-unconfigured",() => MainWindow(SampleData.MainView(RuntimeState.Unconfigured, OnlineState.Unknown, HwinfoMonitorSnapshot.Unknown), EnergyPeriod.Hours)),
         ("wizard-1-hwinfo", () => WizardPreview.At(WizardStep.Hwinfo)),
         ("wizard-1-hwinfo-off", () => WizardPreview.At(WizardStep.Hwinfo, snapshot: WizardPreview.Snapshot.None)),
+        ("wizard-2-shelly-question", () => WizardPreview.At(WizardStep.Shelly)),
+        ("wizard-2-shelly-guide", () => WizardPreview.At(WizardStep.Shelly, tweak: s => s.Shelly.ShowGuide())),
         ("wizard-2-shelly", () => WizardPreview.At(WizardStep.Shelly, tweak: s =>
         {
+            s.Shelly.FindAsync().GetAwaiter().GetResult();
             s.Shelly.SelectDevice(s.Shelly.Devices[0]);
             s.Shelly.TestAsync().GetAwaiter().GetResult();
         })),
-        ("wizard-2-shelly-empty", () => WizardPreview.At(WizardStep.Shelly)),
+        ("wizard-2-shelly-empty", () => WizardPreview.At(WizardStep.Shelly, tweak: s => s.Shelly.FindAsync().GetAwaiter().GetResult())),
         ("wizard-3-psu", () => WizardPreview.At(WizardStep.Psu, tweak: s =>
         {
             s.Psu.SetBrand("Seasonic");

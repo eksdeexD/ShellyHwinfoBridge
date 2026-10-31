@@ -20,6 +20,9 @@ public class WizardSessionTests
         Assert.False(session.CanGoBack);
         Assert.True(await session.GoNextAsync());
 
+        Assert.Equal(ShellySetupMode.Unanswered, session.Shelly.SetupMode);
+        Assert.False(session.CanGoNext);
+        await session.Shelly.FindAsync();
         session.Shelly.SelectDevice(f.Devices[0]);
         Assert.True(await session.GoNextAsync());
         Assert.Equal(WizardStep.Psu, session.Current);
@@ -108,6 +111,7 @@ public class WizardSessionTests
         f.Runtime.TestResult = TestResults.Failed("The device rejected the password.");
         var session = f.Session();
         await session.GoNextAsync();
+        await session.Shelly.FindAsync();
         session.Shelly.Host = "192.168.1.50";
 
         Assert.False(await session.GoNextAsync());
@@ -128,6 +132,7 @@ public class WizardSessionTests
         var f = new WizardFixture();
         var session = f.Session();
         await session.GoNextAsync();
+        await session.Shelly.FindAsync();
         session.Shelly.Host = "192.168.1.42";
         Assert.True(await session.Shelly.TestAsync());
         f.Runtime.TestResult = TestResults.Failed("should not be called");
@@ -137,10 +142,51 @@ public class WizardSessionTests
     }
 
     [Fact]
+    public async Task ShellyQuestionBlocksNextUntilAnsweredAndIsRememberedAcrossBackAndNext()
+    {
+        var f = new WizardFixture();
+        var session = f.Session();
+        await session.GoNextAsync();
+        session.Shelly.Host = "192.168.1.42";
+
+        Assert.Equal(ShellySetupMode.Unanswered, session.Shelly.SetupMode);
+        Assert.False(session.CanGoNext);
+        Assert.False(await session.GoNextAsync());
+        Assert.Equal("The bridge reads the PC's power from a Shelly plug on your Wi-Fi network.", session.PageSubtitle);
+
+        session.Shelly.ShowGuide();
+        Assert.False(session.CanGoNext);
+        Assert.Equal("Set the plug up once in its own web page, then search for it.", session.PageSubtitle);
+
+        // Back and Next keep the guide.
+        Assert.True(session.GoBack());
+        Assert.True(await session.GoNextAsync());
+        Assert.Equal(WizardStep.Shelly, session.Current);
+        Assert.Equal(ShellySetupMode.Guide, session.Shelly.SetupMode);
+
+        await session.Shelly.FindAsync();
+        Assert.True(session.CanGoNext);
+        Assert.StartsWith("Pick your plug", session.PageSubtitle, StringComparison.Ordinal);
+        Assert.True(await session.GoNextAsync());
+        Assert.True(session.GoBack());
+        Assert.Equal(ShellySetupMode.Ready, session.Shelly.SetupMode);
+        Assert.True(session.CanGoNext);
+    }
+
+    [Fact]
+    public void ReRunWithAConfiguredHostSkipsTheShellyQuestion()
+    {
+        var session = new WizardFixture().Session(configured: true);
+        Assert.Equal(ShellySetupMode.Ready, session.Shelly.SetupMode);
+        Assert.True(new WizardFixture().Session().Shelly.SetupMode == ShellySetupMode.Unanswered);
+    }
+
+    [Fact]
     public async Task ShellyNextNeedsAValidHost()
     {
         var session = new WizardFixture().Session();
         await session.GoNextAsync();
+        await session.Shelly.FindAsync();
 
         session.Shelly.Host = string.Empty;
         Assert.False(session.CanGoNext);
@@ -273,6 +319,7 @@ public class WizardSessionTests
         {
             if (session.Current == WizardStep.Shelly)
             {
+                await session.Shelly.FindAsync();
                 session.Shelly.SelectDevice(f.Devices[0]);
             }
             else if (session.Current == WizardStep.Psu)

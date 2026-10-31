@@ -99,7 +99,7 @@ public sealed class WizardSession
     public bool CanGoNext => !_busy && Current switch
     {
         WizardStep.Hwinfo => true,
-        WizardStep.Shelly => Shelly.IsHostValid && Shelly.TestState != ShellyTestState.Testing,
+        WizardStep.Shelly => Shelly.IsReady && Shelly.IsHostValid && Shelly.TestState != ShellyTestState.Testing,
         WizardStep.Psu => Psu.IsValid,
         WizardStep.Sensors => Sensors.IsValid,
         WizardStep.Apply => !IsApplied,
@@ -129,7 +129,12 @@ public sealed class WizardSession
     public string PageSubtitle => Current switch
     {
         WizardStep.Hwinfo => "HWiNFO shows the Shelly readings as sensors. The sensor picker in step 4 reads its shared memory.",
-        WizardStep.Shelly => "Pick your plug or type its IP address. The password is only needed if you set one in the Shelly app.",
+        WizardStep.Shelly => Shelly.SetupMode switch
+        {
+            ShellySetupMode.Unanswered => "The bridge reads the PC's power from a Shelly plug on your Wi-Fi network.",
+            ShellySetupMode.Guide => "Set the plug up once in its own web page, then search for it.",
+            _ => "Pick your plug or type its IP address. The password is only needed if you set one in the Shelly app.",
+        },
         WizardStep.Psu => "Pick it from the database for the most accurate curve. If it is missing, use a generic curve by rating or enter your own.",
         WizardStep.Sensors => "These HWiNFO power sensors are subtracted from DC power to compute Other Components. Likely candidates are already ticked.",
         WizardStep.Apply => "Nothing has been changed yet. Check the summary, then click Apply.",
