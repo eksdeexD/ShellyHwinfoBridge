@@ -560,7 +560,7 @@ public sealed class PsuStepModel
         if (e.Source is { } source && !string.IsNullOrWhiteSpace(source.Url))
         {
             url = source.Url;
-            link = !string.IsNullOrWhiteSpace(source.ReportId) ? $"report {source.ReportId} ↗" : $"{source.Name} ↗".Trim();
+            link = !string.IsNullOrWhiteSpace(source.ReportId) ? $"report {source.ReportId.Trim()} ↗" : "report ↗";
         }
 
         var title = Brand is null ? $"{e.Brand} {e.DisplayName}".Trim() : e.DisplayName;

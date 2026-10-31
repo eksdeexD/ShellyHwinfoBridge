@@ -87,9 +87,12 @@ public sealed class PsuSource
     /// <summary>Gets or sets the source name (e.g. Cybenetics).</summary>
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the report identifier.</summary>
+    /// <summary>
+    /// Gets or sets the report identifier; optional (<c>null</c> or empty), since some older reports have none.
+    /// The URL is then the only reference to the report.
+    /// </summary>
     public string? ReportId { get; set; }
 
-    /// <summary>Gets or sets the URL of the original report.</summary>
+    /// <summary>Gets or sets the URL of the original report (required).</summary>
     public string Url { get; set; } = string.Empty;
 }

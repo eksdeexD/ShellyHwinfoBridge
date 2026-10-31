@@ -50,7 +50,8 @@ public sealed class EntryMetadata
         string? Get(string key) =>
             values.FirstOrDefault(kv => kv.Key.Equals(key, StringComparison.OrdinalIgnoreCase)).Value?.Trim();
 
-        foreach (var required in new[] { "id", "brand", "series", "model", "wattage", "rating80plus", "reportid", "url" })
+        // reportid is optional: older evaluation pages have an empty "Test Result Report ID" field; url stays required.
+        foreach (var required in new[] { "id", "brand", "series", "model", "wattage", "rating80plus", "url" })
         {
             if (string.IsNullOrWhiteSpace(Get(required)))
             {
@@ -75,6 +76,7 @@ public sealed class EntryMetadata
 
         var revision = Get("revision");
         var ratingCybenetics = Get("ratingcybenetics");
+        var reportId = Get("reportid");
         return new EntryMetadata
         {
             Id = Get("id")!,
@@ -85,7 +87,7 @@ public sealed class EntryMetadata
             Wattage = watts,
             Rating80Plus = canonical,
             RatingCybenetics = string.IsNullOrWhiteSpace(ratingCybenetics) ? null : ratingCybenetics,
-            ReportId = Get("reportid")!,
+            ReportId = string.IsNullOrWhiteSpace(reportId) ? null : reportId,
             Url = url,
         };
     }

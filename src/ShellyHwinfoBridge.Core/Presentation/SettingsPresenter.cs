@@ -378,7 +378,7 @@ public sealed class SettingsPresenter
 
                 if (entry.Source is { } source && !string.IsNullOrWhiteSpace(source.Name))
                 {
-                    parts.Add(string.IsNullOrWhiteSpace(source.ReportId) ? source.Name : source.Name + " " + source.ReportId);
+                    parts.Add(string.IsNullOrWhiteSpace(source.ReportId) ? source.Name + " report" : source.Name + " " + source.ReportId.Trim());
                 }
 
                 return ($"{entry.Brand} {entry.DisplayName}".Trim(), string.Join(" · ", parts));

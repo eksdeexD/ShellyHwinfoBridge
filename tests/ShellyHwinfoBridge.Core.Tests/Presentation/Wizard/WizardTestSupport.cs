@@ -130,7 +130,7 @@ internal static class TestDatabase
                 Entry("px750", "Seasonic", "Prime PX-750", 750, "Platinum", "Platinum"),
                 Entry("rm850", "Corsair", "RM850x", 850, "Gold", "Platinum", "2021"),
                 Entry("rm850old", "Corsair", "RM850x", 850, "Gold", null, "2018"),
-                Entry("sf750", "Corsair", "SF750", 750, "Platinum", "Platinum"),
+                Entry("sf750", "Corsair", "SF750", 750, "Platinum", "Platinum", report: null),
             ],
         };
     }

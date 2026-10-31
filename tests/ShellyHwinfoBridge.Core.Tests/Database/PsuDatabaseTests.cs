@@ -105,6 +105,22 @@ public sealed class PsuDatabaseTests : IDisposable
         Assert.Contains("psus[0].curves.115[0]", paths);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ValidatorAcceptsAMissingReportIdWhenTheUrlIsPresent(string? reportId)
+    {
+        var db = new PsuDatabase { SchemaVersion = 1, Updated = "2026-01-01" };
+        var entry = Entry("asus-rog-thor-850p", "ASUS", "ROG Thor", "ROG-THOR-850P", 850, "Platinum", null);
+        entry.Source = new PsuSource { Name = "Cybenetics", ReportId = reportId, Url = "https://www.cybenetics.com/evaluations/psus/448/" };
+        db.Psus.Add(entry);
+        Assert.Empty(PsuDatabaseValidator.Validate(db));
+
+        entry.Source.Url = "";
+        Assert.Equal(["psus[0].source.url"], PsuDatabaseValidator.Validate(db).Select(e => e.Path));
+    }
+
     [Fact]
     public void ValidatorRejectsDuplicateIds()
     {

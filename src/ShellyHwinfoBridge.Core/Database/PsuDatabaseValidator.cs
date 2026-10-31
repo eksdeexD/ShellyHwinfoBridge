@@ -120,6 +120,8 @@ public static class PsuDatabaseValidator
         else
         {
             Require(entry.Source.Name, $"{path}.source.name", errors);
+
+            // source.reportId is optional (older reports have none); the URL is the required link to the report.
             if (!Uri.TryCreate(entry.Source.Url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
             {
                 errors.Add(new($"{path}.source.url", "Must be an absolute http(s) URL."));

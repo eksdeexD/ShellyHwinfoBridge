@@ -213,7 +213,7 @@ public sealed class ApplyStepModel
                 var entry = draft.Psu.DatabaseId is { } id ? new PsuDatabaseQuery(database).FindById(id) : null;
                 psu = entry is null ? "No PSU selected" : $"{entry.Brand} {entry.DisplayName}".Trim();
                 source = entry?.Source is { } s
-                    ? (string.IsNullOrWhiteSpace(s.ReportId) ? s.Name : $"{s.Name} report {s.ReportId}").Trim()
+                    ? (string.IsNullOrWhiteSpace(s.ReportId) ? $"{s.Name} report" : $"{s.Name} report {s.ReportId.Trim()}").Trim()
                     : "PSU database";
                 break;
             case PsuSelectionMode.Generic:

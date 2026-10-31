@@ -76,6 +76,11 @@ public class PsuStepModelTests
         Assert.Equal("80 Plus Titanium · Cybenetics ETA Titanium", tx.Subtitle);
         Assert.Equal("report 21PS1872A ↗", tx.LinkText);
         Assert.Equal("https://www.cybenetics.com/evaluations/psus/tx700/", tx.Url);
+
+        // Older reports have no report id: the link degrades to "report ↗" and still opens the URL.
+        var sf = Model().Rows.Single(r => r.Id == "sf750");
+        Assert.Equal("report ↗", sf.LinkText);
+        Assert.Equal("https://www.cybenetics.com/evaluations/psus/sf750/", sf.Url);
     }
 
     [Fact]

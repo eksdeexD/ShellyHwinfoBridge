@@ -35,7 +35,8 @@ public static class ImportCommand
         Metadata (required unless noted):
           --id <id>  --brand <text>  --series <text>  --model <text>  [--revision <text>]
           --wattage <W>  --rating80plus <White|Bronze|Silver|Gold|Platinum|Titanium|None>
-          [--ratingCybenetics <text>]  --reportId <id>  --url <report page URL>
+          [--ratingCybenetics <text>]  [--reportId <id>]  --url <report page URL>
+          (--reportId may be omitted for older reports without one; the URL is always required)
 
         Output:
           [--out <file>]               write the entry to a file instead of stdout

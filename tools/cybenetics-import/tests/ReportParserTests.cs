@@ -247,6 +247,38 @@ public class ReportParserTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CommandAcceptsAMissingOrEmptyReportIdButNotAMissingUrl(bool emptyReportId)
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        string[] args =
+        [
+            "report.txt", "--id", "examplebrand-old-700", "--brand", "ExampleBrand", "--series", "Old", "--model", "Old 700",
+            "--wattage", "700", "--rating80plus", "Gold", "--url", "https://www.cybenetics.com/evaluations/psus/445/",
+        ];
+        if (emptyReportId)
+        {
+            args = [.. args, "--reportId", " "];
+        }
+
+        var exit = ImportCommand.Run(args, stdout, stderr, _ => Fixture);
+
+        Assert.True(exit == ImportCommand.Ok, stderr.ToString());
+        Assert.Contains("\"reportId\": null,", stdout.ToString(), StringComparison.Ordinal);
+        var entry = JsonSerializer.Deserialize<PsuEntry>(stdout.ToString(), PsuDatabaseJson.Options)!;
+        Assert.Equal("examplebrand-old-700", entry.Id);
+        Assert.Null(entry.Source!.ReportId);
+        Assert.Equal("https://www.cybenetics.com/evaluations/psus/445/", entry.Source.Url);
+
+        using var noUrl = new StringWriter();
+        var withoutUrl = args.Where((a, i) => a != "--url" && (i == 0 || args[i - 1] != "--url")).ToArray();
+        Assert.Equal(ImportCommand.Usage, ImportCommand.Run(withoutUrl, new StringWriter(), noUrl, _ => Fixture));
+        Assert.Contains("--url is required", noUrl.ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData(new[] { "r.txt", "--brand", "B" }, "--id is required")]
     [InlineData(new[] { "--id", "x" }, "No input file")]
     [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "abc", "--rating80plus", "Gold", "--reportId", "R", "--url", "u" }, "--wattage")]
