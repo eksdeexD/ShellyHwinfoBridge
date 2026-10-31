@@ -27,7 +27,7 @@ internal static class BriefExample
     public static PowerReadingEventArgs Reading() =>
         new(new ShellyReading(312.4, 226.9, 1.38, 123456), new PowerReading(312.4, 312.4, 294.8, 17.6, InputVoltage.V230));
 
-    public static HwinfoMonitorSnapshot Hwinfo() => new(true, true, true, true, 48.1, @"C:\Program Files\HWiNFO64\HWiNFO64.exe");
+    public static HwinfoMonitorSnapshot Hwinfo() => new(true, true, true, true, 48.1, @"C:\Program Files\HWiNFO64\HWiNFO64.exe", OtherSource.SharedMemory);
 
     public static PsuDatabase Database() => PsuDatabaseLoader.LoadEmbedded();
 }

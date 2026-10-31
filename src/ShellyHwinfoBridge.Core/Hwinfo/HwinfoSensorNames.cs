@@ -6,6 +6,9 @@ public static class HwinfoSensorNames
     /// <summary>Base key, relative to HKEY_CURRENT_USER.</summary>
     public const string BaseKeyPath = @"Software\HWiNFO64\Sensors\Custom\Shelly Power";
 
+    /// <summary>The sensor (device) name HWiNFO shows the custom sensors under.</summary>
+    public const string DeviceName = "Shelly Power";
+
     /// <summary>Name of the AC (wall) power sensor.</summary>
     public const string AcPower = "AC Power (Wall)";
 

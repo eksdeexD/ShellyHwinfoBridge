@@ -212,7 +212,7 @@ public sealed class MainWindowPresenter
         };
     }
 
-    /// <summary>Builds the HWiNFO line ("running · sensors visible", "not running", …).</summary>
+    /// <summary>Builds the HWiNFO line ("running · sensors visible", "running · shared memory off · gadget export on", "not running", …).</summary>
     /// <param name="hwinfo">The snapshot.</param>
     public static string HwinfoLine(HwinfoMonitorSnapshot hwinfo)
     {
@@ -220,6 +220,11 @@ public sealed class MainWindowPresenter
         if (!hwinfo.IsRunning)
         {
             return hwinfo.IsInstalled ? "not running" : "not installed";
+        }
+
+        if (hwinfo.OtherSource == OtherSource.Gadget)
+        {
+            return hwinfo.SharedMemoryAvailable ? "running · sensors visible · gadget export on" : "running · shared memory off · gadget export on";
         }
 
         if (!hwinfo.SharedMemoryAvailable)
@@ -270,19 +275,20 @@ public sealed class MainWindowPresenter
 
     private static StatCardState OtherCard(PowerReadingEventArgs? live, HwinfoMonitorSnapshot hwinfo, AppSettings settings, CultureInfo culture)
     {
+        // From shared memory or the gadget registry export, whichever the monitor found.
         const string caption = "Other Components";
+        if (hwinfo.OtherSource != OtherSource.None && hwinfo.OtherWatts is double other)
+        {
+            var value = live is null ? UiFormat.Dash : UiFormat.Watts(other, culture);
+            return new StatCardState(caption, value, OtherSub(settings), Tone.Ink, false);
+        }
+
         if (!hwinfo.SharedMemoryAvailable)
         {
             return new StatCardState(caption, SharedMemoryHint, string.Empty, Tone.Ink, true);
         }
 
-        if (!hwinfo.SensorsVisible || hwinfo.OtherWatts is null)
-        {
-            return new StatCardState(caption, RestartHwinfoHint, string.Empty, Tone.Ink, true);
-        }
-
-        var value = live is null ? UiFormat.Dash : UiFormat.Watts(hwinfo.OtherWatts.Value, culture);
-        return new StatCardState(caption, value, OtherSub(settings), Tone.Ink, false);
+        return new StatCardState(caption, RestartHwinfoHint, string.Empty, Tone.Ink, true);
     }
 
     private static string OtherSub(AppSettings settings)

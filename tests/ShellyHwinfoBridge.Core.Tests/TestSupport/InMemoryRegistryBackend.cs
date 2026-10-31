@@ -19,6 +19,11 @@ internal sealed class InMemoryRegistryBackend : IRegistryBackend
     public string? GetString(string path, string name) =>
         Keys.TryGetValue(path, out var values) && values.TryGetValue(name, out var v) ? v : null;
 
+    public IReadOnlyDictionary<string, string> GetStringValues(string path) =>
+        Keys.TryGetValue(path, out var values)
+            ? new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     public void SetString(string path, string name, string value)
     {
         CreateKey(path);

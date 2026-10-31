@@ -6,20 +6,35 @@ using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
 
 namespace ShellyHwinfoBridge.Core.App;
 
+/// <summary>Where the "Other Components" value in <see cref="HwinfoMonitorSnapshot.OtherWatts"/> comes from.</summary>
+public enum OtherSource
+{
+    /// <summary>Not available.</summary>
+    None,
+
+    /// <summary>HWiNFO's shared memory.</summary>
+    SharedMemory,
+
+    /// <summary>HWiNFO's gadget registry export (<see cref="HwinfoGadgetRegistryReader"/>).</summary>
+    Gadget,
+}
+
 /// <summary>What the app currently knows about HWiNFO.</summary>
 /// <param name="IsInstalled">Whether HWiNFO64 appears to be installed.</param>
 /// <param name="IsRunning">Whether an HWiNFO64 process is running.</param>
 /// <param name="SharedMemoryAvailable">Whether HWiNFO's shared memory can be read.</param>
 /// <param name="SensorsVisible">Whether HWiNFO shows the bridge's sensors (the AC reading on "Shelly Power").</param>
-/// <param name="OtherWatts">HWiNFO's own "Other Components" reading on "Shelly Power", or <c>null</c> when not visible.</param>
+/// <param name="OtherWatts">HWiNFO's own "Other Components" reading on "Shelly Power", or <c>null</c> when not available.</param>
 /// <param name="ExecutablePath">The HWiNFO64.exe path, when known.</param>
+/// <param name="OtherSource">Where <paramref name="OtherWatts"/> comes from.</param>
 public sealed record HwinfoMonitorSnapshot(
     bool IsInstalled,
     bool IsRunning,
     bool SharedMemoryAvailable,
     bool SensorsVisible,
     double? OtherWatts,
-    string? ExecutablePath)
+    string? ExecutablePath,
+    OtherSource OtherSource = OtherSource.None)
 {
     /// <summary>The state before the first check.</summary>
     public static HwinfoMonitorSnapshot Unknown { get; } = new(false, false, false, false, null, null);
@@ -30,6 +45,8 @@ public sealed record HwinfoMonitorSnapshot(
 /// <see cref="ProcessInterval"/>, installation details every <see cref="DetectInterval"/> (or when the running state
 /// changes) and the shared memory every <see cref="ActiveSharedMemoryInterval"/> while a window or the tray icon is
 /// visible (<see cref="Active"/>), else every <see cref="IdleSharedMemoryInterval"/>. Polling never depends on it.
+/// "Other Components" comes from shared memory when it shows the bridge's sensors, else from HWiNFO's gadget registry
+/// export (read on the same schedule), else it is not available (<see cref="OtherSource"/>).
 /// </summary>
 public sealed class HwinfoMonitor : IDisposable
 {
@@ -46,10 +63,10 @@ public sealed class HwinfoMonitor : IDisposable
     public static readonly TimeSpan IdleSharedMemoryInterval = TimeSpan.FromSeconds(5);
 
     private static readonly TimeSpan LoopStep = TimeSpan.FromSeconds(1);
-    private const string DeviceName = "Shelly Power";
 
     private readonly HwinfoLocator _locator;
     private readonly HwinfoSharedMemoryReader _reader;
+    private readonly HwinfoGadgetRegistryReader? _gadget;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly object _gate = new();
@@ -60,6 +77,7 @@ public sealed class HwinfoMonitor : IDisposable
     private bool _sharedMemory;
     private bool _sensorsVisible;
     private double? _other;
+    private OtherSource _otherSource;
     private DateTimeOffset _lastProcess = DateTimeOffset.MinValue;
     private DateTimeOffset _lastDetect = DateTimeOffset.MinValue;
     private DateTimeOffset _lastSharedMemory = DateTimeOffset.MinValue;
@@ -72,10 +90,12 @@ public sealed class HwinfoMonitor : IDisposable
     /// <param name="reader">Reads HWiNFO's shared memory.</param>
     /// <param name="timeProvider">The clock.</param>
     /// <param name="logger">Optional logger.</param>
-    public HwinfoMonitor(HwinfoLocator locator, HwinfoSharedMemoryReader reader, TimeProvider? timeProvider = null, ILogger? logger = null)
+    /// <param name="gadget">Reads HWiNFO's gadget registry export (the fallback for "Other Components"), or <c>null</c>.</param>
+    public HwinfoMonitor(HwinfoLocator locator, HwinfoSharedMemoryReader reader, TimeProvider? timeProvider = null, ILogger? logger = null, HwinfoGadgetRegistryReader? gadget = null)
     {
         _locator = locator ?? throw new ArgumentNullException(nameof(locator));
         _reader = reader ?? throw new ArgumentNullException(nameof(reader));
+        _gadget = gadget;
         _time = timeProvider ?? TimeProvider.System;
         _logger = logger ?? NullLogger.Instance;
     }
@@ -196,7 +216,8 @@ public sealed class HwinfoMonitor : IDisposable
                 _sharedMemory,
                 _sensorsVisible,
                 _other,
-                _status?.ExecutablePath);
+                _status?.ExecutablePath,
+                _otherSource);
             changed = snapshot != _current;
             _current = snapshot;
         }
@@ -209,18 +230,33 @@ public sealed class HwinfoMonitor : IDisposable
 
     private void ReadSharedMemory()
     {
+        _other = null;
+        _otherSource = OtherSource.None;
         if (!_running)
         {
+            // The gadget export stays in the registry after HWiNFO exits: it is only current while HWiNFO runs.
             _sharedMemory = false;
             _sensorsVisible = false;
-            _other = null;
             return;
         }
 
         var snapshot = _reader.TryGetSnapshot();
         _sharedMemory = snapshot is not null;
-        _sensorsVisible = snapshot?.FindReading(HwinfoSensorNames.AcPower, DeviceName) is not null;
-        _other = snapshot?.FindReading(HwinfoSensorNames.OtherComponents, DeviceName)?.Value;
+        _sensorsVisible = snapshot?.FindReading(HwinfoSensorNames.AcPower, HwinfoSensorNames.DeviceName) is not null;
+        if (snapshot?.FindReading(HwinfoSensorNames.OtherComponents, HwinfoSensorNames.DeviceName)?.Value is double shared)
+        {
+            _other = shared;
+            _otherSource = OtherSource.SharedMemory;
+            return;
+        }
+
+        if (_gadget?.TryReadOtherComponents() is double exported)
+        {
+            // HWiNFO exports the value, so it shows the bridge's sensors.
+            _other = exported;
+            _otherSource = OtherSource.Gadget;
+            _sensorsVisible = true;
+        }
     }
 
     private bool SafeIsRunning()

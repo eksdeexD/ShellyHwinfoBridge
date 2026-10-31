@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Time.Testing;
 using ShellyHwinfoBridge.Core.App;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
 using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
 using ShellyHwinfoBridge.Core.Tests.TestSupport;
@@ -12,6 +13,7 @@ public class HwinfoMonitorTests
 
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 10, 30, 18, 40, 0, TimeSpan.Zero));
     private readonly ProcessOnlySystem _system = new();
+    private readonly InMemoryRegistryBackend _registry = new();
     private byte[]? _buffer;
     private int _reads;
 
@@ -22,7 +24,16 @@ public class HwinfoMonitorTests
             _reads++;
             return _buffer;
         }),
-        _time);
+        _time,
+        gadget: new HwinfoGadgetRegistryReader(_registry));
+
+    private void ExportOtherToGadget(string raw)
+    {
+        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Sensor4", "Shelly Power");
+        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Label4", "Other Components");
+        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Value4", raw + " W");
+        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "ValueRaw4", raw);
+    }
 
     private static byte[] WithShellySensors(double other) => new HwinfoBufferBuilder()
         .Sensor("CPU [#0]: AMD Ryzen 7 7800X3D")
@@ -92,6 +103,60 @@ public class HwinfoMonitorTests
 
         Assert.True(monitor.Current.IsRunning);
         Assert.False(monitor.Current.SharedMemoryAvailable);
+        Assert.Null(monitor.Current.OtherWatts);
+    }
+
+    [Fact]
+    public void SharedMemoryIsPreferredOverTheGadgetExport()
+    {
+        _system.Running = true;
+        _buffer = WithShellySensors(48.1);
+        ExportOtherToGadget("40.0");
+        var monitor = Create();
+
+        monitor.Refresh();
+
+        Assert.Equal(OtherSource.SharedMemory, monitor.Current.OtherSource);
+        Assert.Equal(48.1, monitor.Current.OtherWatts!.Value, 6);
+    }
+
+    [Fact]
+    public void FallsBackToTheGadgetExportWhenSharedMemoryIsOff()
+    {
+        _system.Running = true;
+        ExportOtherToGadget("47.5");
+        var monitor = Create();
+
+        monitor.Refresh();
+
+        var s = monitor.Current;
+        Assert.False(s.SharedMemoryAvailable);
+        Assert.True(s.SensorsVisible);
+        Assert.Equal(OtherSource.Gadget, s.OtherSource);
+        Assert.Equal(47.5, s.OtherWatts!.Value, 6);
+    }
+
+    [Fact]
+    public void IgnoresAStaleGadgetExportWhileHwinfoIsNotRunning()
+    {
+        ExportOtherToGadget("47.5");
+        var monitor = Create();
+
+        monitor.Refresh();
+
+        Assert.Equal(OtherSource.None, monitor.Current.OtherSource);
+        Assert.Null(monitor.Current.OtherWatts);
+    }
+
+    [Fact]
+    public void NoSourceWithoutSharedMemoryOrExport()
+    {
+        _system.Running = true;
+        var monitor = Create();
+
+        monitor.Refresh();
+
+        Assert.Equal(OtherSource.None, monitor.Current.OtherSource);
         Assert.Null(monitor.Current.OtherWatts);
     }
 

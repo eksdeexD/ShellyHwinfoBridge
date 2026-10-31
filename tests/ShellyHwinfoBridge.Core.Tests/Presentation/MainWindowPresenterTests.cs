@@ -68,14 +68,26 @@ public class MainWindowPresenterTests
     [Fact]
     public void OtherCardPlaceholders()
     {
-        var off = Build(hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, SensorsVisible = false, OtherWatts = null });
+        var off = Build(hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, SensorsVisible = false, OtherWatts = null, OtherSource = OtherSource.None });
         Assert.Equal(new StatCardState("Other Components", "Only available with Shared Memory enabled in HWiNFO", string.Empty, Tone.Ink, true), off.Other);
         Assert.Equal("running · shared memory off", off.HwinfoLine);
 
-        var notVisible = Build(hw: BriefExample.Hwinfo() with { SensorsVisible = false, OtherWatts = null });
+        var notVisible = Build(hw: BriefExample.Hwinfo() with { SensorsVisible = false, OtherWatts = null, OtherSource = OtherSource.None });
         Assert.Equal("Restart HWiNFO to see this", notVisible.Other.Value);
         Assert.True(notVisible.Other.Placeholder);
         Assert.Equal("running · sensors not yet visible: restart HWiNFO", notVisible.HwinfoLine);
+    }
+
+    [Fact]
+    public void OtherCardShowsTheGadgetExportWhenSharedMemoryIsOff()
+    {
+        var gadget = Build(hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, OtherWatts = 47.5, OtherSource = OtherSource.Gadget });
+        Assert.Equal(new StatCardState("Other Components", "47.5 W", "DC minus CPU, GPU, RAM", Tone.Ink, false), gadget.Other);
+        Assert.Equal("running · shared memory off · gadget export on", gadget.HwinfoLine);
+
+        var both = Build(hw: BriefExample.Hwinfo() with { SensorsVisible = false, OtherWatts = 47.5, OtherSource = OtherSource.Gadget });
+        Assert.Equal("47.5 W", both.Other.Value);
+        Assert.Equal("running · sensors visible · gadget export on", both.HwinfoLine);
     }
 
     [Fact]

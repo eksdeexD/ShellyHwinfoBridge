@@ -19,6 +19,10 @@ public interface IRegistryBackend
     /// <param name="name">Value name.</param>
     string? GetString(string path, string name);
 
+    /// <summary>Reads all REG_SZ values of a key at once (names compare case-insensitively); empty when the key is missing.</summary>
+    /// <param name="path">Key path.</param>
+    IReadOnlyDictionary<string, string> GetStringValues(string path);
+
     /// <summary>Writes a REG_SZ value, creating the key if needed.</summary>
     /// <param name="path">Key path.</param>
     /// <param name="name">Value name.</param>

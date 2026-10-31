@@ -24,8 +24,8 @@ public static class TrayPresenter
     public const int MaxTooltipLength = 127;
 
     /// <summary>
-    /// Returns the tooltip: "AC 312.4 W · DC 294.8 W · Other 48.1 W" (Other only with shared memory and visible
-    /// sensors), "Shelly offline", "Polling paused", "Setup not completed", …; never longer than
+    /// Returns the tooltip: "AC 312.4 W · DC 294.8 W · Other 48.1 W" (Other only when HWiNFO's value is available
+    /// from shared memory or its gadget export), "Shelly offline", "Polling paused", "Setup not completed", …; never longer than
     /// <see cref="MaxTooltipLength"/>.
     /// </summary>
     /// <param name="state">The runtime state.</param>
@@ -65,7 +65,7 @@ public static class TrayPresenter
     private static string Live(PowerReadingEventArgs last, HwinfoMonitorSnapshot hwinfo, CultureInfo culture)
     {
         var text = $"AC {UiFormat.Watts(last.Power.AcWatts, culture)} · DC {UiFormat.Watts(last.Power.DcWatts, culture)}";
-        if (hwinfo.SharedMemoryAvailable && hwinfo.SensorsVisible && hwinfo.OtherWatts is double other)
+        if (hwinfo.OtherSource != OtherSource.None && hwinfo.OtherWatts is double other)
         {
             text += $" · Other {UiFormat.Watts(other, culture)}";
         }

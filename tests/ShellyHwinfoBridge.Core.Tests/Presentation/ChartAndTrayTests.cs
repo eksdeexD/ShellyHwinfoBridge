@@ -104,8 +104,9 @@ public class ChartAndTrayTests
         var reading = BriefExample.Reading();
         var hw = BriefExample.Hwinfo();
         Assert.Equal("AC 312.4 W · DC 294.8 W · Other 48.1 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs));
-        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false }, EnUs));
-        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SensorsVisible = false }, EnUs));
+        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false, SensorsVisible = false, OtherWatts = null, OtherSource = OtherSource.None }, EnUs));
+        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 47.5 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false, OtherWatts = 47.5, OtherSource = OtherSource.Gadget }, EnUs));
+        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SensorsVisible = false, OtherWatts = null, OtherSource = OtherSource.None }, EnUs));
         Assert.Equal("Shelly offline", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Offline, null, hw, EnUs));
         Assert.Equal("Polling paused", TrayPresenter.Tooltip(RuntimeState.Paused, OnlineState.Unknown, null, hw, EnUs));
         Assert.Equal("Setup not completed", TrayPresenter.Tooltip(RuntimeState.Unconfigured, OnlineState.Unknown, null, hw, EnUs));
