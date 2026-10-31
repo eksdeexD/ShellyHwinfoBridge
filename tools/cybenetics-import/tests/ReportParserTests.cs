@@ -34,6 +34,89 @@ public class ReportParserTests
         Assert.Equal(Expected115, result.Curves[115]);
     }
 
+    // Synthetic fixture mimicking the layout of real reports from 2021 on: the 10-110% table is "Typical Load Tests"
+    // under "Supplementary Tests (For Reference)", the voltage line comes after the table header, rows carry fan
+    // speed and noise columns, a page footer plus repeated column header splits a row, crossload rows follow 110%,
+    // trailing zeros are trimmed, and summary lines like "12V Load Regulation 0.45%" match the load-table header.
+    private static readonly (double Ac, double Dc)[] Supplementary230 =
+    [
+        (29.346, 20.601), (51.567, 41.202), (73.488, 61.803), (95.486, 82.404), (97.098, 84.390),
+        (187.068, 168.781), (277.792, 253.171), (368.320, 337.562), (461.345, 421.953), (555.970, 506.343),
+        (651.405, 590.734), (747.659, 675.124), (844.744, 759.515), (943.723, 843.905), (1043.788, 928.296),
+    ];
+
+    private static readonly (double Ac, double Dc)[] Supplementary115 =
+    [
+        (29.642, 20.601), (52.088, 41.202), (73.927, 61.803), (96.042, 82.404), (98.803, 84.390),
+        (190.016, 168.781), (282.126, 253.171), (374.448, 337.562), (469.037, 421.953), (565.280, 506.343),
+        (663.105, 590.734), (761.146, 675.124), (861.024, 759.515), (962.011, 843.905), (1065.350, 928.296),
+    ];
+
+    [Fact]
+    public void ParsesSupplementaryLayoutWithFanColumnsAndPageBreaks()
+    {
+        var lines = File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Fixtures", "supplementary-fan-pagebreak.txt"));
+
+        var result = new ReportParser().Parse(lines, 850);
+
+        Assert.Empty(result.Warnings);
+        Assert.Equal([230, 115], result.Curves.Keys);
+        Assert.Equal(Supplementary230, result.Curves[230]);
+        Assert.Equal(Supplementary115, result.Curves[115]);
+    }
+
+    [Fact]
+    public void PrintedEfficiencyBeatsANumberCloserToTheNominalLoad()
+    {
+        // Fan speed 351 RPM is closer to 350 W than DC (347.2) is; PSU noise 20.1 dB(A) is closer to 20 W than DC.
+        string[] lines =
+        [
+            "230V",
+            "Load Tests",
+            "50% 28.1A 1.9A 1.9A 0.9A 347.2 92.5% 351 23.4 40.1°C 0.97",
+            "12.1V 5.0V 3.3V 5.0V 375.351 44.0°C 230.1V",
+            "Light Load Tests",
+            "20W 1.2A 0.5A 0.5A 0.2A 20.7 75% 0 20.1 39.8°C 0.80",
+            "12.1V 5.1V 3.3V 5.0V 27.6 36.7°C 230.2V",
+        ];
+
+        var result = new ReportParser().Parse(lines, 700);
+
+        Assert.Empty(result.Warnings);
+        Assert.Equal([(27.6, 20.7), (375.351, 347.2)], result.Curves[230]);
+    }
+
+    [Fact]
+    public void WarnsWhenNoPairMatchesThePrintedEfficiency()
+    {
+        string[] lines = ["230V", "Load Tests", "50% 28.1A 350.5 80.000%", "12.1V 374.101 230.1V"];
+
+        var result = new ReportParser().Parse(lines, 700);
+
+        Assert.Equal((374.101, 350.5), Assert.Single(result.Curves[230]));
+        Assert.Contains("does not match the printed efficiency", Assert.Single(result.Warnings), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SkipsPageFooterAndRepeatedHeaderInsideARow()
+    {
+        string[] lines =
+        [
+            "115V",
+            "Load Tests",
+            "Test 12V 5V 3.3V 5VSB DC/AC (Watts) Efficiency PF/AC Volts",
+            "90% 45.2A 8.5A 8.7A 2.5A 630.065 91.18% 0.997",
+            "Cybenetics - Some PSU - Test Report - Page 15 / 19",
+            "Test 12V 5V 3.3V 5VSB DC/AC (Watts) Efficiency PF/AC Volts",
+            "12.089V 4.994V 3.202V 4.774V 691.011 115.16V",
+        ];
+
+        var result = new ReportParser().Parse(lines, 700);
+
+        Assert.Empty(result.Warnings);
+        Assert.Equal((691.011, 630.065), Assert.Single(result.Curves[115]));
+    }
+
     [Fact]
     public void ParsesSideBySideLayoutWithForcedVoltage()
     {
@@ -167,7 +250,8 @@ public class ReportParserTests
     [InlineData(new[] { "r.txt", "--brand", "B" }, "--id is required")]
     [InlineData(new[] { "--id", "x" }, "No input file")]
     [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "abc", "--rating80plus", "Gold", "--reportId", "R", "--url", "u" }, "--wattage")]
-    [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "700", "--rating80plus", "Gold", "--reportId", "R", "--url", "u", "--load-row", "(" }, "error")]
+    [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "700", "--rating80plus", "Gold", "--reportId", "R", "--url", "https://e.com/", "--load-row", "(" }, "error")]
+    [InlineData(new[] { "r.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "700", "--rating80plus", "Gold", "--reportId", "R", "--url", "https://e.com/", "--bogus", "1" }, "Unknown option --bogus")]
     public void CommandRejectsBadArguments(string[] args, string message)
     {
         using var stdout = new StringWriter();

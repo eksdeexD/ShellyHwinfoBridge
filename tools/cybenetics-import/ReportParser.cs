@@ -51,8 +51,20 @@ public sealed class ParserOptions
     /// <summary>Gets or sets the pattern of a load-table row label; group <c>p</c> captures the load percentage.</summary>
     public string LoadRow { get; set; } = @"^\s*(?:#?\d{1,2}\s+)?(?<p>10|20|30|40|50|60|70|80|90|100|110)\s*%(?![\w.])";
 
+    /// <summary>
+    /// Gets or sets the pattern of a line that is skipped while collecting a row's continuation lines (page footers
+    /// and repeated column headers that a page break can put between a row's DC line and its AC line).
+    /// </summary>
+    public string IgnoreLine { get; set; } = @"\bpage\s*\d+\s*(?:/|of)\s*\d+\b|^\s*test\b";
+
     /// <summary>Gets or sets how far the DC value may deviate from the nominal load (fraction, e.g. 0.2 = ±20 %).</summary>
     public double DcTolerance { get; set; } = 0.2;
+
+    /// <summary>
+    /// Gets or sets how far (in percentage points) DC/AC may differ from an efficiency percentage printed on the row
+    /// for the pair to count as confirmed by it.
+    /// </summary>
+    public double EfficiencyTolerance { get; set; } = 0.05;
 
     /// <summary>Gets or sets the lowest plausible efficiency DC/AC.</summary>
     public double MinEfficiency { get; set; } = 0.5;
@@ -82,11 +94,14 @@ public sealed class ParserOptions
 /// headers, because Cybenetics prints DC watts on the first line of a row and AC watts directly below it.
 /// </para>
 /// <para>
-/// Numbers without a unit suffix (or with a "W" suffix) are candidates. DC is the candidate closest to the nominal
-/// load (20/40/60/80 W, or percentage × rated wattage) within <see cref="ParserOptions.DcTolerance"/>. AC is a
-/// candidate whose DC/AC ratio is plausible, preferring the value in the same column on the next line (stacked
-/// layout), then the next candidate after DC on the same line (side-by-side layout). The first accepted row per
-/// voltage and label wins; later duplicates are reported as warnings.
+/// Numbers without a unit suffix (or with a "W" suffix) are candidates. DC candidates lie on the row line within
+/// <see cref="ParserOptions.DcTolerance"/> of the nominal load (20/40/60/80 W, or percentage × rated wattage); AC
+/// candidates have a plausible DC/AC ratio. When the row prints an efficiency percentage, the (DC, AC) pair whose
+/// ratio matches it is taken, so other numbers near the nominal load (fan speed, noise) cannot be mistaken for DC.
+/// Otherwise DC is the candidate closest to the nominal load and AC the value in the same column on the next line
+/// (stacked layout), then the next candidate after DC on the same line (side-by-side layout). Page footers and
+/// repeated column headers between a row's lines are skipped (<see cref="ParserOptions.IgnoreLine"/>). The first
+/// accepted row per voltage and label wins; later duplicates are reported as warnings.
 /// </para>
 /// </remarks>
 public sealed partial class ReportParser
@@ -98,6 +113,7 @@ public sealed partial class ReportParser
     private readonly Regex _voltageMarker;
     private readonly Regex _lightRow;
     private readonly Regex _loadRow;
+    private readonly Regex _ignoreLine;
 
     /// <summary>Creates a parser.</summary>
     /// <param name="options">Locators and tolerances; defaults when <c>null</c>.</param>
@@ -111,6 +127,7 @@ public sealed partial class ReportParser
         _voltageMarker = new Regex(_options.VoltageMarker, flags);
         _lightRow = new Regex(_options.LightLoadRow, flags);
         _loadRow = new Regex(_options.LoadRow, flags);
+        _ignoreLine = new Regex(_options.IgnoreLine, flags);
     }
 
     private enum Table
@@ -152,12 +169,16 @@ public sealed partial class ReportParser
             var block = new List<string> { line[(row.Index + row.Length)..] };
             for (var j = i + 1; j < lines.Count && block.Count <= _options.MaxContinuationLines; j++)
             {
-                if (IsBoundary(lines[j] ?? string.Empty))
+                var next = lines[j] ?? string.Empty;
+                if (IsBoundary(next))
                 {
                     break;
                 }
 
-                block.Add(lines[j] ?? string.Empty);
+                if (!_ignoreLine.IsMatch(next))
+                {
+                    block.Add(next);
+                }
             }
 
             if (voltage is null)
@@ -170,6 +191,11 @@ public sealed partial class ReportParser
             {
                 warnings.Add($"Line {i + 1}: {voltage}V row {label} skipped: {problem}");
                 continue;
+            }
+
+            if (problem.Length > 0)
+            {
+                warnings.Add($"Line {i + 1}: {voltage}V row {label}: {problem}");
             }
 
             if (!seen.Add((voltage.Value, label)))
@@ -234,15 +260,22 @@ public sealed partial class ReportParser
     private bool TryReadRow(List<string> block, double nominal, out double ac, out double dc, out string problem)
     {
         ac = dc = 0;
-        var cells = new List<(int Line, int Column, double Value)>();
+        var cells = new List<Cell>();
+        var efficiencies = new List<double>();
         for (var l = 0; l < block.Count; l++)
         {
             var tokens = Tokens(block[l]);
             for (var c = 0; c < tokens.Length; c++)
             {
-                if (TryPlainNumber(tokens[c], out var value))
+                var spacedPercent = c + 1 < tokens.Length && tokens[c + 1] == "%";
+                if (TryPlainNumber(tokens[c], out var value) && !spacedPercent)
                 {
-                    cells.Add((l, c, value));
+                    cells.Add(new Cell(l, c, value));
+                }
+                else if ((TryPercent(tokens[c], out var percent) || (spacedPercent && TryPlainNumber(tokens[c], out percent))) &&
+                         percent >= _options.MinEfficiency * 100 && percent <= _options.MaxEfficiency * 100)
+                {
+                    efficiencies.Add(percent);
                 }
             }
         }
@@ -257,22 +290,32 @@ public sealed partial class ReportParser
             return false;
         }
 
-        var dcCell = dcCells[0];
-        var acCandidates = cells
-            .Where(x => x != dcCell && x.Value > 0)
-            .Where(x => dcCell.Value / x.Value >= _options.MinEfficiency && dcCell.Value / x.Value <= _options.MaxEfficiency)
+        // Every plausible (DC, AC) pair, best layout position first.
+        var pairs = dcCells
+            .SelectMany(d => cells
+                .Where(a => a != d && a.Value > 0)
+                .Where(a => d.Value / a.Value >= _options.MinEfficiency && d.Value / a.Value <= _options.MaxEfficiency)
+                .Select(a => (Dc: d, Ac: a, Rank: PositionRank(d, a, cells))))
+            .Where(p => p.Rank < int.MaxValue)
             .ToList();
 
-        var stacked = acCandidates
-            .Where(x => x.Line == 1)
-            .OrderBy(x => Math.Abs(x.Column - dcCell.Column))
-            .FirstOrDefault(x => Math.Abs(x.Column - dcCell.Column) <= 1);
-        var sameLine = acCandidates.FirstOrDefault(x => x.Line == 0 && x.Column > dcCell.Column);
-        (int Line, int Column, double Value)? chosen =
-            stacked != default ? stacked :
-            sameLine != default ? sameLine :
-            null;
+        // A printed efficiency that matches DC/AC identifies the pair regardless of which other numbers are nearby.
+        var confirmed = pairs
+            .Where(p => efficiencies.Any(e => Math.Abs((p.Dc.Value / p.Ac.Value * 100) - e) <= _options.EfficiencyTolerance))
+            .OrderBy(p => p.Rank)
+            .ThenBy(p => Math.Abs(p.Dc.Value - nominal))
+            .ToList();
+        if (confirmed.Count > 0)
+        {
+            dc = confirmed[0].Dc.Value;
+            ac = confirmed[0].Ac.Value;
+            problem = string.Empty;
+            return true;
+        }
 
+        // No efficiency to confirm with: DC closest to nominal, AC by position.
+        var dcCell = dcCells[0];
+        var chosen = pairs.Where(p => p.Dc == dcCell).OrderBy(p => p.Rank).Select(p => (Cell?)p.Ac).FirstOrDefault();
         if (chosen is null)
         {
             problem = $"DC {dcCell.Value} found but no AC value with a plausible efficiency.";
@@ -281,9 +324,44 @@ public sealed partial class ReportParser
 
         dc = dcCell.Value;
         ac = chosen.Value.Value;
-        problem = string.Empty;
+        problem = efficiencies.Count == 0
+            ? string.Empty
+            : $"DC/AC {dc}/{ac} = {dc / ac * 100:0.###}% does not match the printed efficiency ({string.Join(", ", efficiencies.Select(e => e.ToString("0.###", CultureInfo.InvariantCulture) + "%"))}); check this row.";
         return true;
     }
+
+    /// <summary>Parses a percentage token ("94.412%").</summary>
+    /// <param name="token">The token.</param>
+    /// <param name="value">The value in percent.</param>
+    internal static bool TryPercent(string token, out double value)
+    {
+        var m = PercentRegex().Match(token);
+        value = m.Success ? double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) : 0;
+        return m.Success;
+    }
+
+    // 0/1: AC in DC's column (±1) on the next line (stacked); 2+: a number after DC on the same line, nearest first
+    // (side by side); int.MaxValue: anywhere else (not accepted).
+    private static int PositionRank(Cell dc, Cell ac, List<Cell> cells)
+    {
+        if (ac.Line == dc.Line + 1 && Math.Abs(ac.Column - dc.Column) <= 1)
+        {
+            return Math.Abs(ac.Column - dc.Column);
+        }
+
+        if (ac.Line == dc.Line && ac.Column > dc.Column)
+        {
+            var between = cells.Count(x => x.Line == dc.Line && x.Column > dc.Column && x.Column < ac.Column);
+            return 2 + between;
+        }
+
+        return int.MaxValue;
+    }
+
+    private readonly record struct Cell(int Line, int Column, double Value);
+
+    [GeneratedRegex(@"^(\d+(?:\.\d+)?)%$", RegexOptions.CultureInvariant)]
+    private static partial Regex PercentRegex();
 
     [GeneratedRegex(@"^(\d+(?:\.\d+)?)W?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PlainNumberRegex();
