@@ -111,7 +111,7 @@ internal static class Theme
     public const int LineHeight = 22;
 
     /// <summary>Width of the main window's client area (fixed).</summary>
-    public const int MainWindowWidth = 900;
+    public const int MainWindowWidth = 1040;
 
     /// <summary>Height of the main window's client area (fixed).</summary>
     public const int MainWindowHeight = 640;

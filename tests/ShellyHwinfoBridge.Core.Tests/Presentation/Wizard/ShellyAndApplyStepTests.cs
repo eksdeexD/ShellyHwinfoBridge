@@ -403,6 +403,116 @@ public class RestartAndVerifyTests
         Assert.StartsWith("HWiNFO was not found.", m.HwinfoText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ResolveAdviceCompletesAPendingAdvice()
+    {
+        var pending = RestartAdvice.Checking("HWiNFO restarted.");
+        Assert.Equal("HWiNFO restarted. Checking for the Shelly Power sensors…", pending.Text);
+        Assert.Equal(pending, RestartAdvice.From(HwinfoRestartResult.Restarted, canStart: true));
+
+        Assert.Same(pending, VerifyEvaluator.ResolveAdvice(pending, sensorsFound: false, gracePeriodOver: false));
+
+        var found = VerifyEvaluator.ResolveAdvice(pending, sensorsFound: true, gracePeriodOver: true)!;
+        Assert.Equal(Tone.Success, found.Tone);
+        Assert.Equal("HWiNFO restarted. Shelly Power sensors found.", found.Text);
+        Assert.Empty(found.Actions);
+
+        var missing = VerifyEvaluator.ResolveAdvice(pending, sensorsFound: false, gracePeriodOver: true)!;
+        Assert.Equal(Tone.Warning, missing.Tone);
+        Assert.Equal("HWiNFO restarted. " + RestartAdvice.SensorsNotFoundText, missing.Text);
+        Assert.Equal([RestartAction.Verify], missing.Actions);
+
+        // A final advice stays as it is.
+        var couldNotClose = RestartAdvice.From(HwinfoRestartResult.CouldNotClose, canStart: true);
+        Assert.Same(couldNotClose, VerifyEvaluator.ResolveAdvice(couldNotClose, sensorsFound: true, gracePeriodOver: true));
+        Assert.Null(VerifyEvaluator.ResolveAdvice(null, sensorsFound: true, gracePeriodOver: true));
+    }
+
+    [Fact]
+    public void ReviewHwinfoTurnsAClosedHwinfoIntoAWarning()
+    {
+        var running = new HwinfoStatus(true, true, @"C:\HWiNFO64\HWiNFO64.exe", HwinfoPathSource.RunningProcess);
+        var closed = new HwinfoStatus(true, false, @"C:\HWiNFO64\HWiNFO64.exe", HwinfoPathSource.UninstallEntry);
+        var pending = RestartAdvice.Checking("HWiNFO restarted.");
+
+        var notRunning = VerifyEvaluator.ReviewHwinfo(pending, closed)!;
+        Assert.Equal(Tone.Warning, notRunning.Tone);
+        Assert.Equal(RestartAdvice.NotRunningText, notRunning.Text);
+        Assert.Equal([RestartAction.StartHwinfo, RestartAction.Verify], notRunning.Actions);
+        Assert.Equal([RestartAction.Verify], VerifyEvaluator.ReviewHwinfo(null, closed with { ExecutablePath = null })!.Actions);
+
+        Assert.Same(pending, VerifyEvaluator.ReviewHwinfo(pending, running));
+        Assert.Null(VerifyEvaluator.ReviewHwinfo(null, running));
+        Assert.Same(pending, VerifyEvaluator.ReviewHwinfo(pending, null));
+
+        var again = VerifyEvaluator.ReviewHwinfo(notRunning, running)!;
+        Assert.Equal("HWiNFO is running. Checking for the Shelly Power sensors…", again.Text);
+        Assert.Equal("HWiNFO is running.", again.PendingLead);
+    }
+
+    [Fact]
+    public async Task RestartAdviceResolvesWhenTheSensorsAreFound()
+    {
+        var f = new WizardFixture { Snapshot = Snapshots.Desktop(Snapshots.Bridge()) };
+        var m = Applied(f);
+        await m.RestartHwinfoAsync();
+
+        Assert.Equal(new RestartAdvice(Tone.Success, "HWiNFO restarted. Shelly Power sensors found.", []) { PendingLead = "HWiNFO restarted." }, m.Advice);
+    }
+
+    [Fact]
+    public async Task RestartAdviceWarnsWhenTheSensorsStayMissingAfterTheGracePeriod()
+    {
+        var f = new WizardFixture { Snapshot = Snapshots.Desktop() };
+        var m = Applied(f);
+        await m.RestartHwinfoAsync();
+        Assert.Equal("HWiNFO restarted. Checking for the Shelly Power sensors…", m.Advice!.Text);
+
+        f.Time.Advance(ApplyStepModel.VerifyGracePeriod);
+        m.VerifyTick();
+        Assert.Equal(Tone.Warning, m.Advice!.Tone);
+        Assert.Equal("HWiNFO restarted. " + RestartAdvice.SensorsNotFoundText, m.Advice.Text);
+
+        // Still looking: the sensors showing up later turn it green.
+        f.Snapshot = Snapshots.Desktop(Snapshots.Bridge());
+        m.VerifyTick();
+        Assert.Equal("HWiNFO restarted. Shelly Power sensors found.", m.Advice!.Text);
+        Assert.Equal(Tone.Success, m.Advice.Tone);
+
+        // After the timeout without sensors the warning stays.
+        var g = new WizardFixture { Snapshot = Snapshots.Desktop() };
+        var n = Applied(g);
+        await n.RestartHwinfoAsync();
+        g.Time.Advance(ApplyStepModel.VerifyTimeout);
+        n.VerifyTick();
+        Assert.Equal(VerifyPhase.TimedOut, n.VerifyPhase);
+        Assert.Equal(Tone.Warning, n.Advice!.Tone);
+    }
+
+    [Fact]
+    public async Task VerifyAgainDropsTheGreenCheckWhenHwinfoWasClosed()
+    {
+        var f = new WizardFixture { Snapshot = Snapshots.Desktop(Snapshots.Bridge()) };
+        var m = Applied(f);
+        await m.RestartHwinfoAsync();
+        Assert.Equal(Tone.Success, m.Advice!.Tone);
+
+        f.Status = new HwinfoStatus(true, false, @"C:\HWiNFO64\HWiNFO64.exe", HwinfoPathSource.UninstallEntry);
+        f.Snapshot = null;
+        m.VerifyAgain();
+        Assert.Equal(Tone.Warning, m.Advice!.Tone);
+        Assert.Equal(RestartAdvice.NotRunningText, m.Advice.Text);
+        Assert.Equal(HwinfoPrimaryAction.Start, m.PrimaryAction);
+        Assert.Equal(VerifyPhase.Checking, m.VerifyPhase);
+
+        // HWiNFO started by hand: the next Verify waits for the sensors again and resolves.
+        f.Status = new HwinfoStatus(true, true, @"C:\HWiNFO64\HWiNFO64.exe", HwinfoPathSource.RunningProcess);
+        f.Snapshot = Snapshots.Desktop(Snapshots.Bridge());
+        m.VerifyAgain();
+        Assert.Equal(Tone.Success, m.Advice!.Tone);
+        Assert.Equal("HWiNFO is running. Shelly Power sensors found.", m.Advice.Text);
+    }
+
     private static ApplyStepModel Applied(WizardFixture f)
     {
         var m = new ApplyStepModel(f.Dependencies, startWithWindows: false, EnUs);

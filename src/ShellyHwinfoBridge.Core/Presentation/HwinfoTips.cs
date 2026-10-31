@@ -3,7 +3,7 @@ namespace ShellyHwinfoBridge.Core.Presentation;
 /// <summary>Help texts about HWiNFO shown in more than one place (<see cref="InlineMarkup"/>: bold in <c>**</c>).</summary>
 public static class HwinfoTips
 {
-    /// <summary>The title of the "How to enable?" help dialog (the same heading as wizard step 6).</summary>
+    /// <summary>The title of the "How to enable?" help dialog (the same heading as wizard step 5).</summary>
     public const string GadgetExportTitle = Wizard.GadgetStepModel.Heading;
 
     /// <summary>The one-line explainer of Settings › Sensors, followed by the "How to enable?" text action.</summary>
@@ -15,7 +15,7 @@ public static class HwinfoTips
     /// <summary>
     /// The gadget how-to without sensor names (used when no sensors are selected): Other Components is computed by the
     /// app from the selected component sensors, so HWiNFO must report those sensors to its gadget export when shared
-    /// memory is off. Shown in the "How to enable?" dialog, wizard step 6 and Settings › Sensors.
+    /// memory is off. Shown in the "How to enable?" dialog, wizard step 5 and Settings › Sensors.
     /// </summary>
     public const string GadgetExport =
         "To compute Other Components without Shared Memory, HWiNFO must report your selected component sensors: in HWiNFO's sensor **Settings**, open the **HWiNFO Gadget** tab and tick **Enable reporting to Gadget**. Then select each of your selected sensors in the list and tick **Report value in Gadget** below the list so its Sidebar column shows Yes. Click **OK**. The screenshot shows this for one sensor; repeat the step for each of your selected sensors.";

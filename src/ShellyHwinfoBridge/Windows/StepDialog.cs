@@ -13,7 +13,7 @@ namespace ShellyHwinfoBridge.Windows;
 internal sealed class StepDialog : ThemedForm
 {
     /// <summary>The client width in DIP (as the wizard window).</summary>
-    public const int WidthDip = 900;
+    public const int WidthDip = Theme.MainWindowWidth;
 
     private const int Pad = Theme.WindowPadding;
     private const int TitleTop = 14;

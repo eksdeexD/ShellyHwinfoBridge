@@ -4,7 +4,7 @@ namespace ShellyHwinfoBridge.Controls;
 
 /// <summary>
 /// A live-value card: tracked uppercase caption (InkSecondary), large value (Ink, or Accent for the DC card) and a
-/// secondary line. In placeholder state the hint text replaces the value and sub-line. In a narrow card (five cards in a
+/// secondary line in the caption size that may wrap onto two lines (the Other card's sensor list). In placeholder state the hint text replaces the value and sub-line. In a narrow card (five cards in a
 /// row) the caption drops its letter spacing and the value uses the smaller totals font, so nothing is clipped.
 /// The owner may place a child (the Other card's "How to enable?" button) in the bottom
 /// <see cref="ReservedBottomDip"/> DIP, which the hint text leaves free.
@@ -140,10 +140,9 @@ internal sealed class StatCard : CardPanel
         }
 
         var valueHeight = Gfx.Measure("0", valueFont).Height;
-        var subHeight = Gfx.Measure("Ag", f.Body).Height;
         Gfx.Text(g, _value, valueFont, new Rectangle(left - this.Px(1), y, width, valueHeight), Theme.ToneColor(_valueTone));
         y += valueHeight + this.Px(Gap2);
-        Gfx.Text(g, _sub, f.Body, new Rectangle(left, y, width, subHeight), Theme.InkSecondary);
+        Gfx.Text(g, _sub, f.Caption, new Rectangle(left, y, width, SubHeight), Theme.InkSecondary, TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
     }
 
     /// <summary>Gets the bottom of the placeholder hint text in pixels (the owner places "How to enable?" under it).</summary>
@@ -160,6 +159,12 @@ internal sealed class StatCard : CardPanel
     private const int Gap1 = 3;
     private const int Gap2 = 2;
 
+    /// <summary>The number of lines kept for the sub-line in every card, so the captions of a row stay aligned.</summary>
+    private const int SubLines = 2;
+
+    /// <summary>The height of the sub-line area: <see cref="SubLines"/> lines of the caption font.</summary>
+    private int SubHeight => SubLines * Gfx.Measure("Ag", Fonts.Caption).Height;
+
     /// <summary>
     /// The top of the caption: the caption, value and sub-line of a value card centred vertically, so every card of a row
     /// (also one showing a hint) has its caption on the same line.
@@ -168,7 +173,7 @@ internal sealed class StatCard : CardPanel
     {
         var f = Fonts;
         var valueFont = _compact ? f.TotalValue : f.StatValue;
-        var total = captionHeight + this.Px(Gap1) + Gfx.Measure("0", valueFont).Height + this.Px(Gap2) + Gfx.Measure("Ag", f.Body).Height;
+        var total = captionHeight + this.Px(Gap1) + Gfx.Measure("0", valueFont).Height + this.Px(Gap2) + SubHeight;
         return Math.Max(this.Px(8), (ClientSize.Height - total) / 2);
     }
 

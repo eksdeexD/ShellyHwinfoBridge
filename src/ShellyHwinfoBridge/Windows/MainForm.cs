@@ -14,8 +14,9 @@ namespace ShellyHwinfoBridge.Windows;
 /// Per device toggle with more than one device, Hours/Days/Months, bar chart with a hover tooltip, today and this month,
 /// and the device legend in per-device mode); the configuration card and three right-aligned text commands (Settings,
 /// Pause/Resume polling, About). When setup is not done, one "Not set up yet" card (with "Run setup wizard") replaces the stats and the
-/// energy card. <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under the pill,
-/// and the settings page can open <see cref="ManageShellysPage"/> over itself; "‹ Home", "‹ Settings" or Esc go back.
+/// energy card. <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under the header row,
+/// and the settings page can open <see cref="ManageShellysPage"/> over itself; "‹ Home" / "‹ Settings" (left of the pill
+/// in the non-scrolling header row) or Esc go back.
 /// Passive: the tray context pushes <see cref="MainViewState"/> and <see cref="EnergyChartModel"/> in, and the window
 /// raises events for its commands. Closing hides it.
 /// </summary>
@@ -24,8 +25,8 @@ internal sealed class MainForm : ThemedForm
     // Layout in DIP (compact scale; spacing from Theme).
     private const int Pad = Theme.WindowPadding;
     private const int Gap = Theme.Gap;
-    private const int HeaderTop = 10;
-    private const int HeaderHeight = 28;
+    private const int HeaderTop = 8;
+    private const int HeaderHeight = 22;
     private const int StatsTop = HeaderTop + HeaderHeight + Gap;
     private const int StatsHeight = 118;
     private const int HowToHeight = 22;
@@ -42,6 +43,10 @@ internal sealed class MainForm : ThemedForm
     private static readonly EnergyChartMode[] ChartModes = [EnergyChartMode.Combined, EnergyChartMode.PerDevice];
 
     private readonly StatusPill _pill = new() { Clickable = true, AccessibleName = "Shelly status: open Manage Shellys" };
+
+    // The back link of the open page ("‹ Home" on Settings, "‹ Settings" on Manage Shellys), on the header row left of
+    // the pill, so it never scrolls with the page.
+    private readonly TextLink _back = new() { Text = SettingsPage.HomeText, Semibold = true, Visible = false, AccessibleName = "Back to the dashboard" };
 
     // Total, AC, DC, Loss, Other: the first is shown only with additional devices.
     private readonly StatCard[] _stats = [new(), new(), new(), new(), new()];
@@ -66,6 +71,7 @@ internal sealed class MainForm : ThemedForm
     {
         Text = AppInfo.ProductName;
         SuspendLayout();
+        Controls.Add(_back);
         Controls.Add(_pill);
         foreach (var card in _stats)
         {
@@ -100,6 +106,7 @@ internal sealed class MainForm : ThemedForm
         _pause.Click += (_, _) => PauseToggleRequested?.Invoke(this, EventArgs.Empty);
         _about.Click += (_, _) => AboutRequested?.Invoke(this, EventArgs.Empty);
         _pill.Click += (_, _) => OnPillClicked();
+        _back.Click += (_, _) => OnBackClicked();
         _period.SelectedIndexChanged += (_, _) => PeriodChanged?.Invoke(this, EventArgs.Empty);
         _chartMode.SelectedIndexChanged += (_, _) => ChartModeChanged?.Invoke(this, EventArgs.Empty);
         _howToEnable.Click += (_, _) => ShowHowToEnable();
@@ -502,13 +509,33 @@ internal sealed class MainForm : ThemedForm
         Gfx.Text(g, AboutWindow.VersionText, tiny, version, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.Right);
     }
 
-    /// <summary>Places the status pill: right-aligned, sized to its text (at least 150 DIP), centred on the header line.</summary>
+    /// <summary>
+    /// Places the non-scrolling header row: the status pill right-aligned, sized to its text (at least 130 DIP), and the
+    /// open page's back link left of it, both centred on the row.
+    /// </summary>
     private void LayoutHeader()
     {
         var right = ClientSize.Width - this.Px(Pad);
-        var pillWidth = Math.Max(this.Px(150), _pill.GetPreferredSize(Size.Empty).Width);
-        var pillHeight = this.Px(28);
-        _pill.Bounds = new Rectangle(right - pillWidth, this.Px(HeaderTop) + ((this.Px(HeaderHeight) - pillHeight) / 2), pillWidth, pillHeight);
+        var top = this.Px(HeaderTop);
+        var height = this.Px(HeaderHeight);
+        var pillWidth = Math.Max(this.Px(130), _pill.GetPreferredSize(Size.Empty).Width);
+        var pillHeight = this.Px(StatusPill.HeightDip);
+        _pill.Bounds = new Rectangle(right - pillWidth, top + ((height - pillHeight) / 2), pillWidth, pillHeight);
+        var back = _back.GetPreferredSize(Size.Empty);
+        _back.Bounds = new Rectangle(_pill.Left - this.Px(20) - back.Width, top + ((height - back.Height) / 2), back.Width, back.Height);
+    }
+
+    /// <summary>The header's back link: Manage Shellys goes back to Settings, Settings to the dashboard.</summary>
+    private void OnBackClicked()
+    {
+        if (_managePage is { } manage)
+        {
+            manage.RequestBack();
+        }
+        else
+        {
+            _settingsPage?.RequestBack();
+        }
     }
 
     /// <summary>The top of the first configuration line inside the card (the three lines are centred vertically).</summary>
@@ -609,6 +636,9 @@ internal sealed class MainForm : ThemedForm
         _chartMode.Visible = _state?.ShowChartModeToggle == true;
         _setup.Visible = dashboard && !configured;
         _config.Visible = dashboard;
+        _back.Visible = !dashboard;
+        _back.Text = _managePage is null ? SettingsPage.HomeText : ManageShellysPage.BackText;
+        _back.AccessibleName = _managePage is null ? "Back to the dashboard" : "Back to settings";
         _settings.Visible = dashboard;
         _pause.Visible = dashboard;
         _about.Visible = dashboard;

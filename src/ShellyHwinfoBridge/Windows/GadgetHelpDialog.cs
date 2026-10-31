@@ -7,7 +7,7 @@ namespace ShellyHwinfoBridge.Windows;
 /// <summary>
 /// The "How to enable?" help of the Other Components card and of Settings › Sensors (window title "HWiNFO Gadget"): the
 /// heading (<see cref="GadgetStepModel.Heading"/>), the gadget how-to as a numbered list with the user's selected sensors
-/// and their live markers (<see cref="GadgetHowToView"/>, the same as wizard step 6) on the left, the embedded
+/// and their live markers (<see cref="GadgetHowToView"/>, the same as wizard step 5) on the left, the embedded
 /// <c>hwinfo-gadget.png</c> screenshot on the right, and OK. Fixed-size, sized to its content. Esc or Enter closes it.
 /// </summary>
 internal sealed class GadgetHelpDialog : ThemedForm
@@ -16,8 +16,8 @@ internal sealed class GadgetHelpDialog : ThemedForm
     public const string WindowTitle = "HWiNFO Gadget";
 
     private const int Pad = Theme.WindowPadding;
-    private const int WidthDip = 940;
-    private const int TextWidth = 380;
+    private const int WidthDip = Theme.MainWindowWidth;
+    private const int TextWidth = 430;
     private const int TitleTop = 14;
     private const int TitleHeight = 30;
     private const int ContentTop = TitleTop + TitleHeight + 10;

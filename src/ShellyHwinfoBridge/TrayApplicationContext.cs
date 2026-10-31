@@ -266,7 +266,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// <summary>Creates the gadget how-to model over the HWiNFO monitor, loaded with the selected component sensors.</summary>
     private Core.Presentation.Wizard.GadgetStepModel CreateGadgetModel()
     {
-        var model = new Core.Presentation.Wizard.GadgetStepModel(_services.Monitor.ReadGadgetExport);
+        var model = new Core.Presentation.Wizard.GadgetStepModel(_services.Monitor.ReadGadgetExport, () => _services.Monitor.Current.SharedMemoryAvailable);
         model.Load(_services.Runtime.Settings?.Sensors ?? []);
         return model;
     }

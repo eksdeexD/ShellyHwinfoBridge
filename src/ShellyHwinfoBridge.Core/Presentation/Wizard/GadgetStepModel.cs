@@ -10,7 +10,7 @@ namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 public sealed record GadgetSensorItem(string Label, bool Reported);
 
 /// <summary>
-/// The gadget how-to of wizard step 6 and of the "How to enable?" help dialog (Other card, Settings › Sensors): the
+/// The gadget how-to of wizard step 5 and of the "How to enable?" help dialog (Other card, Settings › Sensors): the
 /// numbered steps, the selected component sensors under step 3 ("Enable this for:"), each with a live marker read from
 /// HWiNFO's gadget export (<see cref="Refresh"/>, about once per second while shown), the note about the free version's
 /// 12-hour Shared Memory limit, and the confirmation shown by Next while a sensor is not reported yet.
@@ -36,6 +36,10 @@ public sealed class GadgetStepModel
     /// <summary>Shown while HWiNFO does not run (the markers cannot be read).</summary>
     public const string NotRunningText = "HWiNFO is not running, so the markers can't be checked. Start HWiNFO to see them change.";
 
+    /// <summary>Shown while HWiNFO's Shared Memory is on: Other Components already works without the gadget export.</summary>
+    public const string SharedMemoryOnText =
+        "Shared Memory is on, so Other Components already works. The markers show the gadget export, which keeps it working after Shared Memory turns off.";
+
     /// <summary>The title of the confirmation shown by Next while a sensor is not reported.</summary>
     public const string ConfirmTitle = "Some sensors are not reported yet";
 
@@ -46,12 +50,17 @@ public sealed class GadgetStepModel
     public const string GoBackText = "Go back";
 
     private readonly Func<IReadOnlyList<GadgetReading>?> _readExport;
+    private readonly Func<bool> _sharedMemoryOn;
     private IReadOnlyList<SensorSelection> _sensors = [];
 
     /// <summary>Creates the model.</summary>
     /// <param name="readExport">Reads the gadget export, or returns <c>null</c> while HWiNFO does not run.</param>
-    public GadgetStepModel(Func<IReadOnlyList<GadgetReading>?> readExport) =>
+    /// <param name="sharedMemoryOn">Tells whether HWiNFO's Shared Memory is currently available; <c>null</c> for never.</param>
+    public GadgetStepModel(Func<IReadOnlyList<GadgetReading>?> readExport, Func<bool>? sharedMemoryOn = null)
+    {
         _readExport = readExport ?? throw new ArgumentNullException(nameof(readExport));
+        _sharedMemoryOn = sharedMemoryOn ?? (() => false);
+    }
 
     /// <summary>Raised when the markers changed.</summary>
     public event EventHandler? Changed;
@@ -64,7 +73,7 @@ public sealed class GadgetStepModel
     [
         "In HWiNFO's sensor window, open **Settings**.",
         "Open the **HWiNFO Gadget** tab and tick **Enable reporting to Gadget**.",
-        "Select each sensor below in the list and tick **Report value in Gadget**, so its Sidebar column shows Yes. " + EnableForText,
+        "Select each sensor below in the list and tick **Report value in Gadget**, so its Sidebar column shows Yes.\n" + EnableForText,
         "Click **OK**.",
     ];
 
@@ -77,8 +86,14 @@ public sealed class GadgetStepModel
     /// <summary>Gets whether HWiNFO's export could be read on the last <see cref="Refresh"/> (HWiNFO runs).</summary>
     public bool ExportAvailable { get; private set; }
 
-    /// <summary>Gets the status note: <see cref="NotRunningText"/> while HWiNFO does not run, else <c>null</c>.</summary>
-    public string? StatusText => ExportAvailable ? null : NotRunningText;
+    /// <summary>Gets whether HWiNFO's Shared Memory was available on the last <see cref="Refresh"/>.</summary>
+    public bool SharedMemoryOn { get; private set; }
+
+    /// <summary>Gets the shared-memory note: <see cref="SharedMemoryOnText"/> while Shared Memory is on, else <c>null</c>.</summary>
+    public string? SharedMemoryText => SharedMemoryOn ? SharedMemoryOnText : null;
+
+    /// <summary>Gets the status note: <see cref="NotRunningText"/> while HWiNFO does not run (no export, no Shared Memory), else <c>null</c>.</summary>
+    public string? StatusText => ExportAvailable || SharedMemoryOn ? null : NotRunningText;
 
     /// <summary>Gets the sensors that are not reported yet (red cross).</summary>
     public IReadOnlyList<string> Unreported => Items.Where(i => !i.Reported).Select(i => i.Label).ToList();
@@ -122,14 +137,25 @@ public sealed class GadgetStepModel
 
         var labels = SensorDisplay.Labels(_sensors);
         var items = _sensors.Select((s, i) => new GadgetSensorItem(labels[i], exported is not null && HwinfoMonitor.IsReportedToGadget(exported, s))).ToList();
+        bool sharedMemory;
+        try
+        {
+            sharedMemory = _sharedMemoryOn();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            sharedMemory = false;
+        }
+
         var available = exported is not null;
-        if (!force && available == ExportAvailable && items.SequenceEqual(Items))
+        if (!force && available == ExportAvailable && sharedMemory == SharedMemoryOn && items.SequenceEqual(Items))
         {
             return;
         }
 
         Items = items;
         ExportAvailable = available;
+        SharedMemoryOn = sharedMemory;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

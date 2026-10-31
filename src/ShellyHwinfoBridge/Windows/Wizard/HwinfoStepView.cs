@@ -72,7 +72,7 @@ internal sealed class HwinfoStepView : WizardStepView
     {
         base.OnLayout(levent);
         var w = WidthDip;
-        const float left = 280;
+        const float left = 320;
         const float gap = Theme.Gap;
         var p = Px(Theme.CardPadding);
         var contentTop = _status.ContentBounds.Top;

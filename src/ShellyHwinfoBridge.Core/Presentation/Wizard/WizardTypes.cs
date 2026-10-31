@@ -22,11 +22,11 @@ public enum WizardStep
     /// <summary>Step 4: component sensors.</summary>
     Sensors = 3,
 
-    /// <summary>Step 5: review and apply.</summary>
-    Apply = 4,
+    /// <summary>Step 5: report the component sensors to the HWiNFO Gadget (before Apply; only reads the gadget export).</summary>
+    Gadget = 4,
 
-    /// <summary>Step 6: report the component sensors to the HWiNFO Gadget (after Apply).</summary>
-    Gadget = 5,
+    /// <summary>Step 6: review and apply.</summary>
+    Apply = 5,
 
     /// <summary>Step 7: restart HWiNFO and verify the sensors.</summary>
     Verify = 6,
@@ -54,7 +54,7 @@ public sealed record WizardStatusLine(Tone Tone, string Text);
 /// <param name="RestartHwinfo">Closes and relaunches HWiNFO (runs in the background).</param>
 /// <param name="StartHwinfo">Starts HWiNFO from its detected path; <c>false</c> when it could not be started.</param>
 /// <param name="Time">The clock (verify timeout); <c>null</c> for the system clock.</param>
-/// <param name="ReadGadgetExport">Reads HWiNFO's gadget export (step 6 markers), <c>null</c> while HWiNFO does not run; <c>null</c> for none.</param>
+/// <param name="ReadGadgetExport">Reads HWiNFO's gadget export (step 5 markers), <c>null</c> while HWiNFO does not run; <c>null</c> for none.</param>
 public sealed record WizardDependencies(
     IBridgeRuntime Runtime,
     Func<HwinfoStatus> DetectHwinfo,

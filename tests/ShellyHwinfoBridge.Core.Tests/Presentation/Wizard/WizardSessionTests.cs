@@ -37,14 +37,28 @@ public class WizardSessionTests
         Assert.False(session.Sensors.IsManual);
         Assert.True(await session.GoNextAsync());
 
+        // Step 5 (before Apply) lists the selected sensors; none is reported to the gadget yet, so Next asks first.
+        Assert.Equal(WizardStep.Gadget, session.Current);
+        Assert.Equal(GadgetStepModel.Heading, session.PageTitle);
+        Assert.Equal(GadgetStepModel.Subtitle, session.PageSubtitle);
+        Assert.Equal("Next", session.NextText);
+        Assert.True(session.CanGoBack);
+        Assert.True(session.CanGoNext);
+        Assert.Equal(["CPU Package Power", "GPU Power", "DIMM1 Power", "DIMM3 Power"], session.Gadget.Items.Select(i => i.Label));
+        Assert.True(session.NeedsNextConfirmation);
+        Assert.True(session.Gadget.SharedMemoryOn);
+        Assert.True(await session.GoNextAsync());
+
         Assert.Equal(WizardStep.Apply, session.Current);
         Assert.Equal("Apply", session.NextText);
+        Assert.False(session.NeedsNextConfirmation);
         Assert.Empty(f.Runtime.WizardApplied);
         Assert.Empty(f.Runtime.Applied);
         Assert.Equal(f.Status, f.Dependencies.DetectHwinfo());
         Assert.Equal(0, f.Restarts);
         Assert.Equal(0, f.Starts);
-        Assert.Equal(new[] { WizardStep.Hwinfo, WizardStep.Shelly, WizardStep.Psu, WizardStep.Sensors }, session.Completed.Order());
+        Assert.Equal(new[] { WizardStep.Hwinfo, WizardStep.Shelly, WizardStep.Psu, WizardStep.Sensors, WizardStep.Gadget }, session.Completed.Order());
+        Assert.Equal(["HWiNFO", "Shelly", "PSU", "Sensors", "Gadget", "Apply", "Verify"], WizardSession.StepLabels);
     }
 
     [Fact]
@@ -66,26 +80,18 @@ public class WizardSessionTests
         Assert.Null(password);
         Assert.True(startWithWindows);
 
+        // After Apply only Verify follows, without Back.
         Assert.True(session.IsApplied);
-        Assert.Equal(WizardStep.Gadget, session.Current);
-        Assert.Equal(GadgetStepModel.Heading, session.PageTitle);
-        Assert.False(session.CanGoBack);
-        Assert.True(session.CanGoNext);
-        Assert.Equal("Next", session.NextText);
-        Assert.Contains(WizardStep.Apply, session.Completed);
-        Assert.Equal(HwinfoPrimaryAction.Restart, session.Apply.PrimaryAction);
-
-        // Step 6 lists the selected sensors; none is reported to the gadget yet, so Next asks first.
-        Assert.Equal(["CPU Package Power", "GPU Power", "DIMM1 Power", "DIMM3 Power"], session.Gadget.Items.Select(i => i.Label));
-        Assert.True(session.NeedsNextConfirmation);
-        Assert.False(session.Apply.IsVerifyRunning);
-        Assert.True(await session.GoNextAsync());
-
         Assert.Equal(WizardStep.Verify, session.Current);
         Assert.Equal("Verify in HWiNFO", session.PageTitle);
         Assert.Equal("Finish", session.NextText);
+        Assert.False(session.CanGoBack);
+        Assert.False(session.GoBack());
+        Assert.True(session.CanGoNext);
         Assert.False(session.NeedsNextConfirmation);
+        Assert.Contains(WizardStep.Apply, session.Completed);
         Assert.Contains(WizardStep.Gadget, session.Completed);
+        Assert.Equal(HwinfoPrimaryAction.Restart, session.Apply.PrimaryAction);
 
         // Step 7 starts verifying at once.
         Assert.True(session.Apply.IsVerifyRunning);
@@ -114,7 +120,7 @@ public class WizardSessionTests
         Assert.True(await session.GoNextAsync());
         Assert.Null(session.Apply.ApplyError);
         Assert.True(session.IsApplied);
-        Assert.Equal(WizardStep.Gadget, session.Current);
+        Assert.Equal(WizardStep.Verify, session.Current);
     }
 
     [Fact]
@@ -217,6 +223,9 @@ public class WizardSessionTests
         var session = await AtApply(f);
 
         Assert.True(session.GoBack());
+        Assert.Equal(WizardStep.Gadget, session.Current);
+        Assert.Equal(4, session.Gadget.Items.Count);
+        Assert.True(session.GoBack());
         Assert.Equal(WizardStep.Sensors, session.Current);
         session.Sensors.SetChecked(session.Sensors.Groups[0].Rows[0].Id, false);
         Assert.True(session.GoBack());
@@ -232,6 +241,11 @@ public class WizardSessionTests
         Assert.Equal(WizardStep.Sensors, session.Current);
         Assert.False(session.Sensors.Groups[0].Rows[0].Checked);
         Assert.Empty(f.Runtime.WizardApplied);
+
+        // The gadget step follows the changed selection.
+        Assert.True(await session.GoNextAsync());
+        Assert.Equal(WizardStep.Gadget, session.Current);
+        Assert.Equal(3, session.Gadget.Items.Count);
     }
 
     [Fact]
@@ -271,6 +285,8 @@ public class WizardSessionTests
         await session.GoNextAsync();
         Assert.Equal(WizardStep.Sensors, session.Current);
         Assert.Equal(4, session.Sensors.Selected.Count);
+        await session.GoNextAsync();
+        Assert.Equal(WizardStep.Gadget, session.Current);
         await session.GoNextAsync();
         await session.GoNextAsync();
         Assert.Equal("secret", Assert.Single(f.Runtime.WizardApplied).Password);

@@ -10,8 +10,8 @@ namespace ShellyHwinfoBridge.Core.Presentation;
 /// <param name="Label">The X label under the bar (or under the group), or <c>null</c>.</param>
 /// <param name="TooltipLines">
 /// The hover tooltip, one entry per line. Combined: the bucket ("Fri 18:00", "Fri 30 Oct", "Oct 2026"), the energy
-/// ("0.34 kWh"), with more than one device the per-device breakdown ("PC 0.29 · Monitor 0.05") and, when the log has
-/// estimated DC energy for the bucket, "PC est. 0.31 kWh"; or the bucket and "no data". Per device: the bucket, the
+/// ("0.34 kWh"; with more than one device "Total 0.34 kWh" followed by the per-device breakdown "PC 0.29 · Monitor 0.05"),
+/// or the bucket and "no data". Per device: the bucket, the
 /// device label and its energy ("Fri 18:00", "Monitor", "0.05 kWh").
 /// </param>
 /// <param name="HasData">Whether any data fell into the bar.</param>
@@ -27,7 +27,7 @@ public sealed record ChartBarModel(
     string? DeviceId = null,
     string? DeviceLabel = null)
 {
-    /// <summary>Gets the tooltip on one line ("Fri 18:00 · 0.34 kWh · PC est. 0.31 kWh"), e.g. for accessibility.</summary>
+    /// <summary>Gets the tooltip on one line ("Fri 18:00 · Total 0.34 kWh · PC 0.29 · Monitor 0.05"), e.g. for accessibility.</summary>
     public string Tooltip => string.Join(" · ", TooltipLines);
 }
 
@@ -57,14 +57,8 @@ public sealed record EnergyChartModel(
     IReadOnlyList<string> YLabels,
     EnergyChartMode Mode = EnergyChartMode.Combined)
 {
-    /// <summary>Every how many hour bars a label is shown in Combined mode (on local hours divisible by this).</summary>
+    /// <summary>Every how many hour bars (or per-device groups) a label is shown (on local hours divisible by this).</summary>
     public const int HourLabelEvery = 2;
-
-    /// <summary>Every how many hour groups a label is shown in Per device mode (every hour: twelve groups).</summary>
-    public const int PerDeviceHourLabelEvery = 1;
-
-    /// <summary>How many hours the Per device chart shows (the last 12 of the 24 hour buckets), so its groups stay wide.</summary>
-    public const int PerDeviceHours = 12;
 
     /// <summary>Every how many day bars a label is shown (counted back from today).</summary>
     public const int DayLabelEvery = 5;
@@ -118,18 +112,15 @@ public sealed record EnergyChartModel(
         var breakdown = devices.Count > 1;
         var perDevice = mode == EnergyChartMode.PerDevice && devices.Count > 1;
 
-        // Per device, the hour chart shows only the last 12 hours (its combined bars too).
-        var first = perDevice && period == EnergyPeriod.Hours ? Math.Max(0, buckets.Count - PerDeviceHours) : 0;
-        var hourEvery = perDevice ? PerDeviceHourLabelEvery : HourLabelEvery;
-        var bars = new List<ChartBarModel>(buckets.Count - first);
-        var groups = new List<ChartGroupModel>(perDevice ? buckets.Count - first : 0);
-        for (var i = first; i < buckets.Count; i++)
+        var bars = new List<ChartBarModel>(buckets.Count);
+        var groups = new List<ChartGroupModel>(perDevice ? buckets.Count : 0);
+        for (var i = 0; i < buckets.Count; i++)
         {
             var b = buckets[i];
             var fromEnd = buckets.Count - 1 - i;
             string? label = period switch
             {
-                EnergyPeriod.Hours => b.StartLocal.Hour % hourEvery == 0 ? b.StartLocal.ToString("HH", culture) : null,
+                EnergyPeriod.Hours => b.StartLocal.Hour % HourLabelEvery == 0 ? b.StartLocal.ToString("HH", culture) : null,
                 EnergyPeriod.Days => fromEnd % DayLabelEvery == 0 ? b.StartLocal.ToString(dayPattern, culture) : null,
                 _ => fromEnd % MonthLabelEvery == 0 ? b.StartLocal.ToString("MMM", culture) : null,
             };
@@ -147,15 +138,10 @@ public sealed record EnergyChartModel(
             }
             else
             {
-                tooltip = [when, UiFormat.Kwh(b.AcKwh, culture)];
+                tooltip = [when, (breakdown ? "Total " : string.Empty) + UiFormat.Kwh(b.AcKwh, culture)];
                 if (breakdown)
                 {
                     tooltip.Add(string.Join(" · ", devices.Select(d => d.Label + " " + Value(At(d, i)?.AcKwh ?? 0, culture))));
-                }
-
-                if (b.DcEstKwh > 0)
-                {
-                    tooltip.Add("PC est. " + UiFormat.Kwh(b.DcEstKwh, culture));
                 }
             }
 

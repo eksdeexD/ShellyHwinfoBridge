@@ -160,7 +160,7 @@ public class ColoursAndChartTests
         Assert.Empty(chart.Legend);
         Assert.Equal(2, chart.Bars.Count);
         Assert.Equal(0.34, chart.Bars[1].Value, 9);
-        Assert.Equal("Fri 18:00 · 0.34 kWh · PC 0.29 · Monitor 0.05 · PC est. 0.27 kWh", chart.Bars[1].Tooltip);
+        Assert.Equal("Fri 18:00 · Total 0.34 kWh · PC 0.29 · Monitor 0.05", chart.Bars[1].Tooltip);
         Assert.Equal(0.4, chart.YMax, 9);
     }
 
@@ -169,7 +169,8 @@ public class ColoursAndChartTests
     {
         var chart = EnergyChartModel.Build(Data(withMonitor: false), EnergyPeriod.Hours, EnergyChartMode.PerDevice, Colours, EnUs);
         Assert.Equal(EnergyChartMode.Combined, chart.Mode);
-        Assert.Equal("Fri 18:00 · 0.29 kWh · PC est. 0.27 kWh", chart.Bars[1].Tooltip);
+        Assert.Equal("Fri 18:00 · 0.29 kWh", chart.Bars[1].Tooltip);
+        Assert.DoesNotContain(chart.Bars, b => b.Tooltip.Contains("Total", StringComparison.Ordinal));
         Assert.Empty(chart.Groups);
     }
 
@@ -216,7 +217,7 @@ public class ColoursAndChartTests
     }
 
     [Fact]
-    public void PerDeviceHoursShowTheLastTwelveHoursLabelledEveryHour()
+    public void PerDeviceHoursShowTheLast24HoursLabelledLikeCombined()
     {
         var hours = Enumerable.Range(0, 24).ToList();
         var pc = new DeviceEnergySeries("pc", "PC", hours.Select(h => Bucket(h, 0.1)).ToList());
@@ -225,11 +226,13 @@ public class ColoursAndChartTests
         var data = new EnergyChartData(EnergyAggregator.Combine(devices.Select(d => d.Buckets)), devices);
 
         var perDevice = EnergyChartModel.Build(data, EnergyPeriod.Hours, EnergyChartMode.PerDevice, Colours, EnUs);
-        Assert.Equal(EnergyChartModel.PerDeviceHours, perDevice.Groups.Count);
-        Assert.Equal(EnergyChartModel.PerDeviceHours, perDevice.Bars.Count);
-        Assert.Equal("12", perDevice.Groups[0].Label);
-        Assert.Equal("23", perDevice.Groups[^1].Label);
-        Assert.All(perDevice.Groups, g => Assert.NotNull(g.Label));
+        Assert.Equal(24, perDevice.Groups.Count);
+        Assert.Equal(24, perDevice.Bars.Count);
+        Assert.Equal("00", perDevice.Groups[0].Label);
+        Assert.Null(perDevice.Groups[^1].Label);
+        Assert.Equal("22", perDevice.Groups[^2].Label);
+        Assert.Equal(12, perDevice.Groups.Count(g => g.Label is not null));
+        Assert.All(perDevice.Groups.Where(g => g.Label is not null), g => Assert.Equal(0, int.Parse(g.Label!, CultureInfo.InvariantCulture) % EnergyChartModel.HourLabelEvery));
         Assert.All(perDevice.Groups, g => Assert.Equal(2, g.Bars.Count));
 
         var combined = EnergyChartModel.Build(data, EnergyPeriod.Hours, EnergyChartMode.Combined, Colours, EnUs);

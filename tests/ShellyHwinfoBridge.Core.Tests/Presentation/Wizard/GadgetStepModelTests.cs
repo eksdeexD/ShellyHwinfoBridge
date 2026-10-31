@@ -80,6 +80,34 @@ public class GadgetStepModelTests
     }
 
     [Fact]
+    public void SharedMemoryNoteFollowsTheSharedMemoryState()
+    {
+        var on = true;
+        var model = new GadgetStepModel(() => [], () => on);
+        model.Load(Sensors());
+        Assert.True(model.SharedMemoryOn);
+        Assert.Equal(GadgetStepModel.SharedMemoryOnText, model.SharedMemoryText);
+        Assert.Equal(
+            "Shared Memory is on, so Other Components already works. The markers show the gadget export, which keeps it working after Shared Memory turns off.",
+            model.SharedMemoryText);
+        Assert.Null(model.StatusText);
+
+        var changes = 0;
+        model.Changed += (_, _) => changes++;
+        on = false;
+        model.Refresh();
+        Assert.Equal(1, changes);
+        Assert.False(model.SharedMemoryOn);
+        Assert.Null(model.SharedMemoryText);
+
+        // Without a callback Shared Memory counts as off; without HWiNFO the not-running note shows instead.
+        var none = new GadgetStepModel(() => null);
+        none.Load(Sensors());
+        Assert.Null(none.SharedMemoryText);
+        Assert.Equal(GadgetStepModel.NotRunningText, none.StatusText);
+    }
+
+    [Fact]
     public void WithoutSensorsThereIsNothingToConfirm()
     {
         var model = new GadgetStepModel(() => []);
@@ -94,7 +122,7 @@ public class GadgetStepModelTests
     public void StepsEndStepThreeWithTheSensorList()
     {
         Assert.Equal(4, GadgetStepModel.Steps.Count);
-        Assert.EndsWith(GadgetStepModel.EnableForText, GadgetStepModel.Steps[GadgetStepModel.SensorListStep], StringComparison.Ordinal);
+        Assert.EndsWith("Yes.\n" + GadgetStepModel.EnableForText, GadgetStepModel.Steps[GadgetStepModel.SensorListStep], StringComparison.Ordinal);
         Assert.Contains("**Enable reporting to Gadget**", GadgetStepModel.Steps[1], StringComparison.Ordinal);
         Assert.Contains("**OK**", GadgetStepModel.Steps[3], StringComparison.Ordinal);
     }

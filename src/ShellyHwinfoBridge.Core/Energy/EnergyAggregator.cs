@@ -3,7 +3,7 @@ namespace ShellyHwinfoBridge.Core.Energy;
 /// <summary>The energy chart's period.</summary>
 public enum EnergyPeriod
 {
-    /// <summary>The last 24 hours, one bar per hour (the per-device chart shows the last 12).</summary>
+    /// <summary>The last 24 hours, one bar per hour.</summary>
     Hours,
 
     /// <summary>The last 30 local days, one bar per day.</summary>

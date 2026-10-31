@@ -47,7 +47,7 @@ public enum HwinfoRestartResult
 }
 
 /// <summary>
-/// Detects HWiNFO64 (wizard step 1) and restarts it so it picks up new custom sensors (wizard step 5).
+/// Detects HWiNFO64 (wizard step 1) and restarts it so it picks up new custom sensors (wizard step 7).
 /// </summary>
 /// <remarks>
 /// <para>The executable path is resolved in this order:</para>

@@ -46,7 +46,7 @@ internal abstract class WizardStepView : ThemedPanel
     }
 
     /// <summary>The height of the wizard's step host in DIP (the wizard window is sized for it).</summary>
-    public const float StepHeightDip = 452;
+    public const float StepHeightDip = 480;
 
     /// <summary>Returns the height in DIP the view needs at <paramref name="widthDip"/> (a step dialog sizes itself to it).</summary>
     public virtual float PreferredHeightDip(float widthDip) => StepHeightDip;

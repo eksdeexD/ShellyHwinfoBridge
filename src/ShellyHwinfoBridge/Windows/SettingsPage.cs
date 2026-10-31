@@ -59,8 +59,6 @@ internal sealed class SettingsPage : ScrollPanel
     private readonly Func<HwinfoSnapshot?> _readSharedMemory;
     private readonly Func<CancellationToken, Task<IReadOnlyList<DiscoveredShelly>>> _discover;
 
-    private readonly TextLink _home = new() { Text = HomeText, Semibold = true, AccessibleName = "Back to the dashboard" };
-
     // Shelly plugs.
     private readonly CardPanel _shellyCard = new() { Title = "Shelly plugs" };
     private readonly TextLabel _devicesText = new() { Role = FontRole.Subtitle };
@@ -97,7 +95,7 @@ internal sealed class SettingsPage : ScrollPanel
     // Energy.
     private readonly CardPanel _energyCard = new() { Title = "Energy" };
     private readonly ToggleSwitch _logEnergy = new() { Text = "Log energy use" };
-    private readonly TextLink _openEnergy = new() { Text = "Open energy folder", Semibold = true };
+    private readonly TextLink _openEnergy = new() { Text = "Open data folder", Semibold = true };
     private readonly TextLabel _priceLabel = new() { Text = "Price per kWh", Tone = UiTone.Secondary };
     private readonly ThemedTextBox _price = new() { Placeholder = "optional", AccessibleName = "Price per kWh" };
     private readonly TextLabel _currencyLabel = new() { Text = "Currency", Tone = UiTone.Secondary };
@@ -148,8 +146,6 @@ internal sealed class SettingsPage : ScrollPanel
 
         SuspendLayout();
         _voltage.SetItems(["Auto", "115 V", "230 V"], 0);
-        _home.TabIndex = 0;
-        Controls.Add(_home);
         AddCard(_shellyCard, _devicesText, _devicesHint, _manage);
         AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage, _curveNote);
         AddCard(_sensorsCard, _formula, _gadgetTip, _howToEnable, _sensorNames, _edit, _retiredNote);
@@ -167,8 +163,11 @@ internal sealed class SettingsPage : ScrollPanel
         ApplyState();
     }
 
-    /// <summary>Raised when "‹ Home" is clicked (the main window shows the dashboard again).</summary>
+    /// <summary>Raised by <see cref="RequestBack"/> ("‹ Home" in the main window's header): the main window shows the dashboard again.</summary>
     public event EventHandler? BackRequested;
+
+    /// <summary>The header's "‹ Home": raises <see cref="BackRequested"/> after the click has been handled.</summary>
+    public void RequestBack() => Defer(() => BackRequested?.Invoke(this, EventArgs.Empty));
 
     /// <summary>Raised when "Re-run setup wizard" is clicked.</summary>
     public event EventHandler? WizardRequested;
@@ -258,8 +257,8 @@ internal sealed class SettingsPage : ScrollPanel
             new(this.Px(x) + scroll.X, this.Px(y) + scroll.Y, this.Px(width), this.Px(height));
 
         // The title row: "Settings" and the footnote (or an apply error) after it, "‹ Home" right-aligned.
-        _footnoteLeft = PageHeader.Layout(this, _home, "Settings", scroll);
-        _applyError.Bounds = At(_footnoteLeft, PageHeader.Top + ((PageHeader.Height - Line) / 2), PageHeader.FootnoteWidth(this, _home, _footnoteLeft), Line);
+        _footnoteLeft = PageHeader.FootnoteLeft(this, "Settings");
+        _applyError.Bounds = At(_footnoteLeft, PageHeader.Top + ((PageHeader.Height - Line) / 2), PageHeader.FootnoteWidth(this, _footnoteLeft), Line);
 
         // Pairs of cards share a row height; Sensors and Maintenance span the page.
         var t = ContentTop();
@@ -298,7 +297,7 @@ internal sealed class SettingsPage : ScrollPanel
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        PageHeader.Paint(e.Graphics, this, _home, "Settings", _footnoteLeft, !_applyError.Visible, AutoScrollPosition);
+        PageHeader.Paint(e.Graphics, this, "Settings", _footnoteLeft, !_applyError.Visible, AutoScrollPosition);
     }
 
     private static void SetField(ThemedTextBox box, string text)
@@ -340,7 +339,6 @@ internal sealed class SettingsPage : ScrollPanel
     private void WireEvents()
     {
         // Both close (and dispose) the page: raise them after the click has been handled.
-        _home.Click += (_, _) => Defer(() => BackRequested?.Invoke(this, EventArgs.Empty));
         _rerun.Click += (_, _) => Defer(() => WizardRequested?.Invoke(this, EventArgs.Empty));
         _manage.Click += (_, _) => Defer(() => ManageShellysRequested?.Invoke(this, EventArgs.Empty));
 
@@ -586,7 +584,7 @@ internal sealed class SettingsPage : ScrollPanel
             value.Bounds = R(P + labelWidth + sliderWidth + 8, top, valueWidth, Line);
         }
 
-        // Energy: the switch and "Open energy folder", then price and currency (and a price error).
+        // Energy: the switch and "Open data folder", then price and currency (and a price error).
         Command(_openEnergy, -1, t, Line, column);
         _logEnergy.Bounds = R(P, t, Math.Min(inner - PrefWidth(_openEnergy) - 8, PrefWidth(_logEnergy)), Line);
         var priceTop = t + Line + 8;

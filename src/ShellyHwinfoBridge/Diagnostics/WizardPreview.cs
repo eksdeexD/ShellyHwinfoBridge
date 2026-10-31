@@ -19,25 +19,39 @@ internal static class WizardPreview
     /// <summary>
     /// Builds a wizard positioned at <paramref name="step"/>; <paramref name="tweak"/> adjusts the session first.
     /// <paramref name="afterApply"/>, when set, replaces <paramref name="snapshot"/> once the setup was applied.
-    /// <paramref name="database"/> replaces the three-entry preview database.
+    /// <paramref name="database"/> replaces the three-entry preview database. <paramref name="restartResult"/> is what
+    /// "Restart HWiNFO" reports, <paramref name="hwinfoRunningAfterApply"/> whether HWiNFO still runs after Apply and
+    /// <paramref name="time"/> the clock (to show the state after the verification's grace period);
+    /// <paramref name="sharedMemoryAtGadget"/> <c>false</c> turns Shared Memory off on the gadget step.
     /// </summary>
-    public static WizardForm At(WizardStep step, bool firstRun = true, Action<WizardSession>? tweak = null, Snapshot snapshot = Snapshot.Desktop, Snapshot? afterApply = null, PsuDatabase? database = null, GadgetExport gadgetExport = GadgetExport.None)
+    public static WizardForm At(
+        WizardStep step,
+        bool firstRun = true,
+        Action<WizardSession>? tweak = null,
+        Snapshot snapshot = Snapshot.Desktop,
+        Snapshot? afterApply = null,
+        PsuDatabase? database = null,
+        GadgetExport gadgetExport = GadgetExport.None,
+        HwinfoRestartResult restartResult = HwinfoRestartResult.CouldNotClose,
+        bool hwinfoRunningAfterApply = true,
+        TimeProvider? time = null,
+        bool sharedMemoryAtGadget = true)
     {
         var runtime = new PreviewRuntime();
         WizardSession? session = null;
         var dependencies = new WizardDependencies(
             runtime,
-            () => new HwinfoStatus(true, true, @"C:\Program Files\HWiNFO64\HWiNFO64.exe", HwinfoPathSource.RunningProcess),
-            () => (session is { IsApplied: true } && afterApply is { } applied ? applied : snapshot) switch
+            () => new HwinfoStatus(true, session is not { IsApplied: true } || hwinfoRunningAfterApply, @"C:\Program Files\HWiNFO64\HWiNFO64.exe", HwinfoPathSource.RunningProcess),
+            () => (session is { Current: WizardStep.Gadget } && !sharedMemoryAtGadget ? Snapshot.None : session is { IsApplied: true } && afterApply is { } applied ? applied : snapshot) switch
             {
                 Snapshot.None => null,
                 Snapshot.WithBridge => Sensors(withBridge: true),
                 _ => Sensors(withBridge: false),
             },
             Discover,
-            _ => Task.FromResult(HwinfoRestartResult.CouldNotClose),
+            _ => Task.FromResult(restartResult),
             () => true,
-            TimeProvider.System,
+            time ?? TimeProvider.System,
             () => Export(gadgetExport));
 
         var settings = firstRun ? null : SampleData.Settings();
@@ -66,6 +80,11 @@ internal static class WizardPreview
             session.GoNextAsync().GetAwaiter().GetResult();
         }
 
+        if (step > WizardStep.Gadget)
+        {
+            session.GoNextAsync().GetAwaiter().GetResult();
+        }
+
         tweak?.Invoke(session);
         return new WizardForm(session);
     }
@@ -77,6 +96,14 @@ internal static class WizardPreview
             new("shellyplugmg3-1", "PlugMGen3-2", "S3PL-10112EU", "PlugMG3", 3, IPAddress.Parse("192.168.1.42"), 80, false),
             new("shellyplugsg3-2", "PlugSG3-1", "S3PL-00112EU", "PlugSG3", 3, IPAddress.Parse("192.168.1.57"), 80, false),
         ]);
+
+    /// <summary>A clock that runs ahead of the system clock by <see cref="Ahead"/> (the state after the verification's grace period).</summary>
+    internal sealed class AheadClock : TimeProvider
+    {
+        public TimeSpan Ahead { get; set; }
+
+        public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + Ahead;
+    }
 
     /// <summary>What the preview's gadget export reports.</summary>
     internal enum GadgetExport

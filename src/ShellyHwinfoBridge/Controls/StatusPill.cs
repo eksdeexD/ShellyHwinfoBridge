@@ -3,7 +3,7 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Controls;
 
 /// <summary>
-/// The status pill: 1 px Border, coloured dot (Success / Warning / Error / InkSecondary) and Body text. When
+/// The status pill: 1 px Border, coloured dot (Success / Warning / Error / InkSecondary) and Small text. When
 /// <see cref="Clickable"/> it is a command (Enter or Space as well as a click).
 /// </summary>
 internal sealed class StatusPill : ThemedControl
@@ -60,11 +60,14 @@ internal sealed class StatusPill : ThemedControl
         base.OnKeyUp(e);
     }
 
-    /// <summary>Preferred size: dot, text and padding; 28 DIP high.</summary>
+    /// <summary>The pill's height in DIP.</summary>
+    public const int HeightDip = 22;
+
+    /// <summary>Preferred size: dot, text and padding; <see cref="HeightDip"/> DIP high.</summary>
     public override Size GetPreferredSize(Size proposedSize)
     {
-        var text = Gfx.Measure(Text, Fonts.Body);
-        return new Size(this.Px(12 + 8 + 8 + 14) + text.Width, this.Px(28));
+        var text = Gfx.Measure(Text, Fonts.Small);
+        return new Size(this.Px(10 + 7 + 7 + 12) + text.Width, this.Px(HeightDip));
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -73,15 +76,15 @@ internal sealed class StatusPill : ThemedControl
         var r = new RectangleF(0, 0, Width, Height);
         var border = _clickable && ShowFocus ? Theme.FocusBorder : _clickable && Hovered && Enabled ? Theme.HoverBorder : Theme.Border;
         Gfx.DrawRounded(g, border, Math.Max(1f, this.PxF(1)), RectangleF.Inflate(r, -0.5f, -0.5f), Height / 2f);
-        var dot = this.PxF(8);
-        var x = this.PxF(12);
+        var dot = this.PxF(7);
+        var x = this.PxF(10);
         Gfx.Smooth(g);
         using (var brush = new SolidBrush(Theme.ToneColor(_dot)))
         {
             g.FillEllipse(brush, x, (Height - dot) / 2f, dot, dot);
         }
 
-        var textLeft = (int)(x + dot + this.PxF(8));
-        Gfx.Text(g, Text, Fonts.Body, new Rectangle(textLeft, 0, Width - textLeft - this.Px(10), Height), Theme.Ink);
+        var textLeft = (int)(x + dot + this.PxF(7));
+        Gfx.Text(g, Text, Fonts.Small, new Rectangle(textLeft, 0, Width - textLeft - this.Px(8), Height), Theme.Ink);
     }
 }

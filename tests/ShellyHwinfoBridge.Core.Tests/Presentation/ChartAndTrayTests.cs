@@ -45,8 +45,8 @@ public class ChartAndTrayTests
         Assert.Equal(12, chart.Bars.Count(b => b.Label is not null));
         Assert.All(chart.Bars.Where(b => b.Label is not null), b => Assert.Equal(0, int.Parse(b.Label!, CultureInfo.InvariantCulture) % 2));
         Assert.Equal("16", chart.Bars[^3].Label);
-        Assert.Equal(["Fri 18:00", "0.34 kWh", "PC est. 0.31 kWh"], chart.Bars[^1].TooltipLines);
-        Assert.Equal("Fri 18:00 · 0.34 kWh · PC est. 0.31 kWh", chart.Bars[^1].Tooltip);
+        Assert.Equal(["Fri 18:00", "0.34 kWh"], chart.Bars[^1].TooltipLines);
+        Assert.Equal("Fri 18:00 · 0.34 kWh", chart.Bars[^1].Tooltip);
         Assert.Equal(["Fri 17:00", "no data"], chart.Bars[^2].TooltipLines);
         Assert.False(chart.Bars[^2].HasData);
         Assert.Equal(0.4, chart.YMax, 9);
@@ -74,7 +74,7 @@ public class ChartAndTrayTests
     }
 
     [Fact]
-    public void TooltipFollowsTheCultureAndSkipsMissingDcData()
+    public void TooltipFollowsTheCultureAndHasNoDcEstimate()
     {
         var rows = new[]
         {
@@ -84,7 +84,7 @@ public class ChartAndTrayTests
 
         var enGb = CultureInfo.GetCultureInfo("en-GB");
         var days = EnergyChartModel.Build(EnergyAggregator.Aggregate(rows, EnergyPeriod.Days, Now, TimeZoneInfo.Utc), EnergyPeriod.Days, enGb);
-        Assert.Equal(["Fri 30 Oct", "0.34 kWh", "PC est. 0.31 kWh"], days.Bars[^1].TooltipLines);
+        Assert.Equal(["Fri 30 Oct", "0.34 kWh"], days.Bars[^1].TooltipLines);
         Assert.Equal(["Thu 29 Oct", "0.25 kWh"], days.Bars[^2].TooltipLines);
 
         var months = EnergyChartModel.Build(EnergyAggregator.Aggregate(rows, EnergyPeriod.Months, Now, TimeZoneInfo.Utc), EnergyPeriod.Months, CultureInfo.GetCultureInfo("da-DK"));

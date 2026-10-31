@@ -46,7 +46,7 @@ public enum HwinfoPrimaryAction
 }
 
 /// <summary>
-/// Wizard step 5: summary, "Start with Windows", Apply (through <see cref="IBridgeRuntime.ApplyFromWizard"/>), the HWiNFO
+/// Wizard steps 6 and 7: summary, "Start with Windows", Apply (through <see cref="IBridgeRuntime.ApplyFromWizard"/>), the HWiNFO
 /// restart with advice for every outcome, and the verification of the four Shelly Power sensors with a live readout.
 /// The view drives <see cref="VerifyTick"/> once per second while <see cref="IsVerifyRunning"/>.
 /// </summary>
@@ -78,6 +78,7 @@ public sealed class ApplyStepModel
     private readonly TimeProvider _time;
     private readonly CultureInfo _culture;
     private DateTimeOffset _verifyStarted;
+    private RestartAdvice? _advice;
     private AppSettings? _draft;
 
     /// <summary>Creates the model.</summary>
@@ -102,9 +103,6 @@ public sealed class ApplyStepModel
 
     /// <summary>Gets the summary lines (built by <see cref="Prepare"/>).</summary>
     public IReadOnlyList<SummaryLine> SummaryLines { get; private set; } = [];
-
-    /// <summary>Gets the gadget how-to for step 6 with the selected component sensor names (<see cref="HwinfoTips.GadgetExportFor"/>).</summary>
-    public string GadgetTip => HwinfoTips.GadgetExportFor((_runtime.Settings ?? _draft)?.Sensors.Select(s => s.Name) ?? []);
 
     /// <summary>Gets or sets whether to start with Windows.</summary>
     public bool StartWithWindows { get; set; }
@@ -139,8 +137,15 @@ public sealed class ApplyStepModel
     /// <summary>Gets whether a restart (or start) is in progress.</summary>
     public bool IsRestarting { get; private set; }
 
-    /// <summary>Gets the advice of the last restart or start attempt, or <c>null</c>.</summary>
-    public RestartAdvice? Advice { get; private set; }
+    /// <summary>
+    /// Gets the advice of the last restart or start attempt (or of the last Verify click), or <c>null</c>. After a
+    /// successful restart or start it resolves with the verification: sensors found, or not found after
+    /// <see cref="VerifyGracePeriod"/> (<see cref="VerifyEvaluator.ResolveAdvice"/>).
+    /// </summary>
+    public RestartAdvice? Advice => VerifyEvaluator.ResolveAdvice(
+        _advice,
+        VerifyPhase == VerifyPhase.Confirmed,
+        VerifyPhase == VerifyPhase.TimedOut || (VerifyPhase == VerifyPhase.Checking && _time.GetUtcNow() - _verifyStarted >= VerifyGracePeriod));
 
     /// <summary>Gets the verification phase.</summary>
     public VerifyPhase VerifyPhase { get; private set; }
@@ -328,7 +333,7 @@ public sealed class ApplyStepModel
         }
 
         HwinfoStatus = SafeDetect();
-        Advice = RestartAdvice.From(result, HwinfoStatus?.ExecutablePath is not null);
+        _advice = RestartAdvice.From(result, HwinfoStatus?.ExecutablePath is not null);
         if (result == HwinfoRestartResult.Restarted)
         {
             StartVerify();
@@ -355,12 +360,12 @@ public sealed class ApplyStepModel
         HwinfoStatus = SafeDetect();
         if (started)
         {
-            Advice = new RestartAdvice(Tone.Success, "HWiNFO started. Checking for the Shelly Power sensors…", []);
+            _advice = RestartAdvice.Checking("HWiNFO started.");
             StartVerify();
         }
         else
         {
-            Advice = new RestartAdvice(Tone.Warning, "HWiNFO could not be started. Start it manually, then click Verify.", [RestartAction.Verify]);
+            _advice = new RestartAdvice(Tone.Warning, "HWiNFO could not be started. Start it manually, then click Verify.", [RestartAction.Verify]);
             Changed?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -371,6 +376,21 @@ public sealed class ApplyStepModel
         _verifyStarted = _time.GetUtcNow();
         VerifyPhase = VerifyPhase.Checking;
         VerifyTick();
+    }
+
+    /// <summary>
+    /// The Verify click: detects HWiNFO again and re-evaluates the HWiNFO card (<see cref="VerifyEvaluator.ReviewHwinfo"/>;
+    /// a closed HWiNFO drops the green check), then starts the verification.
+    /// </summary>
+    public void VerifyAgain()
+    {
+        if (SafeDetect() is { } status)
+        {
+            HwinfoStatus = status;
+            _advice = VerifyEvaluator.ReviewHwinfo(_advice, status);
+        }
+
+        StartVerify();
     }
 
     /// <summary>Stops the verification (the wizard closes).</summary>

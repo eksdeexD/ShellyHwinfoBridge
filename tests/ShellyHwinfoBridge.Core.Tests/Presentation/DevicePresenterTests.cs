@@ -302,6 +302,8 @@ public class DevicePresenterTests
         session.Psu.Select("seasonic-prime-fanless-tx-700");
         Assert.True(await session.GoNextAsync());
         Assert.True(await session.GoNextAsync());
+        Assert.True(await session.GoNextAsync());
+        Assert.Equal(WizardStep.Apply, session.Current);
         var lines = session.Apply.SummaryLines.ToDictionary(l => l.Label, l => l.Value);
         Assert.Equal("Monitor · 192.168.1.50 (not in totals)", lines["Other devices"]);
         Assert.True(await session.GoNextAsync());

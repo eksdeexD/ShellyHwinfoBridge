@@ -114,26 +114,46 @@ internal static class ScreenRenderer
             s.Sensors.SetManualName(s.Sensors.AddManual(), "CPU Package Power");
             s.Sensors.SetManualName(s.Sensors.AddManual(), "GPU Power");
         })),
-        ("wizard-5-apply", () => WizardPreview.At(WizardStep.Apply)),
-        ("wizard-6-gadget-mixed", () => WizardPreview.At(WizardStep.Apply, gadgetExport: WizardPreview.GadgetExport.Partial, tweak: s =>
-            s.GoNextAsync().GetAwaiter().GetResult())),
-        ("wizard-6-gadget-all-reported", () => WizardPreview.At(WizardStep.Apply, gadgetExport: WizardPreview.GadgetExport.All, tweak: s =>
-            s.GoNextAsync().GetAwaiter().GetResult())),
-        ("wizard-6-gadget-hwinfo-not-running", () => WizardPreview.At(WizardStep.Apply, gadgetExport: WizardPreview.GadgetExport.NotRunning, tweak: s =>
-            s.GoNextAsync().GetAwaiter().GetResult())),
-        ("wizard-6-gadget-confirm", () =>
+        ("wizard-5-gadget-mixed-shared-memory", () => WizardPreview.At(WizardStep.Gadget, gadgetExport: WizardPreview.GadgetExport.Partial)),
+        ("wizard-5-gadget-all-reported", () => WizardPreview.At(WizardStep.Gadget, gadgetExport: WizardPreview.GadgetExport.All)),
+        ("wizard-5-gadget-no-shared-memory", () => WizardPreview.At(WizardStep.Gadget, gadgetExport: WizardPreview.GadgetExport.Partial, sharedMemoryAtGadget: false)),
+        ("wizard-5-gadget-hwinfo-not-running", () => WizardPreview.At(WizardStep.Gadget, gadgetExport: WizardPreview.GadgetExport.NotRunning, sharedMemoryAtGadget: false)),
+        ("wizard-5-gadget-confirm", () =>
         {
             var model = new GadgetStepModel(() => WizardPreview.Export(WizardPreview.GadgetExport.Partial));
             model.Load(WizardPreview.SelectedSensors());
             return ThemedDialog.CreateForPreview(GadgetStepModel.ConfirmTitle, model.ConfirmText, GadgetStepModel.ContinueText, GadgetStepModel.GoBackText);
         }),
-        ("wizard-7-verify-pending", () => WizardPreview.At(WizardStep.Apply, afterApply: WizardPreview.Snapshot.None, tweak: ApplyAndSkipGadget)),
+        ("wizard-6-apply", () => WizardPreview.At(WizardStep.Apply)),
+        ("wizard-7-verify-pending", () => WizardPreview.At(WizardStep.Apply, afterApply: WizardPreview.Snapshot.None, tweak: ApplyStep)),
         ("wizard-7-verify-could-not-close", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.Desktop, tweak: s =>
         {
-            ApplyAndSkipGadget(s);
+            ApplyStep(s);
             s.Apply.RestartHwinfoAsync().GetAwaiter().GetResult();
         })),
-        ("wizard-7-verify-verified", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: ApplyAndSkipGadget)),
+        ("wizard-7-verify-verified", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: ApplyStep)),
+        ("wizard-7-verify-restarted-found", () => WizardPreview.At(WizardStep.Apply, afterApply: WizardPreview.Snapshot.WithBridge, restartResult: Core.Hwinfo.Locator.HwinfoRestartResult.Restarted, tweak: s =>
+        {
+            ApplyStep(s);
+            s.Apply.RestartHwinfoAsync().GetAwaiter().GetResult();
+        })),
+        ("wizard-7-verify-restarted-not-found", () =>
+        {
+            var clock = new WizardPreview.AheadClock();
+            return WizardPreview.At(WizardStep.Apply, restartResult: Core.Hwinfo.Locator.HwinfoRestartResult.Restarted, time: clock, tweak: s =>
+            {
+                ApplyStep(s);
+                s.Apply.RestartHwinfoAsync().GetAwaiter().GetResult();
+                clock.Ahead = ApplyStepModel.VerifyGracePeriod;
+                s.Apply.VerifyTick();
+            });
+        }),
+        ("wizard-7-verify-hwinfo-closed", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, afterApply: WizardPreview.Snapshot.None, restartResult: Core.Hwinfo.Locator.HwinfoRestartResult.Restarted, hwinfoRunningAfterApply: false, tweak: s =>
+        {
+            ApplyStep(s);
+            s.Apply.RestartHwinfoAsync().GetAwaiter().GetResult();
+            s.Apply.VerifyAgain();
+        })),
         ("main-settings", () => Settings()),
         ("main-settings-single-voltage", () => Settings(out _, SampleData.SingleVoltageSettings(), WizardPreview.DatabaseWithSingleVoltage())),
         ("main-window-single-voltage", () => MainWindow(SampleData.MainView(settings: SampleData.SingleVoltageSettings(), database: WizardPreview.DatabaseWithSingleVoltage()), EnergyPeriod.Hours)),
@@ -229,6 +249,7 @@ internal static class ScreenRenderer
         ("m4-main-other-hwinfo-not-running", () => MainWindow(SampleData.MainView(hwinfo: new HwinfoMonitorSnapshot(true, false, false, false, null), other: OtherComponentsState.Unknown), EnergyPeriod.Hours)),
         ("m4-gadget-help-dialog", () => new GadgetHelpDialog(GadgetModel())),
         ("gadget-help-dialog-hwinfo-not-running", () => new GadgetHelpDialog(GadgetModel(WizardPreview.GadgetExport.NotRunning))),
+        ("gadget-help-dialog-shared-memory", () => new GadgetHelpDialog(GadgetModel(sharedMemory: true))),
         ("m4-rename-help-dialog", () => new RenameHelpDialog(HwinfoRenameHelp.ForDeviceRelabel(SampleData.MonitorId, "Monitor", "Desk monitor"))),
         ("m4-rename-help-dialog-many", () => new RenameHelpDialog(new HwinfoRenameHelp(
         [
@@ -254,7 +275,14 @@ internal static class ScreenRenderer
             var settings = SampleData.TwoDeviceSettings();
             return MainWindow(SampleData.MainView(online: OnlineState.Offline, settings: settings, additionalState: OnlineState.Offline), EnergyPeriod.Hours, SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings));
         }),
-        ("pass2-main-paused", () => MainWindow(SampleData.MainView(RuntimeState.Paused, OnlineState.Unknown), EnergyPeriod.Hours)),
+        ("pass3-main-2-devices-long-other-sub", () =>
+        {
+            // Every sensor category: the Other card's sub-line wraps onto its second line.
+            var settings = SampleData.TwoDeviceSettings();
+            settings.Sensors.Add(new SensorSelection { Name = "Chipset Power", Category = Core.Sensors.SensorCategory.OtherMeasured });
+            return MainWindow(SampleData.MainView(settings: settings), EnergyPeriod.Days, SampleData.TwoDeviceChart(EnergyPeriod.Days, settings));
+        }),
+        ("pass2-main-paused",() => MainWindow(SampleData.MainView(RuntimeState.Paused, OnlineState.Unknown), EnergyPeriod.Hours)),
         ("pass2-accent-teal-main-per-device", () =>
         {
             var settings = TealSettings();
@@ -328,17 +356,13 @@ internal static class ScreenRenderer
         return settings;
     }
 
-    /// <summary>Applies on step 5 and moves on past step 6 (the gadget how-to) to step 7.</summary>
-    private static void ApplyAndSkipGadget(WizardSession session)
-    {
-        session.GoNextAsync().GetAwaiter().GetResult();
-        session.GoNextAsync().GetAwaiter().GetResult();
-    }
+    /// <summary>Applies on step 6 and moves on to step 7.</summary>
+    private static void ApplyStep(WizardSession session) => session.GoNextAsync().GetAwaiter().GetResult();
 
     /// <summary>The gadget how-to model over the preview's export, loaded with the sample sensors.</summary>
-    private static GadgetStepModel GadgetModel(WizardPreview.GadgetExport export = WizardPreview.GadgetExport.Partial)
+    private static GadgetStepModel GadgetModel(WizardPreview.GadgetExport export = WizardPreview.GadgetExport.Partial, bool sharedMemory = false)
     {
-        var model = new GadgetStepModel(() => WizardPreview.Export(export));
+        var model = new GadgetStepModel(() => WizardPreview.Export(export), () => sharedMemory);
         model.Load(WizardPreview.SelectedSensors());
         return model;
     }

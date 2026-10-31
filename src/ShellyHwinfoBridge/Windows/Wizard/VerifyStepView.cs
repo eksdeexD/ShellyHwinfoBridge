@@ -6,15 +6,15 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
-/// Step 7 (after Apply and the gadget step): side by side, the "HWiNFO" card (status or restart advice; the text actions
+/// Step 7 (after Apply): side by side, the "HWiNFO" card (status or restart advice; the text actions
 /// Restart / Start / Retry and Verify in its lower-right corner, hidden while a restart runs in the background) and the
 /// "Verify" card (four-sensor checklist, AC/DC/Loss/Other tiles, the status line). Verify is disabled once all four
-/// sensors are confirmed. The gadget how-to has its own step (<see cref="GadgetStepView"/>).
+/// sensors are confirmed. The gadget how-to has its own step before Apply (<see cref="GadgetStepView"/>).
 /// </summary>
 internal sealed class VerifyStepView : WizardStepView
 {
     private const float TopHeight = 230;
-    private const float HwinfoWidth = 320;
+    private const float HwinfoWidth = 380;
     private const float ChecksWidth = 200;
     private const float TileHeight = 54;
     private const float TileStep = 62;
@@ -49,10 +49,10 @@ internal sealed class VerifyStepView : WizardStepView
         {
             if (_model.CanVerify)
             {
-                _model.StartVerify();
+                _model.VerifyAgain();
             }
         };
-        _verifyStatus.LinkClicked += (_, _) => _model.StartVerify();
+        _verifyStatus.LinkClicked += (_, _) => _model.VerifyAgain();
         _timer.Tick += (_, _) =>
         {
             if (_model.IsVerifyRunning)
@@ -206,7 +206,7 @@ internal sealed class VerifyStepView : WizardStepView
                 _model.StartHwinfo();
                 break;
             case RestartAction.Verify:
-                _model.StartVerify();
+                _model.VerifyAgain();
                 break;
         }
     }

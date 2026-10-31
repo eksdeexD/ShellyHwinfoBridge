@@ -7,10 +7,11 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// The gadget how-to as a numbered list, shared by wizard step 6 (<see cref="Wizard.GadgetStepView"/>) and the help
+/// The gadget how-to as a numbered list, shared by wizard step 5 (<see cref="Wizard.GadgetStepView"/>) and the help
 /// dialog (<see cref="GadgetHelpDialog"/>): the steps of <see cref="GadgetStepModel.Steps"/> with a hanging indent, the
 /// selected sensors indented under step 3 ("Enable this for:"), each with a live red cross or green tick, the HWiNFO
-/// status note and the free version's 12-hour note. While visible it refreshes the model about once per second.
+/// status note (or, while Shared Memory is on, the note that Other Components already works) and the free version's
+/// 12-hour note. While visible it refreshes the model about once per second.
 /// </summary>
 internal sealed class GadgetHowToView : ThemedPanel
 {
@@ -23,7 +24,8 @@ internal sealed class GadgetHowToView : ThemedPanel
     private readonly List<MarkerLine> _items = [];
     private readonly TextLabel _noSensors = new() { Text = GadgetStepModel.NoSensorsText, Tone = UiTone.Secondary };
     private readonly InfoLine _status = new() { Tone = InfoTone.Warning, Visible = false };
-    private readonly InfoLine _note = new() { Text = GadgetStepModel.FreeVersionNote };
+    private readonly TextLabel _sharedMemory = new() { Text = GadgetStepModel.SharedMemoryOnText, Role = FontRole.Small, Tone = UiTone.Secondary, WordWrap = true, VerticalCenter = false, Visible = false };
+    private readonly TextLabel _note = new() { Text = GadgetStepModel.FreeVersionNote, Role = FontRole.Small, Tone = UiTone.Secondary, WordWrap = true, VerticalCenter = false };
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 1000 };
 
     /// <summary>Creates the view over a loaded model.</summary>
@@ -41,7 +43,7 @@ internal sealed class GadgetHowToView : ThemedPanel
             Controls.Add(text);
         }
 
-        Controls.AddRange([_noSensors, _status, _note]);
+        Controls.AddRange([_noSensors, _status, _sharedMemory, _note]);
         _timer.Tick += (_, _) => _model.Refresh();
         _model.Changed += OnModelChanged;
         Sync();
@@ -125,6 +127,7 @@ internal sealed class GadgetHowToView : ThemedPanel
         _noSensors.Visible = items.Count == 0;
         _status.Visible = _model.StatusText is not null;
         _status.Text = _model.StatusText ?? string.Empty;
+        _sharedMemory.Visible = _model.SharedMemoryText is not null;
         PerformLayout();
         Invalidate(true);
     }
@@ -169,10 +172,23 @@ internal sealed class GadgetHowToView : ThemedPanel
             }
         }
 
-        foreach (var note in _model.StatusText is null ? new[] { _note } : new[] { _status, _note })
+        // The HWiNFO status (a warning line), then the notes in the Small size.
+        var notes = new List<(Control Control, Func<int, int> Height)>();
+        if (_model.StatusText is not null)
+        {
+            notes.Add((_status, w => Math.Max(Px(Theme.LineHeight), _status.GetPreferredHeight(w))));
+        }
+
+        if (_model.SharedMemoryText is not null)
+        {
+            notes.Add((_sharedMemory, _sharedMemory.GetPreferredHeight));
+        }
+
+        notes.Add((_note, _note.GetPreferredHeight));
+        foreach (var (note, measure) in notes)
         {
             y += Px(6);
-            var height = Math.Max(Px(Theme.LineHeight), note.GetPreferredHeight(width));
+            var height = measure(width);
             if (apply)
             {
                 note.Bounds = new Rectangle(0, y, width, height);

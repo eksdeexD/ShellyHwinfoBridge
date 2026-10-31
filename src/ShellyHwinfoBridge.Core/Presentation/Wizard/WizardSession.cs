@@ -6,14 +6,14 @@ using ShellyHwinfoBridge.Core.Settings;
 namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 
 /// <summary>
-/// The setup wizard's state machine: seven steps (the last two, Gadget and Verify, only after Apply), Back/Next, and a draft of the settings. Nothing touches the registry,
+/// The setup wizard's state machine: seven steps (HWiNFO, Shelly, PSU, Sensors, Gadget, Apply, and Verify after Apply), Back/Next, and a draft of the settings. Nothing touches the registry,
 /// the settings file or autostart before <see cref="Apply"/>: the steps only read (process list, shared memory, mDNS,
 /// HTTP GET). Cancel = drop the session.
 /// </summary>
 public sealed class WizardSession
 {
     /// <summary>The step labels for the step indicator.</summary>
-    public static IReadOnlyList<string> StepLabels { get; } = ["HWiNFO", "Shelly", "PSU", "Sensors", "Apply", "Gadget", "Verify"];
+    public static IReadOnlyList<string> StepLabels { get; } = ["HWiNFO", "Shelly", "PSU", "Sensors", "Gadget", "Apply", "Verify"];
 
     private readonly WizardDependencies _dependencies;
     private readonly PsuDatabase _database;
@@ -39,7 +39,7 @@ public sealed class WizardSession
         Psu = new PsuStepModel(database, culture);
         Sensors = new SensorStepModel(culture);
         Apply = new ApplyStepModel(dependencies, IsFirstRun || Draft.StartWithWindows, culture);
-        Gadget = new GadgetStepModel(dependencies.ReadGadgetExport ?? (() => null));
+        Gadget = new GadgetStepModel(dependencies.ReadGadgetExport ?? (() => null), () => dependencies.ReadSharedMemory() is not null);
 
         Shelly.LoadFrom(Draft.Device, currentPassword);
         Shelly.LoadAdditional(Draft.AdditionalDevices);
@@ -85,19 +85,19 @@ public sealed class WizardSession
     /// <summary>Gets step 4.</summary>
     public SensorStepModel Sensors { get; }
 
-    /// <summary>Gets steps 5 (summary and Apply) and 7 (HWiNFO restart and verification).</summary>
+    /// <summary>Gets steps 6 (summary and Apply) and 7 (HWiNFO restart and verification).</summary>
     public ApplyStepModel Apply { get; }
 
-    /// <summary>Gets step 6 (report the component sensors to the HWiNFO Gadget).</summary>
+    /// <summary>Gets step 5 (report the component sensors to the HWiNFO Gadget).</summary>
     public GadgetStepModel Gadget { get; }
 
     /// <summary>
-    /// Gets whether Next on the current step should first ask "Continue anyway" / "Go back": on step 6 while a selected
+    /// Gets whether Next on the current step should first ask "Continue anyway" / "Go back": on step 5 while a selected
     /// sensor is not reported to the gadget yet (<see cref="GadgetStepModel.ShouldConfirmNext"/>).
     /// </summary>
     public bool NeedsNextConfirmation => Current == WizardStep.Gadget && Gadget.ShouldConfirmNext;
 
-    /// <summary>Gets whether the settings were applied (the wizard is on step 6 or 7: Back is gone).</summary>
+    /// <summary>Gets whether the settings were applied (the wizard is on step 7: Back is gone).</summary>
     public bool IsApplied => Apply.IsApplied;
 
     /// <summary>Gets whether a Next transition (connection test) is running.</summary>
@@ -118,7 +118,7 @@ public sealed class WizardSession
         _ => !Apply.IsRestarting,
     };
 
-    /// <summary>Gets the Next button text: "Next", "Apply" on step 5, "Finish" on step 7.</summary>
+    /// <summary>Gets the Next button text: "Next", "Apply" on step 6, "Finish" on step 7.</summary>
     public string NextText => Current switch
     {
         WizardStep.Apply => "Apply",
@@ -158,7 +158,7 @@ public sealed class WizardSession
     /// <summary>
     /// Goes to the next step. On step 2 it runs the connection test first unless the last successful test matches or the
     /// user chose "Continue anyway"; a failed test keeps the step (see <see cref="ShellyStepModel.OfferContinueAnyway"/>).
-    /// On step 5 it applies and, when that worked, moves on to step 6 (the gadget how-to); step 7 starts the verification.
+    /// On step 6 it applies and, when that worked, moves on to step 7, which starts the verification.
     /// On step 7 it returns <c>false</c> ("Finish" closes the wizard).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>

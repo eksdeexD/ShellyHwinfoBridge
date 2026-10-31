@@ -39,7 +39,6 @@ internal sealed class ManageShellysPage : ScrollPanel
     private static readonly ColourMode[] ColourModes = [ColourMode.AutomaticScheme, ColourMode.Custom];
 
     private readonly ManageShellysModel _model;
-    private readonly TextLink _back = new() { Text = BackText, Semibold = true, AccessibleName = "Back to settings" };
     private readonly InfoLine _applyError = new() { Tone = InfoTone.Error, Visible = false };
 
     private readonly CardPanel _devicesCard = new() { Title = "Devices" };
@@ -78,10 +77,9 @@ internal sealed class ManageShellysPage : ScrollPanel
 
         SuspendLayout();
         _colourMode.SetItems(["Automatic scheme", "Custom"], 0);
-        _back.TabIndex = 0;
-        _devicesCard.TabIndex = 1;
-        _coloursCard.TabIndex = 2;
-        _applyError.TabIndex = 3;
+        _devicesCard.TabIndex = 0;
+        _coloursCard.TabIndex = 1;
+        _applyError.TabIndex = 2;
         _devicesCard.Controls.AddRange([_labelCaption, _hostCaption, _modelCaption, _statusCaption, _includeCaption, _add, _addHint]);
         _coloursCard.Controls.AddRange([_colourMode, _baseLabel, _baseSwatch, _baseHex, _colourText, _colourError]);
         for (var i = 0; i < _coloursCard.Controls.Count; i++)
@@ -89,10 +87,9 @@ internal sealed class ManageShellysPage : ScrollPanel
             _coloursCard.Controls[i].TabIndex = i;
         }
 
-        Controls.AddRange([_back, _devicesCard, _coloursCard, _applyError]);
+        Controls.AddRange([_devicesCard, _coloursCard, _applyError]);
         ResumeLayout(false);
 
-        _back.Click += (_, _) => Defer(() => BackRequested?.Invoke(this, EventArgs.Empty));
         _add.Click += (_, _) =>
         {
             if (_model.BeginAdd() is { } form)
@@ -121,8 +118,11 @@ internal sealed class ManageShellysPage : ScrollPanel
         ApplyState();
     }
 
-    /// <summary>Raised when "‹ Settings" is clicked (the main window shows the settings page again).</summary>
+    /// <summary>Raised by <see cref="RequestBack"/> ("‹ Settings" in the main window's header): the main window shows the settings page again.</summary>
     public event EventHandler? BackRequested;
+
+    /// <summary>The header's "‹ Settings": raises <see cref="BackRequested"/> after the click has been handled.</summary>
+    public void RequestBack() => Defer(() => BackRequested?.Invoke(this, EventArgs.Empty));
 
     /// <summary>Gets whether a dialog (device form, confirmation, colour picker) is open over the page.</summary>
     public bool IsShowingDialog => _modalDepth > 0;
@@ -186,8 +186,8 @@ internal sealed class ManageShellysPage : ScrollPanel
         Rectangle R(float x, float y, float w, float h) => new(this.Px(x), this.Px(y), this.Px(w), this.Px(h));
 
         // Title row: the back link, then the title (painted) and the footnote or the apply error.
-        _footnoteLeft = PageHeader.Layout(this, _back, "Manage Shellys", scroll);
-        _applyError.Bounds = At(_footnoteLeft, PageHeader.Top + ((PageHeader.Height - Theme.LineHeight) / 2), PageHeader.FootnoteWidth(this, _back, _footnoteLeft), Theme.LineHeight);
+        _footnoteLeft = PageHeader.FootnoteLeft(this, "Manage Shellys");
+        _applyError.Bounds = At(_footnoteLeft, PageHeader.Top + ((PageHeader.Height - Theme.LineHeight) / 2), PageHeader.FootnoteWidth(this, _footnoteLeft), Theme.LineHeight);
 
         // Devices card: column captions, one row per device, then Add device and its hint. In Custom mode the colour
         // column also holds each device's #RRGGBB field.
@@ -275,7 +275,7 @@ internal sealed class ManageShellysPage : ScrollPanel
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        PageHeader.Paint(e.Graphics, this, _back, "Manage Shellys", _footnoteLeft, !_applyError.Visible, AutoScrollPosition);
+        PageHeader.Paint(e.Graphics, this, "Manage Shellys", _footnoteLeft, !_applyError.Visible, AutoScrollPosition);
     }
 
     private static float RowsTop(float contentTop) => contentTop + CaptionHeight + 4;

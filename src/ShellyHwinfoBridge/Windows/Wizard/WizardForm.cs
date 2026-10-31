@@ -6,9 +6,9 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
 /// The setup wizard window (title "Setup wizard"): the step indicator centred at the top (no logo or app name: the title
-/// bar carries them), page title and subtitle, the step view, and the footer with Back and Next ("Apply" on step 5;
+/// bar carries them), page title and subtitle, the step view, and the footer with Back and Next ("Apply" on step 6;
 /// "Finish" on step 7; Back is hidden after Apply). There is no Cancel: the title bar's X closes the window, and so does
-/// Esc before Apply. Enter = Next. Closing before Apply cancels without changing anything. Next on step 6 asks first while
+/// Esc before Apply. Enter = Next. Closing before Apply cancels without changing anything. Next on step 5 asks first while
 /// a selected sensor is not reported to the HWiNFO Gadget yet.
 /// </summary>
 internal sealed class WizardForm : ThemedForm
@@ -158,7 +158,7 @@ internal sealed class WizardForm : ThemedForm
             return;
         }
 
-        // Step 6: while a selected sensor is not reported to the HWiNFO Gadget yet, ask first.
+        // Step 5: while a selected sensor is not reported to the HWiNFO Gadget yet, ask first.
         if (_session.NeedsNextConfirmation &&
             ThemedDialog.Show(this, GadgetStepModel.ConfirmTitle, _session.Gadget.ConfirmText, GadgetStepModel.ContinueText, GadgetStepModel.GoBackText) != DialogResult.OK)
         {

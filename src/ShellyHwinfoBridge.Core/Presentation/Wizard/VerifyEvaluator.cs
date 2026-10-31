@@ -30,12 +30,34 @@ public sealed record RestartAdvice(Tone Tone, string Text, IReadOnlyList<Restart
     public const string CouldNotCloseText =
         "HWiNFO is running as administrator, so this app can't close it. Exit HWiNFO from its tray icon, start it again, then click Verify.";
 
+    /// <summary>The advice while HWiNFO does not run.</summary>
+    public const string NotRunningText = "HWiNFO is not running. Start it, then click Verify.";
+
+    /// <summary>The second sentence of a pending advice, while the verification looks for the sensors.</summary>
+    public const string CheckingSensorsText = "Checking for the Shelly Power sensors…";
+
+    /// <summary>The second sentence of a pending advice once the sensors were found.</summary>
+    public const string SensorsFoundText = "Shelly Power sensors found.";
+
+    /// <summary>The second sentence of a pending advice when the sensors did not show up within the grace period.</summary>
+    public const string SensorsNotFoundText = "The Shelly Power sensors were not found yet. Check HWiNFO's sensor window, then click Verify.";
+
+    /// <summary>
+    /// Gets the first sentence ("HWiNFO restarted.") of an advice that waits for the verification, or <c>null</c> for
+    /// a final advice. <see cref="VerifyEvaluator.ResolveAdvice"/> completes it with the verification's outcome.
+    /// </summary>
+    public string? PendingLead { get; init; }
+
+    /// <summary>Creates an advice that waits for the verification ("HWiNFO restarted. Checking for the Shelly Power sensors…").</summary>
+    /// <param name="lead">The first sentence ("HWiNFO restarted.").</param>
+    public static RestartAdvice Checking(string lead) => new(Tone.Success, lead + " " + CheckingSensorsText, []) { PendingLead = lead };
+
     /// <summary>Maps a restart result to advice.</summary>
     /// <param name="result">The result.</param>
     /// <param name="canStart">Whether HWiNFO's path is known (offer "Start HWiNFO").</param>
     public static RestartAdvice From(HwinfoRestartResult result, bool canStart) => result switch
     {
-        HwinfoRestartResult.Restarted => new(Tone.Success, "HWiNFO restarted. Checking for the Shelly Power sensors…", []),
+        HwinfoRestartResult.Restarted => Checking("HWiNFO restarted."),
         HwinfoRestartResult.CouldNotClose => new(Tone.Warning, CouldNotCloseText, [RestartAction.Retry, RestartAction.Verify]),
         HwinfoRestartResult.RelaunchFailed => new(
             Tone.Warning,
@@ -44,7 +66,7 @@ public sealed record RestartAdvice(Tone Tone, string Text, IReadOnlyList<Restart
         HwinfoRestartResult.ExecutableNotFound => new(Tone.Warning, "Restart HWiNFO manually, then click Verify.", [RestartAction.Verify]),
         _ => new(
             Tone.Warning,
-            "HWiNFO is not running. Start it, then click Verify.",
+            NotRunningText,
             canStart ? [RestartAction.StartHwinfo, RestartAction.Verify] : [RestartAction.Verify]),
     };
 }
@@ -81,6 +103,46 @@ public static class VerifyEvaluator
     /// <param name="other">Other Components in W.</param>
     /// <param name="dc">DC in W.</param>
     public static bool IsImplausible(double other, double dc) => other < 0 || (dc > 0 && other > 0.5 * dc);
+
+    /// <summary>
+    /// Completes an advice that waits for the verification (<see cref="RestartAdvice.PendingLead"/>): "… Shelly Power
+    /// sensors found." (success) once they are visible, "… were not found yet." (warning, Verify) after the grace period,
+    /// else unchanged ("… Checking for the Shelly Power sensors…"). A final advice is returned as it is.
+    /// </summary>
+    /// <param name="advice">The advice, or <c>null</c>.</param>
+    /// <param name="sensorsFound">Whether every Shelly Power sensor was found.</param>
+    /// <param name="gracePeriodOver">Whether the verification has looked for longer than the grace period (or timed out).</param>
+    public static RestartAdvice? ResolveAdvice(RestartAdvice? advice, bool sensorsFound, bool gracePeriodOver)
+    {
+        if (advice?.PendingLead is not { } lead)
+        {
+            return advice;
+        }
+
+        if (sensorsFound)
+        {
+            return advice with { Tone = Tone.Success, Text = lead + " " + RestartAdvice.SensorsFoundText, Actions = [] };
+        }
+
+        return gracePeriodOver
+            ? advice with { Tone = Tone.Warning, Text = lead + " " + RestartAdvice.SensorsNotFoundText, Actions = [RestartAction.Verify] }
+            : advice;
+    }
+
+    /// <summary>
+    /// Re-evaluates the HWiNFO card when the user clicks Verify: a closed HWiNFO turns the card into the "not running"
+    /// warning (dropping a green "restarted" check); a running HWiNFO after a warning waits for the verification again
+    /// ("HWiNFO is running. Checking…"); without an earlier advice the card keeps showing the status text.
+    /// </summary>
+    /// <param name="advice">The current advice, or <c>null</c>.</param>
+    /// <param name="status">HWiNFO's detected status, or <c>null</c> when it could not be detected (no change).</param>
+    public static RestartAdvice? ReviewHwinfo(RestartAdvice? advice, HwinfoStatus? status) => status switch
+    {
+        null => advice,
+        { IsRunning: false } => RestartAdvice.From(HwinfoRestartResult.NotRunning, status.ExecutablePath is not null),
+        _ when advice is null || advice.PendingLead is not null => advice,
+        _ => RestartAdvice.Checking("HWiNFO is running."),
+    };
 
     /// <summary>Evaluates a snapshot.</summary>
     /// <param name="snapshot">HWiNFO's shared memory, or <c>null</c> when it is off.</param>

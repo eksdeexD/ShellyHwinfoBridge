@@ -82,7 +82,7 @@ public sealed class HwinfoSharedMemoryReader
     /// </summary>
     public IReadOnlyList<HwinfoDeviceGroup> GetPowerSensors() => TryGetSnapshot()?.GetPowerSensors() ?? [];
 
-    /// <summary>Reads the current value of the first reading with the given label (wizard step 5 live readout).</summary>
+    /// <summary>Reads the current value of the first reading with the given label (wizard step 7 live readout).</summary>
     /// <param name="label">The reading label, e.g. <c>DC Power (Est.)</c>.</param>
     /// <param name="value">The value when found.</param>
     public bool TryReadValue(string label, out double value) => TryReadValue(label, null, out value);
