@@ -32,6 +32,27 @@ public class SettingsPresenterTests
     }
 
     [Fact]
+    public void SingleVoltagePsuShowsTheCurveNoteWhenTheOtherVoltageIsSelected()
+    {
+        _runtime.Database = BriefExample.SingleVoltageDatabase();
+        _runtime.Settings = BriefExample.SingleVoltageSettings();
+        var presenter = new SettingsPresenter(_runtime, EnUs);
+
+        // The plug measures 226.9 V: the 230 V curve exists, nothing to say.
+        Assert.Null(presenter.State.CurveNote);
+
+        presenter.SetVoltageMode(InputVoltageMode.V115);
+        Assert.Equal("230 V curve (115 V data not available for this unit)", presenter.State.CurveNote);
+
+        presenter.SetVoltageMode(InputVoltageMode.Auto);
+        _runtime.LastReading = new(new Core.Shelly.ShellyReading(312.4, 118.2, 2.6, 1), new PowerReading(312.4, 312.4, 294.8, 17.6, InputVoltage.V230));
+        Assert.Equal("230 V curve (115 V data not available for this unit)", presenter.State.CurveNote);
+
+        _runtime.Settings = BriefExample.Settings();
+        Assert.Null(presenter.State.CurveNote);
+    }
+
+    [Fact]
     public void DatabaseTextUsesThePluralForSeveralEntries()
     {
         _runtime.Database = SyntheticDatabase("2026-10-31", 6);

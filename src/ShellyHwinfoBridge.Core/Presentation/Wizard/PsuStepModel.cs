@@ -217,13 +217,25 @@ public sealed class PsuStepModel
     /// <summary>Gets the voltage of the curve that will be used.</summary>
     public InputVoltage EffectiveVoltage => VoltageSelector.Resolve(VoltageMode, MeasuredVolts);
 
-    /// <summary>Gets the voltage line ("Input voltage: 230 V curve (plug measured 226.9 V)").</summary>
+    /// <summary>
+    /// Gets the voltage line ("Input voltage: 230 V curve (plug measured 226.9 V)"). When the selected PSU has no curve
+    /// for that voltage it reads "Input voltage: 230 V curve (115 V data not available for this unit) · plug measured 118.2 V".
+    /// </summary>
     public string VoltageText
     {
         get
         {
-            var curve = $"Input voltage: {(int)EffectiveVoltage} V curve";
             var measured = MeasuredVolts is double v && double.IsFinite(v) && v > 0 ? UiFormat.Volts(v, _culture) : null;
+            var note = PsuCurveResolver.Resolve(BuildPsuSettings(), _database)?.CurveNote(EffectiveVoltage);
+            if (note is not null)
+            {
+                var how = VoltageMode == InputVoltageMode.Auto
+                    ? (measured is null ? null : "plug measured " + measured)
+                    : (measured is null ? "set manually" : "set manually; plug measured " + measured);
+                return how is null ? "Input voltage: " + note : $"Input voltage: {note} · {how}";
+            }
+
+            var curve = $"Input voltage: {(int)EffectiveVoltage} V curve";
             if (VoltageMode == InputVoltageMode.Auto)
             {
                 return measured is null ? curve + " (picked automatically from the plug's voltage)" : $"{curve} (plug measured {measured})";

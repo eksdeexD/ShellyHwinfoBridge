@@ -30,6 +30,36 @@ internal static class BriefExample
     public static HwinfoMonitorSnapshot Hwinfo() => new(true, true, true, true, 48.1, @"C:\Program Files\HWiNFO64\HWiNFO64.exe", OtherSource.SharedMemory);
 
     public static PsuDatabase Database() => PsuDatabaseLoader.LoadEmbedded();
+
+    /// <summary>The id of the 230 V-only entry in <see cref="SingleVoltageDatabase"/>.</summary>
+    public const string SingleVoltageId = "test-eu-only-700";
+
+    /// <summary>The embedded database plus a unit tested at 230 V only (the TX-700's 230 V curve).</summary>
+    public static PsuDatabase SingleVoltageDatabase()
+    {
+        var db = PsuDatabaseLoader.LoadEmbedded();
+        var tx700 = db.Psus.Single(p => p.Id == "seasonic-prime-fanless-tx-700");
+        db.Psus.Add(new PsuEntry
+        {
+            Id = SingleVoltageId,
+            Brand = "Testbrand",
+            Series = "EU",
+            Model = "EU-700",
+            Wattage = 700,
+            Rating80Plus = "Titanium",
+            Source = new PsuSource { Name = "Cybenetics", ReportId = "99PS0001A", Url = "https://www.cybenetics.com/evaluations/psus/1/" },
+            Curves = new() { ["230"] = tx700.Curves!["230"] },
+        });
+        return db;
+    }
+
+    /// <summary>The brief's settings with the 230 V-only entry selected.</summary>
+    public static AppSettings SingleVoltageSettings()
+    {
+        var settings = Settings();
+        settings.Psu.DatabaseId = SingleVoltageId;
+        return settings;
+    }
 }
 
 /// <summary>A runtime stand-in that records Apply calls.</summary>

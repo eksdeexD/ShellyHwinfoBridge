@@ -103,6 +103,40 @@ public class CurveHelpersTests
     }
 
     [Fact]
+    public void SingleVoltageSetFallsBackToTheAvailableCurveWithANote()
+    {
+        var curve230 = TestCurves.Tx700At230;
+        var only230 = new PsuCurveSet(null, curve230);
+        Assert.Equal(InputVoltage.V230, only230.AvailableVoltage(InputVoltage.V115));
+        Assert.Same(curve230, only230.Select(InputVoltage.V115));
+        Assert.Equal("230 V curve (115 V data not available for this unit)", only230.CurveNote(InputVoltage.V115));
+        Assert.Null(only230.CurveNote(InputVoltage.V230));
+        Assert.Equal("230 V curve (115 V data not available for this unit)", PsuCurveSet.CurveLabel(only230, InputVoltage.V115));
+        Assert.Equal("230 V curve", PsuCurveSet.CurveLabel(only230, InputVoltage.V230));
+        Assert.Equal("115 V curve", PsuCurveSet.CurveLabel(null, InputVoltage.V115));
+
+        var only115 = new PsuCurveSet(TestCurves.Simple, null);
+        Assert.Equal("115 V curve (230 V data not available for this unit)", only115.CurveNote(InputVoltage.V230));
+        Assert.Null(only115.CurveNote(InputVoltage.V115));
+
+        // Both curves (or one curve used for both): never a note.
+        Assert.Null(TestCurves.Tx700.GetCurveSet()!.CurveNote(InputVoltage.V115));
+        Assert.Null(PsuCurveSet.Single(TestCurves.Simple).CurveNote(InputVoltage.V230));
+    }
+
+    [Fact]
+    public void PowerCalculatorUsesTheAvailableCurveOfASingleVoltageUnit()
+    {
+        var calc = new PowerCalculator(new PsuCurveSet(null, TestCurves.Tx700At230));
+        var low = calc.Calculate(151.862, 117);
+        Assert.Equal(InputVoltage.V230, low.CurveVoltage);
+        Assert.Equal(141.691, Math.Round(low.DcWatts, 3));
+
+        var forced = new PowerCalculator(new PsuCurveSet(null, TestCurves.Tx700At230), InputVoltageMode.V115).Calculate(151.862, 231);
+        Assert.Equal((InputVoltage.V230, 141.691), (forced.CurveVoltage, Math.Round(forced.DcWatts, 3)));
+    }
+
+    [Fact]
     public void PowerCalculatorSmoothsAcBeforeConversion()
     {
         var calc = new PowerCalculator(PsuCurveSet.Single(TestCurves.Simple), InputVoltageMode.Auto, smoothingSamples: 2);

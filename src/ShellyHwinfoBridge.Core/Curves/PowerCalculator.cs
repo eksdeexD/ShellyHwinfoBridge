@@ -37,7 +37,8 @@ public sealed class PowerCalculator
     {
         var ac = double.IsFinite(acWatts) && acWatts > 0 ? acWatts : 0;
         var smoothed = _smoother.Add(ac);
-        var voltage = VoltageSelector.Resolve(_voltageMode, measuredVolts);
+        // A single-voltage unit uses its one curve whatever the mains voltage (CurveVoltage reports the curve used).
+        var voltage = _curves.AvailableVoltage(VoltageSelector.Resolve(_voltageMode, measuredVolts));
         if (!_estimators.TryGetValue(voltage, out var estimator))
         {
             estimator = new DcEstimator(_curves.Select(voltage));

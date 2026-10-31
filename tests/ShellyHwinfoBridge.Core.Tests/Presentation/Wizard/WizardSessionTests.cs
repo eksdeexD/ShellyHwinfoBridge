@@ -1,3 +1,4 @@
+using ShellyHwinfoBridge.Core.Curves;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
 using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
@@ -277,6 +278,19 @@ public class WizardSessionTests
         Assert.Equal("CPU Package Power (CPU), GPU Power (GPU), DIMM1 Power (RAM), DIMM3 Power (RAM)", lines["Sensors"]);
         Assert.Equal("\"DC Power (Est.)\" - \"CPU Package Power\" - \"GPU Power\" - \"DIMM1 Power\" - \"DIMM3 Power\"", lines["Formula"]);
         Assert.True(session.Apply.SummaryLines.Single(l => l.Label == "Formula").Monospace);
+    }
+
+    [Fact]
+    public void ApplyStepSummaryShowsTheCurveNoteForASingleVoltageUnit()
+    {
+        var draft = BriefExample.SingleVoltageSettings();
+        var db = BriefExample.SingleVoltageDatabase();
+        string Voltage(double? volts) => ApplyStepModel.BuildSummary(draft, db, volts, System.Globalization.CultureInfo.GetCultureInfo("en-US")).Single(l => l.Label == "Voltage").Value;
+
+        Assert.Equal("230 V curve (automatic, plug measured 226.9 V)", Voltage(226.9));
+        Assert.Equal("230 V curve (115 V data not available for this unit) · automatic, plug measured 118.2 V", Voltage(118.2));
+        draft.VoltageMode = InputVoltageMode.V115;
+        Assert.Equal("230 V curve (115 V data not available for this unit) · set manually", Voltage(null));
     }
 
     [Fact]

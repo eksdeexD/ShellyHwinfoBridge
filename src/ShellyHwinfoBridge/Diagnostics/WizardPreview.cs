@@ -18,8 +18,9 @@ internal static class WizardPreview
     /// <summary>
     /// Builds a wizard positioned at <paramref name="step"/>; <paramref name="tweak"/> adjusts the session first.
     /// <paramref name="afterApply"/>, when set, replaces <paramref name="snapshot"/> once the setup was applied.
+    /// <paramref name="database"/> replaces the three-entry preview database.
     /// </summary>
-    public static WizardForm At(WizardStep step, bool firstRun = true, Action<WizardSession>? tweak = null, Snapshot snapshot = Snapshot.Desktop, Snapshot? afterApply = null)
+    public static WizardForm At(WizardStep step, bool firstRun = true, Action<WizardSession>? tweak = null, Snapshot snapshot = Snapshot.Desktop, Snapshot? afterApply = null, PsuDatabase? database = null)
     {
         var runtime = new PreviewRuntime();
         WizardSession? session = null;
@@ -42,7 +43,7 @@ internal static class WizardPreview
             TimeProvider.System);
 
         var settings = firstRun ? null : SampleData.Settings();
-        session = new WizardSession(settings, null, Database(), dependencies, SampleData.Culture);
+        session = new WizardSession(settings, null, database ?? Database(), dependencies, SampleData.Culture);
         session.Shelly.DiscoverAsync().GetAwaiter().GetResult();
         if (step > WizardStep.Hwinfo)
         {
@@ -109,6 +110,35 @@ internal static class WizardPreview
             Psus = [tx700, Copy("preview-tx-750", "Prime TX-750", 750, "Titanium", "20PS1620A"), Copy("preview-px-750", "Prime PX-750", 750, "Platinum", "20PS1588A")],
         };
     }
+
+    /// <summary>The id of the preview's 230 V-only entry.</summary>
+    internal const string SingleVoltageId = "preview-single-voltage";
+
+    /// <summary>The embedded database plus the preview's 230 V-only entry (settings and main window previews).</summary>
+    internal static PsuDatabase DatabaseWithSingleVoltage()
+    {
+        var real = PsuDatabaseLoader.LoadEmbedded();
+        return new PsuDatabase
+        {
+            SchemaVersion = real.SchemaVersion,
+            Updated = real.Updated,
+            Psus = [.. real.Psus, SingleVoltageEntry(real.Psus.First(p => p.Id == "seasonic-prime-fanless-tx-700"))],
+        };
+    }
+
+    /// <summary>A unit tested at 230 V only (the TX-700's 230 V curve under another name), for the curve note.</summary>
+    private static PsuEntry SingleVoltageEntry(PsuEntry template) => new()
+    {
+        Id = SingleVoltageId,
+        Brand = template.Brand,
+        Series = "Prime",
+        Model = "Prime EU-700",
+        Wattage = 700,
+        Rating80Plus = "Titanium",
+        RatingCybenetics = "Titanium",
+        Source = template.Source,
+        Curves = new Dictionary<string, List<double[]>> { ["230"] = template.Curves!["230"] },
+    };
 
     internal static HwinfoSnapshot Sensors(bool withBridge)
     {

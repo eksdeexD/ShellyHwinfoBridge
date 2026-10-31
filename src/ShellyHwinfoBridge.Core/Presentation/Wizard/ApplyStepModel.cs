@@ -231,9 +231,11 @@ public sealed class ApplyStepModel
 
         var voltage = VoltageSelector.Resolve(draft.VoltageMode, measuredVolts);
         var measured = measuredVolts is double v && v > 0 ? $"plug measured {UiFormat.Volts(v, culture)}" : null;
-        var voltageText = $"{(int)voltage} V curve" + (draft.VoltageMode == InputVoltageMode.Auto
-            ? (measured is null ? " (automatic)" : $" (automatic, {measured})")
-            : (measured is null ? " (set manually)" : $" (set manually, {measured})"));
+        var how = draft.VoltageMode == InputVoltageMode.Auto
+            ? (measured is null ? "automatic" : $"automatic, {measured}")
+            : (measured is null ? "set manually" : $"set manually, {measured}");
+        var note = PsuCurveResolver.Resolve(draft.Psu, database)?.CurveNote(voltage);
+        var voltageText = note is null ? $"{(int)voltage} V curve ({how})" : $"{note} · {how}";
 
         var sensors = draft.Sensors.Count == 0
             ? "None selected"

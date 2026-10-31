@@ -1,9 +1,11 @@
 using System.Drawing.Imaging;
 using ShellyHwinfoBridge.Core.App;
+using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Energy;
 using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
+using ShellyHwinfoBridge.Core.Settings;
 using ShellyHwinfoBridge.Windows;
 using ShellyHwinfoBridge.Windows.Wizard;
 
@@ -93,6 +95,12 @@ internal static class ScreenRenderer
             form.PreviewOpenVoltage();
             return form;
         }),
+        ("wizard-3-psu-single-voltage", () => WizardPreview.At(WizardStep.Psu, database: WizardPreview.DatabaseWithSingleVoltage(), tweak: s =>
+        {
+            s.Psu.SetBrand("Seasonic");
+            s.Psu.Select(WizardPreview.SingleVoltageId);
+            s.Psu.VoltageMode = Core.Curves.InputVoltageMode.V115;
+        })),
         ("wizard-4-sensors", () => WizardPreview.At(WizardStep.Sensors)),
         ("wizard-4-sensors-warning", () => WizardPreview.At(WizardStep.Sensors, tweak: s =>
             s.Sensors.SetChecked(s.Sensors.Groups[0].Rows.Single(r => r.Name == "IA Cores Power").Id, true))),
@@ -132,6 +140,8 @@ internal static class ScreenRenderer
             }
         }),
         ("main-settings", () => Settings()),
+        ("main-settings-single-voltage", () => Settings(out _, SampleData.SingleVoltageSettings(), WizardPreview.DatabaseWithSingleVoltage())),
+        ("main-window-single-voltage", () => MainWindow(SampleData.MainView(settings: SampleData.SingleVoltageSettings(), database: WizardPreview.DatabaseWithSingleVoltage()), EnergyPeriod.Hours)),
         ("main-settings-results", () =>
         {
             var form = Settings(out var presenter);
@@ -172,15 +182,15 @@ internal static class ScreenRenderer
     private static MainForm Settings() => Settings(out _);
 
     /// <summary>The main window on its settings page, over the sample settings (price 0.32 DKK, autostart on, a stored password).</summary>
-    private static MainForm Settings(out SettingsPresenter presenter)
+    private static MainForm Settings(out SettingsPresenter presenter, AppSettings? sample = null, PsuDatabase? database = null)
     {
-        var settings = SampleData.Settings();
+        var settings = sample ?? SampleData.Settings();
         settings.EnergyPricePerKwh = 0.32m;
         settings.EnergyCurrency = "DKK";
         settings.StartWithWindows = true;
-        var runtime = new PreviewRuntime(settings, hasPassword: true);
+        var runtime = new PreviewRuntime(settings, hasPassword: true, database);
         presenter = new SettingsPresenter(runtime, SampleData.Culture);
-        var form = MainWindow(SampleData.MainView(settings: settings), EnergyPeriod.Hours);
+        var form = MainWindow(SampleData.MainView(settings: settings, database: database), EnergyPeriod.Hours);
         form.OpenSettings(new SettingsPage(presenter, runtime, () => WizardPreview.Sensors(withBridge: false)));
         return form;
     }

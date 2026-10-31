@@ -31,6 +31,7 @@ internal sealed class SettingsPage : ThemedPanel
     private const float CardsTop = 50;
     private const float MinContentWidth = 880;
     private const float Row1Height = 148;
+    private const float CurveNoteHeight = 28;
     private const float Row2MinHeight = 150;
     private const float EnergyHeight = 132;
     private const float SmallCardHeight = 88;
@@ -64,6 +65,7 @@ internal sealed class SettingsPage : ThemedPanel
     private readonly TextLink _change = new() { Text = "Change…", Semibold = true, AccessibleName = "Change power supply" };
     private readonly TextLabel _voltageLabel = new() { Text = "Input voltage", Tone = UiTone.Secondary };
     private readonly SegmentedControl _voltage = new() { AccessibleName = "Input voltage" };
+    private readonly InfoLine _curveNote = new() { Visible = false };
 
     // Sensors and formula.
     private readonly CardPanel _sensorsCard = new() { Title = "Sensors and formula" };
@@ -135,7 +137,7 @@ internal sealed class SettingsPage : ThemedPanel
         _done.TabIndex = 0;
         Controls.Add(_done);
         AddCard(_shellyCard, _hostLabel, _host, _passwordLabel, _password, _clearPassword, _test, _testResult);
-        AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage);
+        AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage, _curveNote);
         AddCard(_sensorsCard, _formula, _edit, _gadgetTip);
         AddCard(_pollingCard, _intervalLabel, _interval, _intervalValue, _smoothingLabel, _smoothing, _smoothingValue);
         AddCard(_energyCard, _logEnergy, _openEnergy, _priceLabel, _price, _currencyLabel, _currency, _priceError);
@@ -262,9 +264,11 @@ internal sealed class SettingsPage : ThemedPanel
         var row2 = Math.Max(Row2MinHeight, 50 + Math.Max(FormulaHeight(), TipHeight(sensorsWidth)) + 16);
         var energy = EnergyHeight + (_priceError.Visible ? 30 : 0);
         var y = CardsTop;
-        _shellyCard.Bounds = At(left, y, column, Row1Height);
-        _psuCard.Bounds = At(right, y, column, Row1Height);
-        y += Row1Height + RowGap;
+        // A single-voltage PSU adds its curve note under the voltage segments; both cards of the row grow with it.
+        var row1 = Row1Height + (_curveNote.Visible ? CurveNoteHeight : 0);
+        _shellyCard.Bounds = At(left, y, column, row1);
+        _psuCard.Bounds = At(right, y, column, row1);
+        y += row1 + RowGap;
         _sensorsCard.Bounds = At(left, y, sensorsWidth, row2);
         _pollingCard.Bounds = At(left + sensorsWidth + Gap, y, pollingWidth, row2);
         y += row2 + RowGap;
@@ -481,6 +485,8 @@ internal sealed class SettingsPage : ThemedPanel
             _psuTitle.Text = s.PsuTitle;
             _psuSubtitle.Text = s.PsuSubtitle;
             _voltage.SetItems(["Auto", "115 V", "230 V"], Math.Max(0, Array.IndexOf(VoltageModes, s.VoltageMode)));
+            _curveNote.Visible = s.CurveNote is not null;
+            _curveNote.Text = s.CurveNote ?? string.Empty;
 
             // Sensors and formula.
             if (_formula.Text != s.FormulaText)
@@ -570,6 +576,7 @@ internal sealed class SettingsPage : ThemedPanel
         _psuSubtitle.Bounds = R(20, 74, inner, 22);
         _voltageLabel.Bounds = R(20, 104, 110, 36);
         _voltage.Bounds = R(134, 104, inner - 114, 36);
+        _curveNote.Bounds = R(20, 146, inner, CurveNoteHeight - 2);
 
         // Sensors and formula: Edit… in the title row, the read-only formula box and the gadget tip beside it.
         var sensorsInner = sensorsWidth - 40;

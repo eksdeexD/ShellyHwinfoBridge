@@ -6,6 +6,7 @@ using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Sensors;
 using ShellyHwinfoBridge.Core.Settings;
+using ShellyHwinfoBridge.Core.Shelly;
 
 namespace ShellyHwinfoBridge.Core.Tests.Presentation;
 
@@ -137,6 +138,23 @@ public class MainWindowPresenterTests
         settings.CustomFormula = "\"DC Power (Est.)\" - 50";
         Assert.Equal("custom formula", MainWindowPresenter.SensorsLine(settings));
         Assert.Equal("custom formula", Build(settings).Other.Sub);
+    }
+
+    [Fact]
+    public void SingleVoltagePsuLineShowsTheCurveNote()
+    {
+        var settings = BriefExample.SingleVoltageSettings();
+        var db = BriefExample.SingleVoltageDatabase();
+        PowerReadingEventArgs At(double volts) =>
+            new(new ShellyReading(312.4, volts, 2.6, 123456), new PowerReading(312.4, 312.4, 294.8, 17.6, InputVoltage.V230));
+        MainViewState View(double volts) =>
+            MainWindowPresenter.Build(At(volts), RuntimeState.Running, OnlineState.Online, BriefExample.Hwinfo(), Totals, settings, db, EnUs);
+
+        Assert.Equal("Testbrand EU-700 · 230 V curve · Cybenetics", View(226.9).PsuLine);
+        Assert.Equal("Testbrand EU-700 · 230 V curve (115 V data not available for this unit) · Cybenetics", View(118.2).PsuLine);
+
+        settings.VoltageMode = InputVoltageMode.V115;
+        Assert.Equal("Testbrand EU-700 · 230 V curve (115 V data not available for this unit) · Cybenetics", View(226.9).PsuLine);
     }
 
     [Fact]

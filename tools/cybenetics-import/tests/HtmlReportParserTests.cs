@@ -57,6 +57,52 @@ public sealed class HtmlReportParserTests : IDisposable
     }
 
     [Fact]
+    public void ImportOfASingleVoltagePageSucceedsWithAWarning()
+    {
+        var page = Path.Combine(AppContext.BaseDirectory, "Fixtures", "evaluation-page-230-only.html");
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exit = ImportCommand.Run(["import", "--html", page, "--series", "Fictional EU", "--rating80plus", "Titanium"], stdout, stderr);
+
+        Assert.True(exit == ImportCommand.Ok, stderr.ToString());
+        Assert.Contains("warning: single-voltage entry: only 230 V was found", stderr.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("error", stderr.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"115\"", stdout.ToString(), StringComparison.Ordinal);
+        var entry = JsonSerializer.Deserialize<PsuEntry>(stdout.ToString(), PsuDatabaseJson.Options)!;
+        Assert.Equal(("examplebrand-fictional-eu-700", "99PS9873A"), (entry.Id, entry.Source!.ReportId));
+        Assert.Equal(["230"], entry.Curves!.Keys);
+        var seed = PsuDatabaseLoader.LoadEmbedded().Psus.Single(p => p.Id == "seasonic-prime-fanless-tx-700");
+        Assert.Equal(seed.Curves!["230"], entry.Curves["230"]);
+        Assert.Empty(PsuDatabaseValidator.Validate(new PsuDatabase { SchemaVersion = 1, Psus = [entry] }));
+    }
+
+    [Fact]
+    public void BatchAcceptsASingleVoltagePageAsAWarning()
+    {
+        var reports = Directory.CreateDirectory(Path.Combine(_dir, "reports-230")).FullName;
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "evaluation-page-230-only.html"), Path.Combine(reports, "99PS9873A.html"));
+        var catalog = Path.Combine(_dir, "catalog-230.csv");
+        File.WriteAllLines(catalog,
+        [
+            "id,brand,series,model,revision,wattage,rating80Plus,ratingCybenetics,reportId,reportUrl,pdfUrl,tier,notes",
+            "examplebrand-eu-700,,Fictional EU,,,,Titanium,,99PS9873A,,,1,",
+        ]);
+        var output = Path.Combine(_dir, "out-230");
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exit = ImportCommand.Run(["batch", "--catalog", catalog, "--reports", reports, "--out", output], stdout, stderr);
+
+        Assert.True(exit == ImportCommand.Ok, stderr.ToString());
+        var entry = JsonSerializer.Deserialize<PsuEntry>(File.ReadAllText(Path.Combine(output, "examplebrand-eu-700.json")), PsuDatabaseJson.Options)!;
+        Assert.Equal(["230"], entry.Curves!.Keys);
+        var line = File.ReadAllLines(Path.Combine(output, BatchCommand.SummaryFileName))[1];
+        Assert.StartsWith("examplebrand-eu-700,99PS9873A,ok,15,0,1,", line, StringComparison.Ordinal);
+        Assert.Contains("single-voltage entry", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CommandLineValuesOverrideThePage()
     {
         using var stdout = new StringWriter();

@@ -32,9 +32,39 @@ public sealed class PsuDatabaseTests : IDisposable
             Assert.Equal("Cybenetics", p.Source!.Name);
             Assert.False(string.IsNullOrEmpty(p.Source.Url));
             Assert.StartsWith("https://www.cybenetics.com/", p.Source.Url, StringComparison.Ordinal);
+            // Single-voltage reports carry only the 230 V curve; the key of a missing curve is omitted, never null.
             Assert.True(p.GetCurve(InputVoltage.V230)!.Points.Count >= 2, p.Id + " 230 V curve");
-            Assert.True(p.GetCurve(InputVoltage.V115)!.Points.Count >= 2, p.Id + " 115 V curve");
+            Assert.All(p.Curves!, c => Assert.NotNull(c.Value));
         });
+    }
+
+    [Fact]
+    public void ValidatorAcceptsASingleVoltageEntryAndRejectsOneWithoutCurves()
+    {
+        var single = Entry("eu-only", "Brand", "Series", "EU 3200", 3200, "Titanium", null);
+        var db = new PsuDatabase { SchemaVersion = 1, Psus = [single] };
+        Assert.Empty(PsuDatabaseValidator.Validate(db));
+        Assert.Null(single.GetCurve(InputVoltage.V115));
+        Assert.NotNull(single.GetCurveSet());
+
+        var json = PsuDatabaseJson.Serialize(db);
+        Assert.DoesNotContain("\"115\"", json, StringComparison.Ordinal);
+        Assert.Empty(PsuDatabaseValidator.ValidateJson(json, out var roundTripped));
+        Assert.Equal(["230"], roundTripped!.Psus[0].Curves!.Keys);
+
+        single.Curves = new() { ["115"] = [[100, 90], [200, 185]] };
+        Assert.Empty(PsuDatabaseValidator.Validate(db));
+
+        single.Curves = [];
+        Assert.Contains(PsuDatabaseValidator.Validate(db), e => e.Path == "psus[0].curves");
+        single.Curves = null;
+        Assert.Contains(PsuDatabaseValidator.Validate(db), e => e.Path == "psus[0].curves");
+
+        // A present curve must still pass curve validation, and a null curve is not a way to say "missing".
+        single.Curves = new() { ["230"] = [[100, 90], [200, 185]], ["115"] = null! };
+        Assert.Contains(PsuDatabaseValidator.Validate(db), e => e.Path == "psus[0].curves.115");
+        single.Curves = new() { ["230"] = [[100, 90], [90, 85]] };
+        Assert.Contains(PsuDatabaseValidator.Validate(db), e => e.Path == "psus[0].curves.230");
     }
 
     [Fact]

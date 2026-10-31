@@ -15,10 +15,12 @@ internal sealed class PreviewRuntime : IBridgeRuntime
     /// <summary>Creates a stand-in.</summary>
     /// <param name="settings">The current settings, or <c>null</c> for first run.</param>
     /// <param name="hasPassword">Whether a password is "stored".</param>
-    public PreviewRuntime(AppSettings? settings = null, bool hasPassword = false)
+    /// <param name="database">The PSU database; <c>null</c> for the embedded one.</param>
+    public PreviewRuntime(AppSettings? settings = null, bool hasPassword = false, PsuDatabase? database = null)
     {
         Settings = settings;
         HasPassword = hasPassword;
+        Database = database ?? PsuDatabaseLoader.LoadEmbedded();
     }
 
     public event EventHandler? SettingsChanged
@@ -51,7 +53,7 @@ internal sealed class PreviewRuntime : IBridgeRuntime
 
     public string? Password => null;
 
-    public PsuDatabase Database { get; } = PsuDatabaseLoader.LoadEmbedded();
+    public PsuDatabase Database { get; }
 
     public RuntimeState State => Settings is null ? RuntimeState.Unconfigured : RuntimeState.Running;
 

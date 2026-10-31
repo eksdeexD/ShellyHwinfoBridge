@@ -37,6 +37,10 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// <param name="DatabaseResult">The last database check result, or <c>null</c>.</param>
 /// <param name="ApplyError">The last apply error, or <c>null</c>.</param>
 /// <param name="IsBusy">Whether a test or update check is running.</param>
+/// <param name="CurveNote">
+/// "230 V curve (115 V data not available for this unit)" when the selected PSU has no curve for the voltage in use;
+/// otherwise <c>null</c>.
+/// </param>
 public sealed record SettingsViewState(
     string Host,
     string? HostError,
@@ -60,7 +64,8 @@ public sealed record SettingsViewState(
     ResultLine? TestResult,
     ResultLine? DatabaseResult,
     string? ApplyError,
-    bool IsBusy);
+    bool IsBusy,
+    string? CurveNote = null);
 
 /// <summary>
 /// Drives the settings page: every setter clones the current settings, changes one thing and applies it through
@@ -344,7 +349,14 @@ public sealed class SettingsPresenter
             _testResult,
             _databaseResult,
             _applyError,
-            _busy);
+            _busy,
+            CurveNote(s, db));
+    }
+
+    private string? CurveNote(AppSettings s, PsuDatabase db)
+    {
+        var voltage = VoltageSelector.Resolve(s.VoltageMode, _runtime.LastReading?.Raw.Volts);
+        return PsuCurveResolver.Resolve(s.Psu, db)?.CurveNote(voltage);
     }
 
     private (string Title, string Subtitle) PsuText(AppSettings s, PsuDatabase db)

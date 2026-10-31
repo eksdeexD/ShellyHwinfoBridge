@@ -119,7 +119,7 @@ public sealed class MainWindowPresenter
             loss,
             OtherCard(live, hwinfo, settings, culture),
             Totals(totals, settings, culture),
-            PsuLine(settings, entry, last?.Power.CurveVoltage, culture),
+            PsuLine(settings, entry, last?.Raw.Volts, culture),
             SensorsLine(settings),
             HwinfoLine(hwinfo),
             state == RuntimeState.Paused ? "Resume polling" : "Pause polling",
@@ -163,13 +163,17 @@ public sealed class MainWindowPresenter
     /// <summary>Builds the PSU line ("Seasonic Prime Fanless TX-700 · 230 V curve · Cybenetics").</summary>
     /// <param name="settings">The settings.</param>
     /// <param name="entry">The database entry (database mode), or <c>null</c>.</param>
-    /// <param name="curveVoltage">The voltage of the curve in use, if known from a reading.</param>
+    /// <param name="measuredVolts">The mains voltage of the last reading, if any (selects the curve in automatic mode).</param>
     /// <param name="culture">The culture.</param>
-    public static string PsuLine(AppSettings settings, PsuEntry? entry, InputVoltage? curveVoltage, CultureInfo culture)
+    /// <remarks>
+    /// When the selected database entry has no curve for that voltage, the curve part reads "230 V curve (115 V data
+    /// not available for this unit)".
+    /// </remarks>
+    public static string PsuLine(AppSettings settings, PsuEntry? entry, double? measuredVolts, CultureInfo culture)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        var voltage = curveVoltage ?? VoltageSelector.Resolve(settings.VoltageMode, null);
-        var curve = $"{(int)voltage} V curve";
+        var voltage = VoltageSelector.Resolve(settings.VoltageMode, measuredVolts);
+        var curve = PsuCurveSet.CurveLabel(settings.Psu.Mode == PsuSelectionMode.Database ? entry?.GetCurveSet() : null, voltage);
         switch (settings.Psu.Mode)
         {
             case PsuSelectionMode.Database:

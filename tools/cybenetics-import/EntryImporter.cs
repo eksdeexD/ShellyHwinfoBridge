@@ -132,7 +132,10 @@ public static class EntryImporter
 
         if (curves.Count == 1)
         {
-            Warn($"only {curves.Keys.Single()} V was found; check whether the report (or a separate document) has the other voltage.");
+            // Single-voltage reports (e.g. units tested at 230 V only) are valid entries: the database validator needs
+            // at least one curve, and the app falls back to it with a note. Still worth a look.
+            var only = curves.Keys.Single();
+            Warn($"single-voltage entry: only {only} V was found, so the entry carries only the \"{only}\" curve; check whether the report (or a separate document) has the other voltage.");
         }
 
         var counts = curves.ToDictionary(c => c.Key, c => c.Value.Count);

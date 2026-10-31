@@ -49,7 +49,7 @@ internal static class SampleData
 
     public static EnergyTotals Totals() => new(2.41, 48.7, 2.2, 45.1);
 
-    public static MainViewState MainView(RuntimeState state = RuntimeState.Running, OnlineState online = OnlineState.Online, HwinfoMonitorSnapshot? hwinfo = null, AppSettings? settings = null) =>
+    public static MainViewState MainView(RuntimeState state = RuntimeState.Running, OnlineState online = OnlineState.Online, HwinfoMonitorSnapshot? hwinfo = null, AppSettings? settings = null, PsuDatabase? database = null) =>
         MainWindowPresenter.Build(
             Reading(),
             state,
@@ -57,8 +57,17 @@ internal static class SampleData
             hwinfo ?? Hwinfo(),
             state == RuntimeState.Unconfigured ? EnergyTotals.Zero : Totals(),
             state == RuntimeState.Unconfigured ? null : settings ?? Settings(),
-            PsuDatabaseLoader.LoadEmbedded(),
+            database ?? PsuDatabaseLoader.LoadEmbedded(),
             Culture);
+
+    /// <summary>The sample settings with the preview's 230 V-only PSU and the 115 V override (shows the curve note).</summary>
+    public static AppSettings SingleVoltageSettings()
+    {
+        var settings = Settings();
+        settings.Psu.DatabaseId = WizardPreview.SingleVoltageId;
+        settings.VoltageMode = InputVoltageMode.V115;
+        return settings;
+    }
 
     /// <summary>A plausible 48-hour profile ending with the current hour, as the chart model.</summary>
     public static EnergyChartModel Chart(EnergyPeriod period)

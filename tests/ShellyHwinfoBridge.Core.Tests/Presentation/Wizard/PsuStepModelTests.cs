@@ -201,6 +201,30 @@ public class PsuStepModelTests
     }
 
     [Fact]
+    public void VoltageTextShowsTheCurveNoteForASingleVoltageUnit()
+    {
+        var m = new PsuStepModel(Tests.Presentation.BriefExample.SingleVoltageDatabase(), EnUs);
+        m.Select(Tests.Presentation.BriefExample.SingleVoltageId);
+        Assert.True(m.IsValid);
+
+        m.MeasuredVolts = 226.9;
+        Assert.Equal("Input voltage: 230 V curve (plug measured 226.9 V)", m.VoltageText);
+        m.MeasuredVolts = 118.2;
+        Assert.Equal("Input voltage: 230 V curve (115 V data not available for this unit) · plug measured 118.2 V", m.VoltageText);
+        m.VoltageMode = InputVoltageMode.V115;
+        Assert.Equal("Input voltage: 230 V curve (115 V data not available for this unit) · set manually; plug measured 118.2 V", m.VoltageText);
+        m.MeasuredVolts = null;
+        Assert.Equal("Input voltage: 230 V curve (115 V data not available for this unit) · set manually", m.VoltageText);
+        m.VoltageMode = InputVoltageMode.Auto;
+        Assert.Equal("Input voltage: 230 V curve (picked automatically from the plug's voltage)", m.VoltageText);
+
+        // A unit with both curves never shows the note.
+        m.Select("seasonic-prime-fanless-tx-700");
+        m.MeasuredVolts = 118.2;
+        Assert.Equal("Input voltage: 115 V curve (plug measured 118.2 V)", m.VoltageText);
+    }
+
+    [Fact]
     public void VoltageTextFollowsModeAndMeasurement()
     {
         var m = Model();
