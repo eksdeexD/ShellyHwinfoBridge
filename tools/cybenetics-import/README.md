@@ -6,7 +6,8 @@ report has it, 115 V) and writes the (AC W, DC W) pairs sorted by AC.
 
 Rules it follows:
 
-- **One report at a time, downloaded by hand.** The tool never contacts cybenetics.com. There is no bulk scraping.
+- **Curated, not crawled.** Imports read PDFs that are already on disk. Only the `download` command makes HTTP
+  requests, and only for the `pdfUrl`s listed in a reviewed catalogue (see below).
 - **Attribution is mandatory.** Every entry carries `source.name = "Cybenetics"`, the report id and the report URL;
   Cybenetics permits reuse of report data on that condition.
 - **Same name, different platform:** if a model name exists in several platform revisions, give each its own `--id`
@@ -32,8 +33,52 @@ If 230 V and 115 V results come as separate PDFs, pass both: `--input230 eu.pdf 
 (without `--input230`/`--input115`) takes the voltage from marker lines in the text such as `230V` or `115V`.
 Inputs that are not `.pdf` are read as already extracted text, one line per table row.
 
-Paste the entry into the `psus` array of `psu-database.json`, bump `updated` to today's date (the app's
-"Check for database update" only installs a file with a newer `updated` date), and run `dotnet test`.
+`--url` is the report page (e.g. `https://www.cybenetics.com/evaluations/psus/1872/`), not the PDF; it must be an
+absolute http(s) URL. Every entry is checked with the app's own database validator before it is written. If only
+one voltage is found, the tool warns, because most reports cover both.
+
+To add entries, use `merge` (below) rather than editing `psu-database.json` by hand.
+
+## Batch import
+
+A catalogue is a CSV file with the header
+`id,brand,series,model,revision,wattage,rating80Plus,ratingCybenetics,reportId,reportUrl,pdfUrl,tier,notes`
+(RFC 4180 quoting; `revision`, `ratingCybenetics`, `pdfUrl`, `tier` and `notes` may be empty; `reportUrl` becomes
+`source.url`). PDFs are named after the report id:
+
+```powershell
+dotnet run --project tools/cybenetics-import -- batch --catalog catalog.csv --reports work\reports --out work\entries
+```
+
+For each row the tool imports `<reports>\<reportId>.pdf`. If `<reportId>-115.pdf` exists too, that file is read as
+115 V and the main file as 230 V (its own voltage markers still win). One `<id>.json` per imported row and a
+`summary.csv` (`id,reportId,status,points230,points115,warnings,message`, status `ok` or `error`) go to `--out`.
+The exit code is 0 only when every row imported. Rows with warnings are still `ok`: read the `message` column and
+check those rows against the PDF. `id` and `reportId` may only contain letters, digits, `.`, `_` and `-`.
+
+## Merging into the database
+
+```powershell
+dotnet run --project tools/cybenetics-import -- merge --entries work\entries --into psu-database.json
+```
+
+Every `*.json` in `--entries` is merged: an entry with an existing id replaces it, the list is sorted by brand and
+model, and `updated` is set to today (`--date yyyy-MM-dd` overrides). The result is validated with the app's
+database validator first; on any error nothing is written. Then run `dotnet test`.
+
+## Downloading reports
+
+```powershell
+dotnet run --project tools/cybenetics-import -- download --catalog catalog.csv --reports work\reports
+```
+
+Downloads `pdfUrl` to `<reports>\<reportId>.pdf` for rows whose file does not exist yet: one request at a time, at
+least 5 seconds apart, User-Agent `ShellyHwinfoBridge-import/0.1 (+https://github.com/eksdeexD/ShellyHwinfoBridge)`,
+https only, nothing but the listed URLs. A response that is not a PDF is not saved; a 401, 403 or 429 stops the run.
+
+**Check the site's terms first.** Cybenetics' database pages state that automated data collection, including by
+AI agents, requires their prior written permission. Do not run `download` against cybenetics.com without that
+permission; download the PDFs by hand into the reports folder instead (the import commands never go online).
 
 ## How the parser works
 
@@ -47,17 +92,34 @@ the lines:
 3. Inside a table, a line starting with a **row label** (`20W`, `50%`, optionally after a test number) starts a row.
    Up to two following lines belong to the row, because Cybenetics prints DC watts in the row's first line and AC
    watts directly below it.
+   Page footers (`... Page 15 / 19`) and repeated column headers (`Test 12V 5V ...`) between a row's lines are
+   skipped, so a page break inside a row does not lose its AC value.
 4. Only numbers without a unit (or with a `W` suffix) are candidates, so currents (`5.450A`), voltages
-   (`12.110V`), percentages and temperatures are ignored. **DC** is the candidate on the row line closest to the
-   nominal load (20/40/60/80 W, or percentage × `--wattage`), within ±20 %. **AC** is a candidate whose efficiency
-   DC/AC is between 50 % and 99.5 %, preferring the value in the same column on the next line, then the next value
-   after DC on the same line.
-5. The first row per voltage and label wins. Repeated rows (e.g. a table repeated on a summary page) are reported
+   (`12.110V`), percentages and temperatures are ignored. **DC** candidates are on the row line within ±20 % of the
+   nominal load (20/40/60/80 W, or percentage × `--wattage`); **AC** candidates give an efficiency DC/AC between
+   50 % and 99.5 %.
+5. When the row prints an efficiency (`94.412%`), the (DC, AC) pair whose ratio matches it within 0.05 percentage
+   points is taken. This keeps fan speed (e.g. `426` RPM on a 50 % row of an 850 W unit) or PSU noise (`20.1` dB(A)
+   on the 20 W row) from being read as DC. Without a matching efficiency, DC is the candidate closest to the nominal
+   load and AC the value in the same column on the next line, then the next value after DC on the same line; if a
+   printed efficiency disagrees, the row is kept with a warning.
+6. The first row per voltage and label wins. Repeated rows (e.g. a table repeated on a summary page) are reported
    and ignored.
 
-`tests/Fixtures/tx700-stacked.txt` is a synthetic text fixture that mimics this layout, built from the TX-700 seed
-values in `psu-database.json`. The tests check that the tool reproduces the seed entry exactly, also after a round
-trip through a generated PDF.
+Layout of real reports (checked against 21PS1872A, issued 2021): the 10–110 % table is "Typical Load Tests" under
+"Supplementary Tests (For Reference)", followed by "Light Load Tests"; each table has a `115V` block and a `230V`
+block, with the voltage line *after* the table title; each row is a DC line (`10% <amps...> 70.914 90.014% ...`)
+and an AC line (`12.140V ... 78.781 ... 230.41V`); crossload rows (`CL1`–`CL4`) follow 110 %; trailing zeros are
+dropped (`210.01`); the performance summary has lines such as `12V Load Regulation 0.45%`, which open a load table
+that the next section end closes again without rows.
+
+Fixtures (synthetic text, not copied from reports):
+
+- `tests/Fixtures/tx700-stacked.txt`: the stacked layout built from the TX-700 seed values in `psu-database.json`;
+  the tests check that the tool reproduces the seed entry exactly, also after a round trip through a generated PDF.
+- `tests/Fixtures/supplementary-fan-pagebreak.txt`: the real-report layout above for a fictitious 850 W unit, with
+  fan speed and noise columns whose values sit closer to the nominal load than DC, a page break inside a row,
+  crossload rows, a 5VSB efficiency table and a summary block.
 
 ## When a report does not parse
 
@@ -72,13 +134,14 @@ the locators (all are case-insensitive .NET regular expressions):
 | `--section-end` | `ripple\|hold[\s-]*up\|inrush\|vampire\|standby\s*power\|cross[\s-]*load\|protection\|power\s*ok\|fan\s*noise\s*(?:test\|graph)` | Ends the current table |
 | `--light-load-row` | `^\s*(?:#?\d{1,2}\s+)?(?<w>20\|40\|60\|80)\s*W(?![\w.])` | Light-load row label; group `w` = watts |
 | `--load-row` | `^\s*(?:#?\d{1,2}\s+)?(?<p>10\|20\|...\|110)\s*%(?![\w.])` | Load row label; group `p` = percent |
+| `--ignore-line` | `\bpage\s*\d+\s*(?:/\|of)\s*\d+\b\|^\s*test\b` | Lines skipped inside a row (footers, repeated headers) |
 | `--dc-tolerance` | `0.2` | Allowed deviation of DC from the nominal load |
 | `--voltage` | none | Voltage for rows that appear before any marker |
 
 ## What to check by hand before committing an entry
 
-The parser has only been tested against synthetic text that imitates the report layout, so check every new entry
-against the PDF:
+The parser reproduces the seed entry exactly from the real 21PS1872A PDF, but has not yet seen older (2018–2020)
+or the newest (2024–2025) report layouts, so check every new entry against the PDF:
 
 - **Point count.** Normally 15 per voltage: 4 light-load rows plus 11 load rows. The tool warns about missing
   labels. If the 10 % row (or the 80 W row) is missing, look at `--dump-text`.
