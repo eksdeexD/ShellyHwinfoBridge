@@ -114,6 +114,7 @@ internal sealed class SettingsPage : ThemedPanel
     private int _modalDepth;
     private int _formulaLines = 1;
     private float _footnoteLeft;
+    private float _bottomLineTop;
     private bool _committed;
 
     /// <summary>Creates the page.</summary>
@@ -277,7 +278,8 @@ internal sealed class SettingsPage : ThemedPanel
         _footnoteLeft = Pad + 2 + (Gfx.Measure("Settings", ThemeFonts.For(dpi).CardTitle).Width * 96f / dpi) + 16;
         var footnoteWidth = Math.Max(0, contentWidth - Pad - doneWidth - 16 - _footnoteLeft);
         _applyError.Bounds = At(_footnoteLeft, TitleRowTop + ((TitleRowHeight - 28) / 2), footnoteWidth, 28);
-        var contentHeight = y + FootnoteGap + FootnoteHeight;
+        _bottomLineTop = y + FootnoteGap;
+        var contentHeight = _bottomLineTop + FootnoteHeight;
 
         LayoutCards(column, sensorsWidth, pollingWidth);
 
@@ -309,7 +311,18 @@ internal sealed class SettingsPage : ThemedPanel
             var footnote = new Rectangle(this.Px(_footnoteLeft) + scroll.X, top, Math.Max(0, _done.Left - this.Px(_footnoteLeft + 16) - scroll.X), smallText);
             Gfx.Text(g, "Changes apply immediately.", f.Small, footnote, Theme.InkSecondary, Gfx.SingleLine);
         }
+
+        // The version at the bottom right, under the last cards.
+        var contentRight = Math.Max(ClientSize.Width, this.Px(MinContentWidth)) - this.Px(Pad);
+        var version = new Rectangle(scroll.X, this.Px(_bottomLineTop) + scroll.Y, contentRight, this.Px(FootnoteHeight));
+        Gfx.Text(g, VersionText, f.Small, version, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
     }
+
+    /// <summary>Gets the app version for the bottom line ("v0.1.0-beta.2"; build metadata after '+' dropped).</summary>
+    internal static string VersionText { get; } = "v" + (typeof(SettingsPage).Assembly
+        .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+        .FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "0.0.0");
 
     private static void SetField(ThemedTextBox box, string text)
     {

@@ -1,7 +1,7 @@
 # ShellyHwinfoBridge
 
-> **Status: in development.** The tray app, main window, setup wizard and settings window are in place; there is no
-> release build yet.
+> **Status: beta (0.1.0-beta.2).** The tray app, main window with its settings page and the setup wizard are in
+> place.
 
 A small Windows tray application that reads live wall power from a Shelly smart plug and publishes it into
 [HWiNFO](https://www.hwinfo.com/) as custom sensors:
@@ -21,12 +21,13 @@ The sensors are written to `HKCU\Software\HWiNFO64\Sensors\Custom\Shelly Power`.
 
 ### First run: the setup wizard
 
-The first start opens a five-step setup wizard. Nothing is saved or written to HWiNFO until the last step.
+The first start opens a six-step setup wizard. Nothing is saved or written to HWiNFO until you click Apply in step 5.
 
-1. **HWiNFO:** checks that HWiNFO64 is installed and running, and whether its Shared Memory Support is on (see below).
+1. **HWiNFO:** checks that HWiNFO64 is installed and running, and whether its Shared Memory Support is on (see below
+   for how to turn it on).
 2. **Shelly:** lists the Shelly plugs found on your network. Pick yours or type its IP address, enter the password if
    you set one in the Shelly app, and click "Test connection". A fixed IP or a DHCP reservation in your router keeps
-   the plug at the same address.
+   the plug at the same address. If the plug is on another network or VLAN, allow TCP port 80 from the PC to the plug.
 3. **PSU:** pick your power supply from the database (filter by brand, wattage and rating, or search). If it is
    missing, use a generic curve for its 80 Plus rating (approximate, least accurate at low load) or enter your own
    curve as efficiency figures or AC/DC points (CSV import and export). The input voltage curve (115 V or 230 V) is
@@ -35,49 +36,60 @@ The first start opens a five-step setup wizard. Nothing is saved or written to H
    so on). Likely candidates are ticked for you, and the wizard warns when a sensor would be counted twice or when two
    sensors share a name. "Advanced: edit formula" lets you write the HWiNFO formula yourself.
 5. **Apply:** review the summary, choose whether to start with Windows, then click Apply. The app saves the settings,
-   writes the sensors and starts polling. HWiNFO must be restarted to show new sensors: the wizard offers to restart
-   it, and then checks that the four Shelly Power sensors appear. If HWiNFO runs as administrator the app cannot close
-   it; exit HWiNFO from its tray icon, start it again and click Verify.
+   writes the sensors and starts polling, and the wizard moves on to the last step.
+6. **Verify:** HWiNFO must be restarted to show new sensors. "Restart HWiNFO" does that for you, and the wizard then
+   checks that the four Shelly Power sensors appear (give HWiNFO a few seconds to come back). If HWiNFO runs as
+   administrator the app cannot close it; exit HWiNFO from its tray icon, start it again and click Verify. "Finish"
+   closes the wizard.
 
 Cancelling the wizard changes nothing. On first run the app then stays in the tray, not set up; run the wizard again
 from the tray icon or the main window.
 
 ### HWiNFO Shared Memory Support
 
-Shared Memory Support is an HWiNFO setting (Settings › General / User Interface) that lets other programs read the
-sensor list. The wizard uses it in step 4 to list your power sensors by name and to verify the new sensors at the end.
-The bridge itself does not need it: polling the plug and writing the sensors works without it. When it is off, step 4
-lets you type the sensor names instead, and the main window shows "Enable Shared Memory in HWiNFO to see this" in place
-of the live Other Components value. The free HWiNFO version turns the setting off after 12 hours, which is fine.
+Shared Memory Support is an HWiNFO setting that lets other programs read the sensor list. To turn it on: in HWiNFO's
+sensor window, open Settings (the gear icon), click "Main Settings", tick "Shared Memory Support" on the General tab,
+click OK and restart HWiNFO. The wizard uses it in step 4 to list your power sensors by name and in step 6 to verify
+the new sensors. The bridge itself does not need it: polling the plug and writing the sensors works without it. When it
+is off, step 4 lets you type the sensor names instead.
+
+The free HWiNFO version turns Shared Memory Support off after 12 hours. That is fine for setup, and you can turn it off
+again afterwards. To keep seeing the live Other Components value in the main window and the tray tooltip without it,
+let HWiNFO export that value for its gadget: in HWiNFO's sensor Settings, open the "HWiNFO Gadget" tab and tick
+"Enable reporting to Gadget", select "Other Components" in the list, tick "Report value in Gadget" below the list (its
+Sidebar column shows Yes) and click OK. The app reads that export from the registry when shared memory is off. With
+neither available, the main window shows "Only available with Shared Memory enabled in HWiNFO" instead.
 
 ### Main window
 
 Double-click the tray icon (or choose "Open…") to open the main window. It shows the connection status (plug name and
-measured voltage), the live AC, DC, PSU loss and Other Components readings, an energy chart for the last 48 hours,
-60 days or 24 months with today's and this month's totals, and a summary of the PSU, sensors and HWiNFO status. The
-buttons open Settings and the setup wizard and pause or resume polling. Closing the window (or pressing Esc) only hides
-it; the app keeps running in the tray.
+measured voltage), the live AC, DC, PSU loss and Other Components readings, the "Energy history" chart for the last
+48 hours, 60 days or 24 months (hover a bar for its energy) with today's and this month's totals, and a summary of the
+PSU, sensors and HWiNFO status. The buttons open Settings and pause or resume polling. Closing the window (or pressing
+Esc) only hides it; the app keeps running in the tray.
 
 ### Settings
 
-"Settings" in the main window or the tray menu opens the settings window. Every change applies immediately, without a
-restart:
+"Settings" in the main window or the tray menu shows the settings page inside the main window; "Done" (or Esc) returns
+to the dashboard. Every change applies immediately, without a restart:
 
 - **Shelly device:** host and password ("unchanged" means the stored password is kept; "Clear" removes it) and a
   connection test.
 - **Power supply:** "Change…" opens the PSU step of the wizard; the input voltage can be fixed to 115 V or 230 V.
-- **Sensors and formula:** "Edit…" opens the sensor step of the wizard.
+- **Sensors and formula:** "Edit…" opens the sensor step of the wizard. The tip next to the formula explains the
+  gadget export described above.
 - **Polling:** the poll interval (500 to 5000 ms) and smoothing (moving average over 1 to 30 readings).
 - **Energy:** energy logging on or off, an optional price per kWh and currency for the cost shown in the main window,
   and "Open energy folder".
 - **Startup and tray:** start with Windows, show the tray icon.
 - **PSU database:** "Check for update" downloads a newer `psu-database.json` from this project, validates it and keeps
   the current one if the download is invalid.
-- **Maintenance:** "Open log folder"; "Remove HWiNFO sensors" deletes the Shelly Power sensors from HWiNFO (for
-  uninstalling) and pauses polling, because the next poll would create them again; "Exit ShellyHwinfoBridge".
+- **Maintenance:** "Open log folder"; "Re-run setup wizard" leaves the settings page and opens the wizard with your
+  current settings; "Remove HWiNFO sensors" deletes the Shelly Power sensors from HWiNFO (for uninstalling) and pauses
+  polling, because the next poll would create them again; "Exit ShellyHwinfoBridge".
 
-"Re-run setup wizard" closes the settings window and opens the wizard with your current settings. The settings window
-and the wizard are never open at the same time.
+The settings page and the wizard are never open at the same time: while the wizard is open, Settings is disabled.
+The settings page also shows the app version at the bottom right.
 
 ### Tray icon
 
@@ -97,7 +109,7 @@ app while the icon is hidden.
 The plug counts energy itself, also while the app is not running. The app turns that counter into hourly rows in
 `%APPDATA%\ShellyHwinfoBridge\energy\YYYY-MM.csv` and shows them in the main window's chart; hours when the app was
 not running are filled in from the counter the next time it starts.
-The chart's hover readout also shows the app's estimate of the energy the PC drew on the DC side; that estimate only
+The chart's hover tooltip also shows the app's estimate of the energy the PC drew on the DC side; that estimate only
 covers the time the app was running. Settings, logs and energy files live in `%APPDATA%\ShellyHwinfoBridge`.
 
 Development hardware: Shelly Plug M Gen3.
