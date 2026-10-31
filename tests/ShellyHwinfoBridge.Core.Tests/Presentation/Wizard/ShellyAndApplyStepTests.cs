@@ -240,7 +240,7 @@ public class RestartAndVerifyTests
         var result = VerifyEvaluator.Evaluate(Snapshots.Desktop(Snapshots.Bridge()), null, EnUs);
 
         Assert.True(result.AllFound);
-        Assert.Equal(["AC Power (Wall)", "DC Power (Est.)", "PSU Loss", "Other Components"], result.Items.Select(i => i.Label));
+        Assert.Equal(["PC Power (AC)", "PC Power (DC)", "PC PSU Loss", "PC Other Components"], result.Items.Select(i => i.Label));
         Assert.False(result.Implausible);
         Assert.Null(result.Message);
         Assert.Equal("48.1 W", result.Tiles[3].Value);
@@ -290,7 +290,7 @@ public class RestartAndVerifyTests
         Assert.Equal(Tone.Success, m.Advice!.Tone);
         Assert.Equal(VerifyPhase.Confirmed, m.VerifyPhase);
         Assert.True(m.IsVerifyRunning);
-        Assert.Equal(new WizardStatusLine(Tone.Success, "Verified: all four Shelly Power sensors are visible in HWiNFO."), m.VerifyStatus);
+        Assert.Equal(new WizardStatusLine(Tone.Success, "Verified: all Shelly Power sensors are visible in HWiNFO."), m.VerifyStatus);
         Assert.False(m.CanVerify);
     }
 

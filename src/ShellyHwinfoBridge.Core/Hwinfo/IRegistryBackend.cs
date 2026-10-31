@@ -23,6 +23,10 @@ public interface IRegistryBackend
     /// <param name="path">Key path.</param>
     IReadOnlyDictionary<string, string> GetStringValues(string path);
 
+    /// <summary>Returns the names of a key's direct subkeys; empty when the key is missing.</summary>
+    /// <param name="path">Key path.</param>
+    IReadOnlyList<string> GetSubKeyNames(string path);
+
     /// <summary>Writes a REG_SZ value, creating the key if needed.</summary>
     /// <param name="path">Key path.</param>
     /// <param name="name">Value name.</param>

@@ -86,6 +86,8 @@ public sealed class ShellyStepModel
     private string? _name;
     private string? _model;
     private (string Host, string Password)? _testedWith;
+    private readonly List<AdditionalDeviceSettings> _additional = [];
+    private readonly Dictionary<string, string> _additionalPasswords = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Creates the model.</summary>
     /// <param name="discover">Browses the network.</param>
@@ -300,6 +302,119 @@ public sealed class ShellyStepModel
         SetupMode = ShellySetupMode.Ready;
         Changed?.Invoke(this, EventArgs.Empty);
         return DiscoverAsync(cancellationToken);
+    }
+
+    /// <summary>The hint next to a disabled Add button at the device cap.</summary>
+    public static readonly string DeviceCapHint =
+        $"At most {AppSettings.MaxDevices} Shellys in total (the PC's plug and {AppSettings.MaxDevices - 1} more). Remove one to add another.";
+
+    /// <summary>Gets the additional devices added in this step (or loaded from the settings on a re-run), in list order.</summary>
+    public IReadOnlyList<AdditionalDeviceSettings> AdditionalDevices => _additional;
+
+    /// <summary>
+    /// Gets the password changes of the additional devices by id (see <see cref="DeviceFormModel.PasswordChange"/>), for
+    /// <see cref="IBridgeRuntime.ApplyFromWizard"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> AdditionalPasswordChanges => _additionalPasswords;
+
+    /// <summary>
+    /// Gets whether to show the "Add a Shelly for your monitor or another device" card: after the PC plug's connection
+    /// test succeeded, or when devices were already added. Only in wizard step 2 (not in a device form).
+    /// </summary>
+    public bool ShowAddDeviceCard => IsReady && (IsTestCurrent || _additional.Count > 0);
+
+    /// <summary>Gets whether "Add device" is enabled: below the cap and no form open.</summary>
+    public bool CanAddDevice => _additional.Count < AppSettings.MaxDevices - 1 && DeviceForm is null;
+
+    /// <summary>Gets the hint next to a disabled Add button (<see cref="DeviceCapHint"/>), or <c>null</c>.</summary>
+    public string? AddDeviceHint => _additional.Count >= AppSettings.MaxDevices - 1 ? DeviceCapHint : null;
+
+    /// <summary>Gets the open add-device form, or <c>null</c>.</summary>
+    public DeviceFormModel? DeviceForm { get; private set; }
+
+    /// <summary>"Answers" the opening question (used by device forms, which never ask it).</summary>
+    public void SkipQuestion()
+    {
+        if (SetupMode != ShellySetupMode.Ready)
+        {
+            SetupMode = ShellySetupMode.Ready;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Loads existing additional devices (wizard re-run).</summary>
+    /// <param name="devices">The devices.</param>
+    public void LoadAdditional(IEnumerable<AdditionalDeviceSettings> devices)
+    {
+        ArgumentNullException.ThrowIfNull(devices);
+        _additional.Clear();
+        _additional.AddRange(devices.Take(AppSettings.MaxDevices - 1));
+        _additionalPasswords.Clear();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>"Add device": opens <see cref="DeviceForm"/> (label, discovery or manual host, password, test, include).</summary>
+    /// <returns>The form, or <c>null</c> at the cap or while a form is open.</returns>
+    public DeviceFormModel? BeginAddDevice()
+    {
+        if (!CanAddDevice)
+        {
+            return null;
+        }
+
+        DeviceForm = new DeviceFormModel(_discover, _test, _additional.Select(d => d.Label).ToList(), culture: _culture);
+        DeviceForm.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+        Changed?.Invoke(this, EventArgs.Empty);
+        return DeviceForm;
+    }
+
+    /// <summary>Adds the device of the open form to the list when the form is valid, and closes the form.</summary>
+    /// <returns><c>true</c> when the device was added.</returns>
+    public bool CommitDeviceForm()
+    {
+        if (DeviceForm is not { IsValid: true } form || _additional.Count >= AppSettings.MaxDevices - 1)
+        {
+            return false;
+        }
+
+        _additional.Add(form.ToAdditional());
+        if (form.PasswordChange is { Length: > 0 } password)
+        {
+            _additionalPasswords[form.DeviceId] = password;
+        }
+
+        DeviceForm = null;
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+
+    /// <summary>Closes the open form without adding.</summary>
+    public void CancelDeviceForm()
+    {
+        if (DeviceForm is not null)
+        {
+            DeviceForm = null;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Removes an additional device from the list ("Remove" link).</summary>
+    /// <param name="deviceId">The device id.</param>
+    public void RemoveAdditionalDevice(string deviceId)
+    {
+        if (_additional.RemoveAll(d => string.Equals(d.Id, deviceId, StringComparison.OrdinalIgnoreCase)) > 0)
+        {
+            _additionalPasswords.Remove(deviceId);
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Writes the additional devices into the draft.</summary>
+    /// <param name="settings">The draft settings.</param>
+    public void ApplyAdditionalTo(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.AdditionalDevices = [.. _additional];
     }
 
     /// <summary>"No, show me how to set it up": shows the setup guide.</summary>

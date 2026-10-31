@@ -276,8 +276,9 @@ public class WizardSessionTests
         Assert.Equal("Cybenetics report 21PS1872A", lines["Curve source"]);
         Assert.Equal("230 V curve (automatic, plug measured 226.9 V)", lines["Voltage"]);
         Assert.Equal("CPU Package Power (CPU), GPU Power (GPU), DIMM1 Power (RAM), DIMM3 Power (RAM)", lines["Sensors"]);
-        Assert.Equal("\"DC Power (Est.)\" - \"CPU Package Power\" - \"GPU Power\" - \"DIMM1 Power\" - \"DIMM3 Power\"", lines["Formula"]);
-        Assert.True(session.Apply.SummaryLines.Single(l => l.Label == "Formula").Monospace);
+        Assert.Equal("PC Power (DC) − CPU Package Power − GPU Power − DIMM1 Power − DIMM3 Power", lines["Other Components"]);
+        Assert.False(lines.ContainsKey("Other devices"));
+        Assert.True(session.Apply.SummaryLines.Single(l => l.Label == "Other Components").Monospace);
     }
 
     [Fact]

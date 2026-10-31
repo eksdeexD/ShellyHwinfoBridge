@@ -103,10 +103,12 @@ public class ChartAndTrayTests
     {
         var reading = BriefExample.Reading();
         var hw = BriefExample.Hwinfo();
-        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 48.1 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs));
-        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false, SensorsVisible = false, OtherWatts = null, OtherSource = OtherSource.None }, EnUs));
-        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 47.5 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false, OtherWatts = 47.5, OtherSource = OtherSource.Gadget }, EnUs));
-        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SensorsVisible = false, OtherWatts = null, OtherSource = OtherSource.None }, EnUs));
+        var other = BriefExample.Other();
+        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 48.1 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs, other));
+        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 48.1 W · Total 380 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw, EnUs, other, 380.2));
+        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false, SensorsVisible = false }, EnUs, other with { Source = OtherSource.None }));
+        Assert.Equal("AC 312.4 W · DC 294.8 W · Other 47.5 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { SharedMemoryAvailable = false }, EnUs, other with { Watts = 47.5, Source = OtherSource.Gadget }));
+        Assert.Equal("AC 312.4 W · DC 294.8 W", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Online, reading, hw with { IsRunning = false }, EnUs, other));
         Assert.Equal("Shelly offline", TrayPresenter.Tooltip(RuntimeState.Running, OnlineState.Offline, null, hw, EnUs));
         Assert.Equal("Polling paused", TrayPresenter.Tooltip(RuntimeState.Paused, OnlineState.Unknown, null, hw, EnUs));
         Assert.Equal("Setup not completed", TrayPresenter.Tooltip(RuntimeState.Unconfigured, OnlineState.Unknown, null, hw, EnUs));

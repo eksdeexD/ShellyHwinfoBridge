@@ -20,8 +20,10 @@ public class MainWindowPresenterTests
         RuntimeState state = RuntimeState.Running,
         OnlineState online = OnlineState.Online,
         HwinfoMonitorSnapshot? hw = null,
-        CultureInfo? culture = null) =>
-        MainWindowPresenter.Build(BriefExample.Reading(), state, online, hw ?? BriefExample.Hwinfo(), Totals, settings ?? BriefExample.Settings(), BriefExample.Database(), culture ?? EnUs);
+        CultureInfo? culture = null,
+        OtherComponentsState? other = null,
+        double? total = null) =>
+        MainWindowPresenter.Build(BriefExample.Reading(), state, online, hw ?? BriefExample.Hwinfo(), Totals, settings ?? BriefExample.Settings(), BriefExample.Database(), culture ?? EnUs, other ?? BriefExample.Other(), total);
 
     [Fact]
     public void BriefExampleRecordsGiveTheImageStrings()
@@ -30,10 +32,11 @@ public class MainWindowPresenterTests
 
         Assert.True(view.IsConfigured);
         Assert.Equal(new StatusPillState(Tone.Success, "Online · PlugMGen3-2 · 226.9 V"), view.Status);
-        Assert.Equal(new StatCardState("AC Power (Wall)", "312.4 W", "from Shelly plug", Tone.Ink, false), view.Ac);
-        Assert.Equal(new StatCardState("DC Power (Est.)", "294.8 W", "via TX-700 curve", Tone.Accent, false), view.Dc);
-        Assert.Equal(new StatCardState("PSU Loss", "17.6 W", "94.4 % efficiency", Tone.Ink, false), view.Loss);
-        Assert.Equal(new StatCardState("Other Components", "48.1 W", "DC minus CPU, GPU, RAM", Tone.Ink, false), view.Other);
+        Assert.Equal(new StatCardState("PC Power (AC)", "312.4 W", "from Shelly plug", Tone.Ink, false), view.Ac);
+        Assert.Equal(new StatCardState("PC Power (DC)", "294.8 W", "via TX-700 curve", Tone.Accent, false), view.Dc);
+        Assert.Equal(new StatCardState("PC PSU Loss", "17.6 W", "94.4 % efficiency", Tone.Ink, false), view.Loss);
+        Assert.Equal(("PC Other Components", "48.1 W", "DC minus CPU, GPU, RAM", false), (view.Other.Caption, view.Other.Value, view.Other.Sub, view.Other.Placeholder));
+        Assert.Equal(OtherCardKind.Value, view.Other.OtherState!.Kind);
         Assert.Equal("Seasonic Prime Fanless TX-700 · 230 V curve · Cybenetics", view.PsuLine);
         Assert.Equal("CPU Package Power, GPU Power, DIMM1 Power, DIMM3 Power", view.SensorsLine);
         Assert.Equal("running · sensors visible", view.HwinfoLine);
@@ -67,35 +70,95 @@ public class MainWindowPresenterTests
     }
 
     [Fact]
-    public void OtherCardPlaceholders()
+    public void OtherCardHintWhileHwinfoIsNotRunning()
     {
-        var off = Build(hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, SensorsVisible = false, OtherWatts = null, OtherSource = OtherSource.None });
-        Assert.Equal(new StatCardState("Other Components", "Only available with Shared Memory enabled in HWiNFO", string.Empty, Tone.Ink, true), off.Other);
-        Assert.Equal("running · shared memory off", off.HwinfoLine);
+        var view = Build(hw: new HwinfoMonitorSnapshot(true, false, false, false, null));
 
-        var notVisible = Build(hw: BriefExample.Hwinfo() with { SensorsVisible = false, OtherWatts = null, OtherSource = OtherSource.None });
-        Assert.Equal("Restart HWiNFO to see this", notVisible.Other.Value);
-        Assert.True(notVisible.Other.Placeholder);
-        Assert.Equal("running · sensors not yet visible: restart HWiNFO", notVisible.HwinfoLine);
+        Assert.True(view.Other.Placeholder);
+        Assert.Equal("Only available if HWiNFO is running", view.Other.Value);
+        Assert.Equal(OtherCardKind.HwinfoNotRunning, view.Other.OtherState!.Kind);
+        Assert.False(view.Other.OtherState.ShowHowToEnable);
+        Assert.Equal("not running", view.HwinfoLine);
     }
 
     [Fact]
-    public void OtherCardShowsTheGadgetExportWhenSharedMemoryIsOff()
+    public void OtherCardShowsTheValueWhenASourceWorks()
     {
-        var gadget = Build(hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, OtherWatts = 47.5, OtherSource = OtherSource.Gadget });
-        Assert.Equal(new StatCardState("Other Components", "47.5 W", "DC minus CPU, GPU, RAM", Tone.Ink, false), gadget.Other);
+        var gadget = Build(
+            hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, ComponentSource = OtherSource.Gadget },
+            other: new OtherComponentsState(47.5, OtherSource.Gadget, true, [], true));
+        Assert.Equal("47.5 W", gadget.Other.Value);
+        Assert.False(gadget.Other.Placeholder);
+        Assert.Equal(OtherCardKind.Value, gadget.Other.OtherState!.Kind);
         Assert.Equal("running · shared memory off · gadget export on", gadget.HwinfoLine);
+    }
 
-        var both = Build(hw: BriefExample.Hwinfo() with { SensorsVisible = false, OtherWatts = 47.5, OtherSource = OtherSource.Gadget });
-        Assert.Equal("47.5 W", both.Other.Value);
-        Assert.Equal("running · sensors visible · gadget export on", both.HwinfoLine);
+    [Fact]
+    public void OtherCardNamesTheSensorsMissingFromTheGadgetExport()
+    {
+        var view = Build(
+            hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, SensorsVisible = false, ComponentSource = OtherSource.Gadget },
+            other: new OtherComponentsState(0, OtherSource.None, true, ["GPU Power", "CPU Package Power"], false));
+
+        Assert.True(view.Other.Placeholder);
+        Assert.Equal("Needs HWiNFO's Gadget export for: GPU Power, CPU Package Power", view.Other.Value);
+        var state = view.Other.OtherState!;
+        Assert.Equal(OtherCardKind.NeedsGadgetExport, state.Kind);
+        Assert.True(state.ShowHowToEnable);
+        Assert.Equal(["GPU Power", "CPU Package Power"], state.MissingSensorNames);
+        Assert.Contains("**DIMM3 Power**", state.HowToText, StringComparison.Ordinal);
+        Assert.Contains("Report value in Gadget", state.HowToText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Shared Memory enabled", view.Other.Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OtherCardWithoutAnyExportListsEverySelectedSensor()
+    {
+        var view = Build(
+            hw: BriefExample.Hwinfo() with { SharedMemoryAvailable = false, ComponentSource = OtherSource.None },
+            other: new OtherComponentsState(0, OtherSource.None, true, [], false));
+        Assert.Equal("Needs HWiNFO's Gadget export for: CPU Package Power, GPU Power, DIMM1 Power, DIMM3 Power", view.Other.Value);
+        Assert.Equal("running · shared memory off", view.HwinfoLine);
+    }
+
+    [Fact]
+    public void GadgetHowToInsertsTheSelectedSensorNames()
+    {
+        Assert.Equal(HwinfoTips.GadgetExport, HwinfoTips.GadgetExportFor([]));
+        var text = HwinfoTips.GadgetExportFor(["GPU Power", " gpu power ", "CPU Package Power"]);
+        Assert.Contains("**GPU Power**, **CPU Package Power**", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Other Components** in the list", text, StringComparison.Ordinal);
+        Assert.Contains("**Enable reporting to Gadget**", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TotalCardIsTheFirstCardOnlyWithAdditionalDevices()
+    {
+        var single = Build();
+        Assert.Null(single.Total);
+        Assert.Equal(4, single.Cards.Count);
+        Assert.False(single.ShowChartModeToggle);
+
+        var settings = BriefExample.Settings();
+        settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Label = "Monitor", Host = "192.168.1.50" });
+        settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Label = "Lamp", Host = "192.168.1.51", IncludeInTotals = false });
+        var multi = Build(settings, total: 343.6);
+
+        Assert.Equal(new StatCardState("Total Power (AC)", "343.6 W", "PC + Monitor", Tone.Ink, false), multi.Total);
+        Assert.Same(multi.Total, multi.Cards[0]);
+        Assert.Equal(5, multi.Cards.Count);
+        Assert.True(multi.ShowChartModeToggle);
+
+        var offline = Build(settings, online: OnlineState.Offline, total: 343.6);
+        Assert.Equal("—", offline.Total!.Value);
     }
 
     [Fact]
     public void HwinfoLineVariants()
     {
-        Assert.Equal("not running", MainWindowPresenter.HwinfoLine(new HwinfoMonitorSnapshot(true, false, false, false, null, null)));
+        Assert.Equal("not running", MainWindowPresenter.HwinfoLine(new HwinfoMonitorSnapshot(true, false, false, false, null)));
         Assert.Equal("not installed", MainWindowPresenter.HwinfoLine(HwinfoMonitorSnapshot.Unknown));
+        Assert.Equal("running · sensors not yet visible: restart HWiNFO", MainWindowPresenter.HwinfoLine(BriefExample.Hwinfo() with { SensorsVisible = false }));
     }
 
     [Fact]
@@ -134,10 +197,6 @@ public class MainWindowPresenterTests
 
         settings.Sensors.Clear();
         Assert.Equal("none selected", MainWindowPresenter.SensorsLine(settings));
-
-        settings.CustomFormula = "\"DC Power (Est.)\" - 50";
-        Assert.Equal("custom formula", MainWindowPresenter.SensorsLine(settings));
-        Assert.Equal("custom formula", Build(settings).Other.Sub);
     }
 
     [Fact]

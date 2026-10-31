@@ -69,6 +69,13 @@ public sealed class WindowsRegistryBackend : IRegistryBackend
     }
 
     /// <inheritdoc />
+    public IReadOnlyList<string> GetSubKeyNames(string path)
+    {
+        using var key = _root.OpenSubKey(path);
+        return key is null ? [] : key.GetSubKeyNames();
+    }
+
+    /// <inheritdoc />
     public void SetString(string path, string name, string value)
     {
         using var key = _root.CreateSubKey(path, writable: true);

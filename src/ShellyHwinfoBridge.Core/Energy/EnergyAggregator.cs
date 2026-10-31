@@ -30,6 +30,14 @@ public sealed record EnergyTotals(double TodayAcKwh, double MonthAcKwh, double T
 {
     /// <summary>All zero.</summary>
     public static EnergyTotals Zero { get; } = new(0, 0, 0, 0);
+
+    /// <summary>Returns the sum of these totals and <paramref name="other"/>.</summary>
+    /// <param name="other">The totals to add.</param>
+    public EnergyTotals Add(EnergyTotals other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return new(TodayAcKwh + other.TodayAcKwh, MonthAcKwh + other.MonthAcKwh, TodayDcEstKwh + other.TodayDcEstKwh, MonthDcEstKwh + other.MonthDcEstKwh);
+    }
 }
 
 /// <summary>
@@ -108,6 +116,34 @@ public static class EnergyAggregator
         }
 
         return buckets;
+    }
+
+    /// <summary>
+    /// Sums several devices' buckets (all built for the same period and time): energy adds up, a bucket has data when
+    /// any device has. With no series the result is empty.
+    /// </summary>
+    /// <param name="series">The devices' buckets.</param>
+    public static IReadOnlyList<EnergyBucket> Combine(IEnumerable<IReadOnlyList<EnergyBucket>> series)
+    {
+        ArgumentNullException.ThrowIfNull(series);
+        EnergyBucket[]? result = null;
+        foreach (var buckets in series)
+        {
+            if (result is null)
+            {
+                result = [.. buckets];
+                continue;
+            }
+
+            for (var i = 0; i < Math.Min(result.Length, buckets.Count); i++)
+            {
+                var a = result[i];
+                var b = buckets[i];
+                result[i] = a with { AcKwh = a.AcKwh + b.AcKwh, DcEstKwh = a.DcEstKwh + b.DcEstKwh, HasData = a.HasData || b.HasData };
+            }
+        }
+
+        return result ?? [];
     }
 
     /// <summary>Sums today's and this month's energy (local calendar).</summary>

@@ -40,7 +40,7 @@ public class HwinfoGadgetRegistryReaderTests
         var reader = new HwinfoGadgetRegistryReader(_registry);
 
         Assert.Empty(reader.ReadAll());
-        Assert.Null(reader.TryReadOtherComponents());
+        Assert.Null(reader.Find("GPU Power"));
     }
 
     [Fact]
@@ -48,42 +48,42 @@ public class HwinfoGadgetRegistryReaderTests
     {
         Export(0, "CPU [#0]: AMD Ryzen 7 7800X3D", "CPU Package Power", "62.3 W", "62.3");
         Export(7, "Shelly Power", "AC Power (Wall)", "312.4 W", "312.4");
-        Export(41, "Shelly Power", "Other Components", "48.1 W", "48.1");
+        Export(41, "GPU [#0]", "GPU Power", "48.1 W", "48.1");
         var reader = new HwinfoGadgetRegistryReader(_registry);
 
         Assert.Equal([0, 7, 41], reader.ReadAll().Select(r => r.Index));
-        Assert.Equal(48.1, reader.TryReadOtherComponents()!.Value, 6);
+        Assert.Equal(48.1, reader.Find("GPU Power", "GPU [#0]")!.Value, 6);
     }
 
     [Fact]
     public void IgnoresIndexesFromTheCapOn()
     {
-        Export(HwinfoGadgetRegistryReader.MaxIndex, "Shelly Power", "Other Components", "48.1 W", "48.1");
+        Export(HwinfoGadgetRegistryReader.MaxIndex, "GPU [#0]", "GPU Power", "48.1 W", "48.1");
         var reader = new HwinfoGadgetRegistryReader(_registry);
 
-        Assert.Null(reader.TryReadOtherComponents());
+        Assert.Null(reader.Find("GPU Power"));
     }
 
     [Fact]
     public void MissingLabelIsSkipped()
     {
-        Export(0, "Shelly Power", null, "48.1 W", "48.1");
-        Export(1, "Shelly Power", "  ", "10 W", "10");
+        Export(0, "GPU [#0]", null, "48.1 W", "48.1");
+        Export(1, "GPU [#0]", "  ", "10 W", "10");
         var reader = new HwinfoGadgetRegistryReader(_registry);
 
         Assert.Empty(reader.ReadAll());
-        Assert.Null(reader.TryReadOtherComponents());
+        Assert.Null(reader.Find("GPU Power"));
     }
 
     [Fact]
-    public void PrefersTheShellyPowerSensorButAcceptsTheLabelAlone()
+    public void PrefersTheGivenSensorButAcceptsTheLabelAlone()
     {
-        Export(0, "Some Other Device", "Other Components", "5 W", "5");
-        Export(3, "Shelly Power", "other components", "48.1 W", "48.1");
-        Assert.Equal(48.1, new HwinfoGadgetRegistryReader(_registry).TryReadOtherComponents()!.Value, 6);
+        Export(0, "Some Other Device", "GPU Power", "5 W", "5");
+        Export(3, "GPU [#0]", "gpu power", "48.1 W", "48.1");
+        Assert.Equal(48.1, new HwinfoGadgetRegistryReader(_registry).Find("GPU Power", "GPU [#0]")!.Value, 6);
 
         _registry.DeleteValue(Key, "Label3");
-        Assert.Equal(5, new HwinfoGadgetRegistryReader(_registry).TryReadOtherComponents()!.Value, 6);
+        Assert.Equal(5, new HwinfoGadgetRegistryReader(_registry).Find("GPU Power", "GPU [#0]")!.Value, 6);
     }
 
     [Theory]
@@ -111,37 +111,37 @@ public class HwinfoGadgetRegistryReaderTests
     public void FallsBackToTheSecondRegistryWhenTheFirstHasNoExport()
     {
         var machine = new InMemoryRegistryBackend();
-        machine.SetString(Key, "Sensor0", "Shelly Power");
-        machine.SetString(Key, "Label0", "Other Components");
+        machine.SetString(Key, "Sensor0", "GPU [#0]");
+        machine.SetString(Key, "Label0", "GPU Power");
         machine.SetString(Key, "ValueRaw0", "21.5");
 
-        Assert.Equal(21.5, new HwinfoGadgetRegistryReader(_registry, machine).TryReadOtherComponents()!.Value, 6);
+        Assert.Equal(21.5, new HwinfoGadgetRegistryReader(_registry, machine).Find("GPU Power", "GPU [#0]")!.Value, 6);
 
-        Export(9, "Shelly Power", "Other Components", "48.1 W", "48.1");
-        Assert.Equal(48.1, new HwinfoGadgetRegistryReader(_registry, machine).TryReadOtherComponents()!.Value, 6);
+        Export(9, "GPU [#0]", "GPU Power", "48.1 W", "48.1");
+        Assert.Equal(48.1, new HwinfoGadgetRegistryReader(_registry, machine).Find("GPU Power", "GPU [#0]")!.Value, 6);
     }
 
     [Fact]
     public void MatchesByLabelWhenIndexesMove()
     {
-        Export(0, "Shelly Power", "Other Components", "48.1 W", "48.1");
+        Export(0, "GPU [#0]", "GPU Power", "48.1 W", "48.1");
         var reader = new HwinfoGadgetRegistryReader(_registry);
-        Assert.Equal(48.1, reader.TryReadOtherComponents()!.Value, 6);
+        Assert.Equal(48.1, reader.Find("GPU Power", "GPU [#0]")!.Value, 6);
 
         // The user exports another value first: HWiNFO renumbers.
         _registry.DeleteTree(Key);
-        Export(0, "GPU [#0]", "GPU Power", "88.6 W", "88.6");
-        Export(1, "Shelly Power", "Other Components", "50.2 W", "50.2");
-        Assert.Equal(50.2, reader.TryReadOtherComponents()!.Value, 6);
+        Export(0, "CPU [#0]", "CPU Package Power", "88.6 W", "88.6");
+        Export(1, "GPU [#0]", "GPU Power", "50.2 W", "50.2");
+        Assert.Equal(50.2, reader.Find("GPU Power", "GPU [#0]")!.Value, 6);
     }
 
     [Fact]
     public void ParsingDoesNotDependOnTheCurrentCulture()
     {
         using var _ = new CultureScope("da-DK");
-        Export(2, "Shelly Power", "Other Components", "48,1 W", "48.1");
+        Export(2, "GPU [#0]", "GPU Power", "48,1 W", "48.1");
 
-        Assert.Equal(48.1, new HwinfoGadgetRegistryReader(_registry).TryReadOtherComponents()!.Value, 6);
+        Assert.Equal(48.1, new HwinfoGadgetRegistryReader(_registry).Find("GPU Power", "GPU [#0]")!.Value, 6);
         Assert.True(HwinfoGadgetRegistryReader.TryParseValue(null, "1.5 W", out var dot));
         Assert.Equal(1.5, dot, 6);
     }

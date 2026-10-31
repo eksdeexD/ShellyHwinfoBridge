@@ -27,7 +27,9 @@ internal static class BriefExample
     public static PowerReadingEventArgs Reading() =>
         new(new ShellyReading(312.4, 226.9, 1.38, 123456), new PowerReading(312.4, 312.4, 294.8, 17.6, InputVoltage.V230));
 
-    public static HwinfoMonitorSnapshot Hwinfo() => new(true, true, true, true, 48.1, @"C:\Program Files\HWiNFO64\HWiNFO64.exe", OtherSource.SharedMemory);
+    public static HwinfoMonitorSnapshot Hwinfo() => new(true, true, true, true, @"C:\Program Files\HWiNFO64\HWiNFO64.exe", OtherSource.SharedMemory);
+
+    public static OtherComponentsState Other() => new(48.1, OtherSource.SharedMemory, true, [], true);
 
     public static PsuDatabase Database() => PsuDatabaseLoader.LoadEmbedded();
 
@@ -103,6 +105,24 @@ internal sealed class FakeRuntime : IBridgeRuntime
 
     public PowerReadingEventArgs? LastReading { get; set; } = BriefExample.Reading();
 
+    public List<DeviceStatus>? DeviceList { get; set; }
+
+    public IReadOnlyList<DeviceStatus> Devices => DeviceList ??
+    [
+        new(AppSettings.PrimaryDeviceId, AppSettings.PrimaryLabel, Settings?.Device.Host ?? string.Empty, Settings?.Device.Name, Settings?.Device.Model, OnlineState, LastReading?.Power.AcWatts, true),
+        .. (Settings?.AdditionalDevices ?? []).Select(d => new DeviceStatus(d.Id, d.Label, d.Host, d.Name, d.Model, OnlineState.Online, 30.0, d.IncludeInTotals)),
+    ];
+
+    public double? TotalWatts { get; set; }
+
+    public OtherComponentsState Other { get; set; } = BriefExample.Other();
+
+    public Dictionary<string, string?> DevicePasswords { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public List<IReadOnlyDictionary<string, string>?> AppliedDevicePasswords { get; } = [];
+
+    public string? GetDevicePassword(string deviceId) => AppSettings.IsPrimary(deviceId) ? Password : DevicePasswords.GetValueOrDefault(deviceId);
+
     public List<(AppSettings Settings, string? Password)> Applied { get; } = [];
 
     public int RemoveCalls { get; private set; }
@@ -121,13 +141,19 @@ internal sealed class FakeRuntime : IBridgeRuntime
 
     public void Resume() => State = RuntimeState.Running;
 
-    public ApplyOutcome Apply(AppSettings settings, string? newPassword = null)
+    public ApplyOutcome Apply(AppSettings settings, string? newPassword = null, IReadOnlyDictionary<string, string>? devicePasswords = null)
     {
         settings.Normalize();
         if (newPassword is not null)
         {
             settings.Device.ProtectedPassword = newPassword.Length == 0 ? null : "enc:" + newPassword;
             Password = newPassword.Length == 0 ? null : newPassword;
+        }
+
+        AppliedDevicePasswords.Add(devicePasswords);
+        foreach (var (id, p) in devicePasswords ?? new Dictionary<string, string>())
+        {
+            DevicePasswords[id] = p.Length == 0 ? null : p;
         }
 
         Applied.Add((settings, newPassword));
@@ -139,7 +165,7 @@ internal sealed class FakeRuntime : IBridgeRuntime
 
     public List<(AppSettings Draft, string? Password, bool StartWithWindows)> WizardApplied { get; } = [];
 
-    public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows)
+    public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows, IReadOnlyDictionary<string, string>? devicePasswords = null)
     {
         if (WizardApplyError is not null)
         {
@@ -147,7 +173,7 @@ internal sealed class FakeRuntime : IBridgeRuntime
         }
 
         WizardApplied.Add((draft, password, startWithWindows));
-        return Apply(draft, password ?? string.Empty);
+        return Apply(draft, password ?? string.Empty, devicePasswords);
     }
 
     public Task<DatabaseUpdateResult> CheckDatabaseUpdateAsync(CancellationToken cancellationToken = default) =>

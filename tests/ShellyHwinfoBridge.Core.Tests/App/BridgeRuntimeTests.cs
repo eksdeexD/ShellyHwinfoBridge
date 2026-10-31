@@ -14,7 +14,7 @@ namespace ShellyHwinfoBridge.Core.Tests.App;
 
 public sealed class BridgeRuntimeTests : IDisposable
 {
-    private const string Base = HwinfoSensorNames.BaseKeyPath;
+    private const string Base = SensorNaming.BaseKeyPath;
     private const string Exe = @"C:\Apps\ShellyHwinfoBridge.exe";
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "shb-runtime-" + Guid.NewGuid().ToString("N"));
@@ -26,6 +26,8 @@ public sealed class BridgeRuntimeTests : IDisposable
     private readonly AutostartManager _autostart;
     private readonly DatabaseUpdater _updater;
     private readonly List<BridgeRuntime> _runtimes = [];
+    private readonly FakeComponents _components = new();
+    private readonly Dictionary<string, ShellyReading> _readingsByHost = new(StringComparer.OrdinalIgnoreCase);
 
     public BridgeRuntimeTests()
     {
@@ -81,6 +83,11 @@ public sealed class BridgeRuntimeTests : IDisposable
             (host, pw) =>
             {
                 var client = new FakeAppShellyClient(host, pw);
+                if (_readingsByHost.TryGetValue(host, out var reading))
+                {
+                    client.Reading = reading;
+                }
+
                 lock (_clients)
                 {
                     _clients.Add(client);
@@ -88,7 +95,8 @@ public sealed class BridgeRuntimeTests : IDisposable
 
                 return client;
             },
-            _time);
+            _time,
+            components: _components);
         _runtimes.Add(runtime);
         return runtime;
     }
@@ -110,6 +118,8 @@ public sealed class BridgeRuntimeTests : IDisposable
     }
 
     private string? Value(string subkey) => _backend.GetString(Base + "\\" + subkey, "Value");
+
+    private string? Name(string subkey) => _backend.GetString(Base + "\\" + subkey, "Name");
 
     [Fact]
     public void FirstRunIsUnconfiguredAndPollsNothing()
@@ -149,10 +159,12 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.Equal("secret", client.Password);
         Assert.Equal(312.4, reading.Power.AcWatts, 6);
         Assert.Same(reading, runtime.LastReading);
-        Assert.Equal("312.4", Value(HwinfoSensorRegistry.AcSubkey));
-        Assert.Equal("1", Value(HwinfoSensorRegistry.OnlineSubkey));
-        Assert.Equal("\"DC Power (Est.)\" - \"CPU Package Power\" - \"GPU Power\"", Value(HwinfoSensorRegistry.OtherSubkey));
-        Assert.Equal("0.00", Value(HwinfoSensorRegistry.EnergyTodaySubkey));
+        Assert.Equal("312.4", Value("Power0"));
+        Assert.Equal("1", Value("Other0"));
+        Assert.Equal(SensorValueFormatter.FormatWatts(reading.Power.DcWatts - 250), Value("Power3"));
+        Assert.Equal(OtherSource.SharedMemory, runtime.Other.Source);
+        Assert.Equal("PC Power (AC)", Name("Power0"));
+        Assert.Equal("0.00", Value("Other1"));
     }
 
     [Fact]
@@ -184,7 +196,6 @@ public sealed class BridgeRuntimeTests : IDisposable
         formula.StartWithWindows = true;
         outcome = runtime.Apply(formula);
         Assert.Equal(["Sensors", "StartWithWindows"], outcome.ChangedKeys);
-        Assert.EndsWith("- \"DIMM1 Power\"", Value(HwinfoSensorRegistry.OtherSubkey), StringComparison.Ordinal);
         Assert.Equal($"\"{Exe}\" --autostart", _backend.GetString(AutostartManager.RunKeyPath, AutostartManager.ValueName));
         Assert.Equal(2, _clients.Count);
 
@@ -223,7 +234,7 @@ public sealed class BridgeRuntimeTests : IDisposable
         runtime.Pause();
         Assert.Equal(RuntimeState.Paused, runtime.State);
         Assert.Null(runtime.LastReading);
-        Assert.Equal("0", Value(HwinfoSensorRegistry.OnlineSubkey));
+        Assert.Equal("0", Value("Other0"));
 
         await NextReading(runtime, () =>
         {
@@ -231,7 +242,7 @@ public sealed class BridgeRuntimeTests : IDisposable
             _time.Advance(TimeSpan.FromSeconds(1));
         });
         Assert.Equal(RuntimeState.Running, runtime.State);
-        Assert.Equal("1", Value(HwinfoSensorRegistry.OnlineSubkey));
+        Assert.Equal("1", Value("Other0"));
     }
 
     [Fact]
@@ -254,8 +265,9 @@ public sealed class BridgeRuntimeTests : IDisposable
 
         runtime.Resume();
         Assert.Equal(1, recreated);
-        Assert.NotNull(Value(HwinfoSensorRegistry.AcSubkey));
-        Assert.StartsWith("\"DC Power (Est.)\"", Value(HwinfoSensorRegistry.OtherSubkey), StringComparison.Ordinal);
+        Assert.NotNull(Value("Power0"));
+        Assert.NotNull(Value("Power3"));
+        Assert.Equal("PC Other Components", Name("Power3"));
     }
 
     [Fact]
@@ -276,7 +288,8 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.True(saved.StartWithWindows);
         Assert.Equal("enc:wp", saved.Device.ProtectedPassword);
         Assert.Equal("pw", Assert.Single(_clients).Password);
-        Assert.StartsWith("\"DC Power (Est.)\"", Value(HwinfoSensorRegistry.OtherSubkey), StringComparison.Ordinal);
+        Assert.NotNull(Value("Power3"));
+        Assert.Equal("PC Other Components", Name("Power3"));
         Assert.NotNull(_backend.GetString(AutostartManager.RunKeyPath, AutostartManager.ValueName));
     }
 
@@ -351,9 +364,233 @@ public sealed class BridgeRuntimeTests : IDisposable
 
         await runtime.StopAsync();
 
-        Assert.Equal("0", Value(HwinfoSensorRegistry.OnlineSubkey));
-        Assert.Equal("0.0", Value(HwinfoSensorRegistry.AcSubkey));
+        Assert.Equal("0", Value("Other0"));
+        Assert.Equal("0.0", Value("Power0"));
         Assert.True(_clients[0].Disposed);
         Assert.True(File.Exists(Path.Combine(_dir, "energy", EnergyCsvStore.StateFileName)));
+    }
+
+    private const string MonitorId = "11111111-1111-1111-1111-111111111111";
+    private const string LampId = "22222222-2222-2222-2222-222222222222";
+
+    private static AppSettings MultiSettings(bool lampIncluded = false)
+    {
+        var settings = ExampleSettings();
+        settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Id = MonitorId, Label = "Monitor", Host = "192.168.1.50" });
+        settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Id = LampId, Label = "Lamp", Host = "192.168.1.51", IncludeInTotals = lampIncluded });
+        return settings;
+    }
+
+    private static async Task WaitUntil(Func<bool> condition)
+    {
+        for (var i = 0; i < 200 && !condition(); i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.True(condition());
+    }
+
+    private static Task<PowerReadingEventArgs> NextReadingFrom(BridgeRuntime runtime, string deviceId, Action trigger)
+    {
+        var tcs = new TaskCompletionSource<PowerReadingEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Handler(object? s, PowerReadingEventArgs e)
+        {
+            if (e.DeviceId == deviceId)
+            {
+                runtime.ReadingReceived -= Handler;
+                tcs.TrySetResult(e);
+            }
+        }
+
+        runtime.ReadingReceived += Handler;
+        trigger();
+        return tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task AllDevicesArePolledStaggeredAndTotalSumsIncludedDevices()
+    {
+        _readingsByHost["192.168.1.50"] = new ShellyReading(31.2, 230, 0.2, 500);
+        _readingsByHost["192.168.1.51"] = new ShellyReading(10, 230, 0.05, 100);
+        var runtime = Create(MultiSettings());
+        _registry.EnsureKeys();
+
+        await NextReadingFrom(runtime, AppSettings.PrimaryDeviceId, runtime.Start);
+        Assert.Equal(3, _clients.Count);
+
+        // Three devices on a 1000 ms interval: the monitor starts at 333 ms, the lamp at 666 ms.
+        Assert.Equal("0", Value("Other3"));
+        await Task.Delay(50);
+        var monitor = NextReadingFrom(runtime, MonitorId, () => _time.Advance(TimeSpan.FromMilliseconds(340)));
+        await monitor;
+        Assert.Equal("0", Value("Other4"));
+        await Task.Delay(50);
+        await NextReadingFrom(runtime, LampId, () => _time.Advance(TimeSpan.FromMilliseconds(340)));
+
+        Assert.Equal("Monitor Power (AC)", Name("Power4"));
+        Assert.Equal("31.2", Value("Power4"));
+        Assert.Equal("10.0", Value("Power5"));
+        Assert.Equal("Total Power (AC)", Name("Power6"));
+        Assert.Equal("343.6", Value("Power6"));
+        Assert.Equal("1", Value("Other3"));
+        Assert.Equal("1", Value("Other4"));
+        Assert.Equal(343.6, runtime.TotalWatts!.Value, 6);
+        Assert.Equal([AppSettings.PrimaryDeviceId, MonitorId, LampId], runtime.Devices.Select(d => d.Id));
+        Assert.Equal(31.2, runtime.Devices[1].AcWatts!.Value, 6);
+    }
+
+    [Fact]
+    public async Task AnOfflineAdditionalDeviceNeverAffectsThePc()
+    {
+        var runtime = Create(MultiSettings());
+        _registry.EnsureKeys();
+        await NextReadingFrom(runtime, AppSettings.PrimaryDeviceId, runtime.Start);
+        await Task.Delay(50);
+        await NextReadingFrom(runtime, MonitorId, () => _time.Advance(TimeSpan.FromMilliseconds(340)));
+        var monitorClient = _clients.Single(c => c.Host == "192.168.1.50");
+        monitorClient.Error = new ShellyException("unreachable");
+
+        for (var i = 0; i < 8; i++)
+        {
+            await Task.Delay(30);
+            _time.Advance(TimeSpan.FromMilliseconds(500));
+        }
+
+        await WaitUntil(() => runtime.Devices[1].State == OnlineState.Offline);
+        await WaitUntil(() => Value("Other3") == "0");
+        Assert.Equal("0.0", Value("Power4"));
+        Assert.Equal(OnlineState.Online, runtime.OnlineState);
+        Assert.Equal(RuntimeState.Running, runtime.State);
+        await WaitUntil(() => Value("Other0") == "1");
+        Assert.Equal("312.4", Value("Power0"));
+    }
+
+    [Fact]
+    public async Task AddingAndRemovingDevicesChangesTheLayoutAndRaisesTheRestartNotice()
+    {
+        _registry.EnsureKeys();
+        var runtime = Create(ExampleSettings());
+        await NextReading(runtime, runtime.Start);
+        var notices = 0;
+        runtime.SensorKeysCreated += (_, _) => notices++;
+
+        var outcome = runtime.Apply(MultiSettings());
+        Assert.Contains("AdditionalDevices", outcome.ChangedKeys);
+        Assert.Equal(1, notices);
+        Assert.Equal("Lamp Online", Name("Other4"));
+        Assert.Equal(3, _clients.Count);
+
+        var fewer = runtime.Settings!.Clone();
+        fewer.AdditionalDevices.RemoveAt(0);
+        runtime.Apply(fewer);
+        Assert.Equal(2, notices);
+        Assert.Equal("Lamp Power (AC)", Name("Power4"));
+        Assert.Equal("Total Power (AC)", Name("Power5"));
+        Assert.Null(Name("Power6"));
+        Assert.Null(Name("Other4"));
+        await WaitUntil(() => _clients.Single(c => c.Host == "192.168.1.50").Disposed);
+
+        // Changing nothing that affects the layout raises no notice.
+        var same = runtime.Settings!.Clone();
+        same.PollIntervalMs = 2000;
+        runtime.Apply(same);
+        Assert.Equal(2, notices);
+    }
+
+    [Fact]
+    public void CustomSensorNamesAreWrittenAndRaiseTheNotice()
+    {
+        _registry.EnsureKeys();
+        var runtime = Create(ExampleSettings());
+        runtime.Start();
+        var notices = 0;
+        runtime.SensorKeysCreated += (_, _) => notices++;
+
+        var renamed = runtime.Settings!.Clone();
+        renamed.SensorNames[SensorKey.PcAc.Id] = "Wall Power";
+        var outcome = runtime.Apply(renamed);
+
+        Assert.Contains("SensorNames", outcome.ChangedKeys);
+        Assert.Equal("Wall Power", Name("Power0"));
+        Assert.Equal(1, notices);
+    }
+
+    [Fact]
+    public async Task OtherComponentsHoldsTheLastValueWhenAComponentIsMissingOrTheResultIsNegative()
+    {
+        _registry.EnsureKeys();
+        var runtime = Create(ExampleSettings());
+        var first = await NextReading(runtime, runtime.Start);
+        var expected = SensorValueFormatter.FormatWatts(first.Power.DcWatts - 250);
+        Assert.Equal(expected, Value("Power3"));
+
+        // A missing component: the value is held.
+        _components.Values["GPU Power"] = null;
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal(expected, Value("Power3"));
+
+        // A spike makes the result negative: held too.
+        _components.Values["GPU Power"] = 900;
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal(expected, Value("Power3"));
+
+        _components.Values["GPU Power"] = 50;
+        var fresh = await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal(SensorValueFormatter.FormatWatts(fresh.Power.DcWatts - 150), Value("Power3"));
+    }
+
+    [Fact]
+    public async Task OtherComponentsStaysZeroWithoutASource()
+    {
+        _registry.EnsureKeys();
+        _components.Source = OtherSource.None;
+        var runtime = Create(ExampleSettings());
+        await NextReading(runtime, runtime.Start);
+
+        Assert.Equal("0.0", Value("Power3"));
+        Assert.Equal(OtherSource.None, runtime.Other.Source);
+        Assert.False(runtime.Other.HasValue);
+    }
+
+    [Fact]
+    public async Task AdditionalDevicePasswordsAreProtectedAndUsed()
+    {
+        var runtime = Create(ExampleSettings());
+        await NextReading(runtime, runtime.Start);
+
+        runtime.Apply(MultiSettings(), devicePasswords: new Dictionary<string, string> { [MonitorId] = "mon" });
+
+        Assert.Equal("mon", runtime.GetDevicePassword(MonitorId));
+        Assert.Equal("enc:nom", _store.Load()!.FindAdditionalDevice(MonitorId)!.ProtectedPassword);
+        Assert.Equal("mon", _clients.Single(c => c.Host == "192.168.1.50").Password);
+        Assert.Null(runtime.GetDevicePassword(LampId));
+    }
+
+    [Fact]
+    public void StaggerOffsetsSpreadDevicesOverTheInterval()
+    {
+        var interval = TimeSpan.FromMilliseconds(1000);
+        Assert.Equal(TimeSpan.Zero, BridgeRuntime.StaggerOffset(0, 4, interval));
+        Assert.Equal(TimeSpan.FromMilliseconds(250), BridgeRuntime.StaggerOffset(1, 4, interval));
+        Assert.Equal(TimeSpan.FromMilliseconds(750), BridgeRuntime.StaggerOffset(3, 4, interval));
+        Assert.Equal(TimeSpan.Zero, BridgeRuntime.StaggerOffset(0, 1, interval));
+    }
+
+    private sealed class FakeComponents : IComponentSensorSource
+    {
+        public OtherSource Source { get; set; } = OtherSource.SharedMemory;
+
+        public Dictionary<string, double?> Values { get; } = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["CPU Package Power"] = 100,
+            ["GPU Power"] = 150,
+            ["DIMM1 Power"] = 5,
+        };
+
+        public ComponentReadings Read(IReadOnlyList<SensorSelection> sensors) =>
+            Source == OtherSource.None
+                ? new ComponentReadings(OtherSource.None, [], true, sensors.Select(s => s.Name).ToList())
+                : new ComponentReadings(Source, sensors.Select(s => Values.GetValueOrDefault(s.Name)).ToList(), true, []);
     }
 }

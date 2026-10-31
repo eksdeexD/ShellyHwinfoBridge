@@ -659,7 +659,7 @@ internal sealed class SettingsPage : ThemedPanel
     {
         var current = _runtime.Settings?.Clone() ?? new AppSettings();
         var model = new SensorStepModel();
-        void Load() => model.Load(_readSharedMemory()?.GetPowerSensors(), current.Sensors, current.CustomFormula);
+        void Load() => model.Load(_readSharedMemory()?.GetPowerSensors(), current.Sensors);
         Load();
         var view = new SensorStepView(model, () =>
         {

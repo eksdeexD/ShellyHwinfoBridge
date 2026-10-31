@@ -60,7 +60,7 @@ public sealed class SettingsTests : IDisposable
         Assert.Equal(SensorCategory.Gpu, Assert.Single(loaded.Sensors).Category);
         Assert.True(loaded.HideTrayIcon);
         Assert.True(loaded.StartWithWindows);
-        Assert.Equal("\"DC Power (Est.)\" - \"GPU Power\"", loaded.GetEffectiveFormula());
+        Assert.Equal("GPU Power", loaded.Sensors[0].Name);
     }
 
     [Fact]
@@ -157,10 +157,11 @@ public sealed class SettingsTests : IDisposable
     }
 
     [Fact]
-    public void CustomFormulaOverridesGenerated()
+    public void RetiredCustomFormulaRoundTripsButIsNotApplied()
     {
         var settings = new AppSettings { Sensors = [new SensorSelection { Name = "GPU Power" }], CustomFormula = "\"DC Power (Est.)\" - 50" };
-        Assert.Equal("\"DC Power (Est.)\" - 50", settings.GetEffectiveFormula());
+        Assert.Equal("\"DC Power (Est.)\" - 50", settings.Clone().CustomFormula);
+        Assert.Equal("PC Power (DC) − GPU Power", ShellyHwinfoBridge.Core.Presentation.SettingsPresenter.CalculationText(settings));
     }
 
     [Fact]

@@ -61,6 +61,15 @@ internal sealed class PreviewRuntime : IBridgeRuntime
 
     public PowerReadingEventArgs? LastReading => SampleData.Reading();
 
+    public IReadOnlyList<DeviceStatus> Devices =>
+        [new(AppSettings.PrimaryDeviceId, AppSettings.PrimaryLabel, Settings?.Device.Host ?? string.Empty, Settings?.Device.Name, Settings?.Device.Model, OnlineState.Online, LastReading?.Power.AcWatts, true)];
+
+    public double? TotalWatts => null;
+
+    public OtherComponentsState Other => new(48.1, OtherSource.SharedMemory, true, [], true);
+
+    public string? GetDevicePassword(string deviceId) => null;
+
     public void Start()
     {
     }
@@ -75,7 +84,7 @@ internal sealed class PreviewRuntime : IBridgeRuntime
     {
     }
 
-    public ApplyOutcome Apply(AppSettings settings, string? newPassword = null)
+    public ApplyOutcome Apply(AppSettings settings, string? newPassword = null, IReadOnlyDictionary<string, string>? devicePasswords = null)
     {
         Settings = settings;
         if (newPassword is not null)
@@ -86,7 +95,7 @@ internal sealed class PreviewRuntime : IBridgeRuntime
         return new ApplyOutcome(true, null, []);
     }
 
-    public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows) => Apply(draft, password);
+    public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows, IReadOnlyDictionary<string, string>? devicePasswords = null) => Apply(draft, password);
 
     public Task<DatabaseUpdateResult> CheckDatabaseUpdateAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new DatabaseUpdateResult(DatabaseUpdateStatus.AlreadyCurrent, "The database is already up to date.", null, []));

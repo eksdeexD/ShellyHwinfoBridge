@@ -3,6 +3,7 @@ using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Curves;
 using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Energy;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Sensors;
 using ShellyHwinfoBridge.Core.Settings;
@@ -14,13 +15,38 @@ namespace ShellyHwinfoBridge.Core.Presentation;
 /// <param name="Text">The text, e.g. "Online · PlugMGen3-2 · 226.9 V".</param>
 public sealed record StatusPillState(Tone Dot, string Text);
 
+/// <summary>The states of the Other Components card (SPEC "Main window").</summary>
+public enum OtherCardKind
+{
+    /// <summary>HWiNFO runs and a component source works: the card shows the value.</summary>
+    Value,
+
+    /// <summary>HWiNFO is not running: value hidden, hint "Only available if HWiNFO is running".</summary>
+    HwinfoNotRunning,
+
+    /// <summary>
+    /// HWiNFO runs but no component source works: hint "Needs HWiNFO's Gadget export for: …" and a "How to enable?"
+    /// button that opens the gadget how-to (<see cref="OtherCardState.HowToText"/>).
+    /// </summary>
+    NeedsGadgetExport,
+}
+
+/// <summary>The Other Components card's state, for binding the hint and the "How to enable?" button.</summary>
+/// <param name="Kind">The state.</param>
+/// <param name="Hint">The hint shown instead of the value, or <c>null</c> for <see cref="OtherCardKind.Value"/>.</param>
+/// <param name="MissingSensorNames">The selected sensors missing from the gadget export (<see cref="OtherCardKind.NeedsGadgetExport"/>).</param>
+/// <param name="ShowHowToEnable">Whether to show the "How to enable?" button.</param>
+/// <param name="HowToText">The gadget how-to with the user's selected sensor names (<see cref="InlineMarkup"/>).</param>
+public sealed record OtherCardState(OtherCardKind Kind, string? Hint, IReadOnlyList<string> MissingSensorNames, bool ShowHowToEnable, string HowToText);
+
 /// <summary>One live-value card.</summary>
-/// <param name="Caption">The caption (the UI draws it uppercase), e.g. "AC Power (Wall)".</param>
+/// <param name="Caption">The caption (the UI draws it uppercase), e.g. "PC Power (AC)".</param>
 /// <param name="Value">The value with unit ("312.4 W"), or the hint text when <paramref name="Placeholder"/>.</param>
 /// <param name="Sub">The secondary line ("from Shelly plug").</param>
 /// <param name="ValueTone">The value colour.</param>
 /// <param name="Placeholder">Whether <paramref name="Value"/> is a hint instead of a number.</param>
-public sealed record StatCardState(string Caption, string Value, string Sub, Tone ValueTone, bool Placeholder);
+/// <param name="OtherState">The Other card's state (only set on the Other card).</param>
+public sealed record StatCardState(string Caption, string Value, string Sub, Tone ValueTone, bool Placeholder, OtherCardState? OtherState = null);
 
 /// <summary>The two totals under the energy chart.</summary>
 /// <param name="TodayValue">"2.41 kWh".</param>
@@ -32,16 +58,19 @@ public sealed record EnergyTotalsState(string TodayValue, string TodayCaption, s
 /// <summary>Everything the main window shows.</summary>
 /// <param name="IsConfigured">Whether setup was completed; otherwise the window shows the "Not set up yet" card.</param>
 /// <param name="Status">The status pill.</param>
-/// <param name="Ac">AC card.</param>
-/// <param name="Dc">DC card.</param>
-/// <param name="Loss">Loss card.</param>
-/// <param name="Other">Other Components card.</param>
-/// <param name="Energy">The energy totals.</param>
+/// <param name="Ac">PC Power (AC) card.</param>
+/// <param name="Dc">PC Power (DC) card.</param>
+/// <param name="Loss">PC PSU Loss card.</param>
+/// <param name="Other">PC Other Components card (see <see cref="StatCardState.OtherState"/>).</param>
+/// <param name="Energy">The energy totals (PC plus included devices).</param>
 /// <param name="PsuLine">Configuration line "PSU".</param>
 /// <param name="SensorsLine">Configuration line "Sensors".</param>
 /// <param name="HwinfoLine">Configuration line "HWiNFO".</param>
 /// <param name="PauseButtonText">"Pause polling" or "Resume polling".</param>
 /// <param name="PauseEnabled">Whether the pause button is enabled.</param>
+/// <param name="Total">The Total Power (AC) card, or <c>null</c> when there are no additional devices.</param>
+/// <param name="ShowChartModeToggle">Whether the Combined / Per device toggle is shown (more than one device).</param>
+/// <param name="ChartMode">The chart mode stored in settings.</param>
 public sealed record MainViewState(
     bool IsConfigured,
     StatusPillState Status,
@@ -54,16 +83,26 @@ public sealed record MainViewState(
     string SensorsLine,
     string HwinfoLine,
     string PauseButtonText,
-    bool PauseEnabled);
+    bool PauseEnabled,
+    StatCardState? Total = null,
+    bool ShowChartModeToggle = false,
+    EnergyChartMode ChartMode = EnergyChartMode.Combined)
+{
+    /// <summary>Gets the cards in display order: Total first when present, then AC, DC, Loss, Other.</summary>
+    public IReadOnlyList<StatCardState> Cards => Total is null ? [Ac, Dc, Loss, Other] : [Total, Ac, Dc, Loss, Other];
+}
 
 /// <summary>Builds <see cref="MainViewState"/> from the runtime, the HWiNFO monitor and the energy totals.</summary>
 public sealed class MainWindowPresenter
 {
-    /// <summary>The Other card's hint when shared memory is unavailable (SPEC wording).</summary>
-    public const string SharedMemoryHint = "Only available with Shared Memory enabled in HWiNFO";
+    /// <summary>The Other card's hint while HWiNFO is not running.</summary>
+    public const string HwinfoNotRunningHint = "Only available if HWiNFO is running";
 
-    /// <summary>The Other card's hint when shared memory works but HWiNFO does not show the bridge's sensors yet.</summary>
-    public const string RestartHwinfoHint = "Restart HWiNFO to see this";
+    /// <summary>The start of the Other card's hint when no component source works ("Needs HWiNFO's Gadget export for: GPU Power").</summary>
+    public const string GadgetExportHintPrefix = "Needs HWiNFO's Gadget export for: ";
+
+    /// <summary>The caption of the "How to enable?" button.</summary>
+    public const string HowToEnableText = "How to enable?";
 
     private readonly IBridgeRuntime _runtime;
 
@@ -76,17 +115,19 @@ public sealed class MainWindowPresenter
     /// <param name="totals">The energy totals.</param>
     /// <param name="culture">The culture; defaults to the current culture.</param>
     public MainViewState Build(HwinfoMonitorSnapshot hwinfo, EnergyTotals totals, CultureInfo? culture = null) =>
-        Build(_runtime.LastReading, _runtime.State, _runtime.OnlineState, hwinfo, totals, _runtime.Settings, _runtime.Database, culture ?? CultureInfo.CurrentCulture);
+        Build(_runtime.LastReading, _runtime.State, _runtime.OnlineState, hwinfo, totals, _runtime.Settings, _runtime.Database, culture ?? CultureInfo.CurrentCulture, _runtime.Other, _runtime.TotalWatts);
 
     /// <summary>Builds the state (pure).</summary>
-    /// <param name="last">The last reading, or <c>null</c>.</param>
+    /// <param name="last">The PC's last reading, or <c>null</c>.</param>
     /// <param name="state">The runtime state.</param>
-    /// <param name="online">The online state.</param>
+    /// <param name="online">The PC's online state.</param>
     /// <param name="hwinfo">The HWiNFO snapshot.</param>
     /// <param name="totals">The energy totals.</param>
     /// <param name="settings">The settings, or <c>null</c> on first run.</param>
     /// <param name="database">The PSU database.</param>
     /// <param name="culture">The culture for numbers.</param>
+    /// <param name="other">The app-computed Other Components, or <c>null</c> when unknown.</param>
+    /// <param name="totalWatts">Total Power (AC), or <c>null</c> when not live.</param>
     public static MainViewState Build(
         PowerReadingEventArgs? last,
         RuntimeState state,
@@ -95,7 +136,9 @@ public sealed class MainWindowPresenter
         EnergyTotals totals,
         AppSettings? settings,
         PsuDatabase database,
-        CultureInfo culture)
+        CultureInfo culture,
+        OtherComponentsState? other = null,
+        double? totalWatts = null)
     {
         ArgumentNullException.ThrowIfNull(hwinfo);
         ArgumentNullException.ThrowIfNull(totals);
@@ -107,9 +150,10 @@ public sealed class MainWindowPresenter
             ? new PsuDatabaseQuery(database).FindById(id)
             : null;
 
-        var ac = new StatCardState("AC Power (Wall)", live is null ? UiFormat.Dash : UiFormat.Watts(live.Power.AcWatts, culture), "from Shelly plug", Tone.Ink, false);
-        var dc = new StatCardState("DC Power (Est.)", live is null ? UiFormat.Dash : UiFormat.Watts(live.Power.DcWatts, culture), DcSub(settings, entry), Tone.Accent, false);
-        var loss = new StatCardState("PSU Loss", live is null ? UiFormat.Dash : UiFormat.Watts(live.Power.LossWatts, culture), EfficiencySub(live, culture), Tone.Ink, false);
+        var ac = new StatCardState(SensorNaming.PcAcName, live is null ? UiFormat.Dash : UiFormat.Watts(live.Power.AcWatts, culture), "from Shelly plug", Tone.Ink, false);
+        var dc = new StatCardState(SensorNaming.PcDcName, live is null ? UiFormat.Dash : UiFormat.Watts(live.Power.DcWatts, culture), DcSub(settings, entry), Tone.Accent, false);
+        var loss = new StatCardState(SensorNaming.PcLossName, live is null ? UiFormat.Dash : UiFormat.Watts(live.Power.LossWatts, culture), EfficiencySub(live, culture), Tone.Ink, false);
+        var total = settings.HasAdditionalDevices ? TotalCard(live is null ? null : totalWatts, settings, culture) : null;
 
         return new MainViewState(
             state != RuntimeState.Unconfigured,
@@ -117,14 +161,95 @@ public sealed class MainWindowPresenter
             ac,
             dc,
             loss,
-            OtherCard(live, hwinfo, settings, culture),
+            OtherCard(live, hwinfo, settings, other ?? OtherComponentsState.Unknown, culture),
             Totals(totals, settings, culture),
             PsuLine(settings, entry, last?.Raw.Volts, culture),
             SensorsLine(settings),
             HwinfoLine(hwinfo),
             state == RuntimeState.Paused ? "Resume polling" : "Pause polling",
-            state is RuntimeState.Running or RuntimeState.Paused);
+            state is RuntimeState.Running or RuntimeState.Paused,
+            total,
+            settings.HasAdditionalDevices,
+            settings.ChartMode);
     }
+
+    /// <summary>
+    /// Builds the Other card: the value while HWiNFO runs and a component source works; "Only available if HWiNFO is
+    /// running" while it does not run; "Needs HWiNFO's Gadget export for: …" with "How to enable?" otherwise.
+    /// </summary>
+    /// <param name="live">The PC's live reading, or <c>null</c>.</param>
+    /// <param name="hwinfo">The HWiNFO snapshot.</param>
+    /// <param name="settings">The settings (selected sensors).</param>
+    /// <param name="other">The app-computed Other Components.</param>
+    /// <param name="culture">The culture.</param>
+    public static StatCardState OtherCard(PowerReadingEventArgs? live, HwinfoMonitorSnapshot hwinfo, AppSettings settings, OtherComponentsState other, CultureInfo culture)
+    {
+        ArgumentNullException.ThrowIfNull(hwinfo);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(other);
+        ArgumentNullException.ThrowIfNull(culture);
+        const string caption = SensorNaming.PcOtherName;
+        var selected = settings.Sensors.Select(s => s.Name.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var howTo = HwinfoTips.GadgetExportFor(selected);
+        if (!hwinfo.IsRunning)
+        {
+            return new StatCardState(caption, HwinfoNotRunningHint, string.Empty, Tone.Ink, true, new OtherCardState(OtherCardKind.HwinfoNotRunning, HwinfoNotRunningHint, [], false, howTo));
+        }
+
+        if (other.Source != OtherSource.None)
+        {
+            var value = live is null ? UiFormat.Dash : UiFormat.Watts(other.Watts, culture);
+            return new StatCardState(caption, value, OtherSub(settings), Tone.Ink, false, new OtherCardState(OtherCardKind.Value, null, [], false, howTo));
+        }
+
+        var missing = other.MissingGadgetSensors.Count > 0 ? other.MissingGadgetSensors : selected;
+        var hint = GadgetExportHintPrefix + string.Join(", ", missing);
+        return new StatCardState(caption, hint, string.Empty, Tone.Ink, true, new OtherCardState(OtherCardKind.NeedsGadgetExport, hint, missing, true, howTo));
+    }
+
+    /// <summary>Builds the Total Power (AC) card; the secondary line names the included devices ("PC + Monitor").</summary>
+    /// <param name="totalWatts">The total, or <c>null</c> when not live.</param>
+    /// <param name="settings">The settings (the included devices).</param>
+    /// <param name="culture">The culture; defaults to the current culture.</param>
+    public static StatCardState TotalCard(double? totalWatts, AppSettings settings, CultureInfo? culture = null)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        culture ??= CultureInfo.CurrentCulture;
+        var labels = new List<string> { AppSettings.PrimaryLabel };
+        labels.AddRange(settings.AdditionalDevices.Where(d => d.IncludeInTotals).Select(d => d.Label));
+        return new StatCardState(SensorNaming.TotalName, totalWatts is double t ? UiFormat.Watts(t, culture) : UiFormat.Dash, string.Join(" + ", labels), Tone.Ink, false);
+    }
+
+    /// <summary>Builds the HWiNFO line ("running · sensors visible", "running · shared memory off · gadget export on", "not running", …).</summary>
+    /// <param name="hwinfo">The snapshot.</param>
+    public static string HwinfoLine(HwinfoMonitorSnapshot hwinfo)
+    {
+        ArgumentNullException.ThrowIfNull(hwinfo);
+        if (!hwinfo.IsRunning)
+        {
+            return hwinfo.IsInstalled ? "not running" : "not installed";
+        }
+
+        if (!hwinfo.SharedMemoryAvailable)
+        {
+            return hwinfo.ComponentSource == OtherSource.Gadget ? "running · shared memory off · gadget export on" : "running · shared memory off";
+        }
+
+        return hwinfo.SensorsVisible ? "running · sensors visible" : "running · sensors not yet visible: restart HWiNFO";
+    }
+
+    private static string OtherSub(AppSettings settings)
+    {
+        var categories = settings.Sensors.Select(s => s.Category).Distinct().Order().Select(c => c switch
+        {
+            SensorCategory.Cpu => "CPU",
+            SensorCategory.Gpu => "GPU",
+            SensorCategory.Ram => "RAM",
+            _ => "other",
+        }).ToList();
+        return categories.Count == 0 ? "no sensors selected" : "DC minus " + string.Join(", ", categories);
+    }
+
 
     /// <summary>Builds the status pill.</summary>
     /// <param name="state">The runtime state.</param>
@@ -197,16 +322,11 @@ public sealed class MainWindowPresenter
         }
     }
 
-    /// <summary>Builds the sensors line: names, "first 3 and N more", "custom formula" or "none selected".</summary>
+    /// <summary>Builds the sensors line: names, "first 3 and N more" or "none selected".</summary>
     /// <param name="settings">The settings.</param>
     public static string SensorsLine(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        if (!string.IsNullOrWhiteSpace(settings.CustomFormula))
-        {
-            return "custom formula";
-        }
-
         var names = settings.Sensors.Select(s => s.Name.Trim()).Where(n => n.Length > 0).ToList();
         return names.Count switch
         {
@@ -214,29 +334,6 @@ public sealed class MainWindowPresenter
             <= 4 => string.Join(", ", names),
             _ => $"{string.Join(", ", names.Take(3))} and {names.Count - 3} more",
         };
-    }
-
-    /// <summary>Builds the HWiNFO line ("running · sensors visible", "running · shared memory off · gadget export on", "not running", …).</summary>
-    /// <param name="hwinfo">The snapshot.</param>
-    public static string HwinfoLine(HwinfoMonitorSnapshot hwinfo)
-    {
-        ArgumentNullException.ThrowIfNull(hwinfo);
-        if (!hwinfo.IsRunning)
-        {
-            return hwinfo.IsInstalled ? "not running" : "not installed";
-        }
-
-        if (hwinfo.OtherSource == OtherSource.Gadget)
-        {
-            return hwinfo.SharedMemoryAvailable ? "running · sensors visible · gadget export on" : "running · shared memory off · gadget export on";
-        }
-
-        if (!hwinfo.SharedMemoryAvailable)
-        {
-            return "running · shared memory off";
-        }
-
-        return hwinfo.SensorsVisible ? "running · sensors visible" : "running · sensors not yet visible: restart HWiNFO";
     }
 
     /// <summary>Builds the energy totals, with cost in the captions when a price is set.</summary>
@@ -275,40 +372,5 @@ public sealed class MainWindowPresenter
 
         var efficiency = 100.0 * live.Power.DcWatts / live.Power.SmoothedAcWatts;
         return efficiency.ToString("0.0", culture) + " % efficiency";
-    }
-
-    private static StatCardState OtherCard(PowerReadingEventArgs? live, HwinfoMonitorSnapshot hwinfo, AppSettings settings, CultureInfo culture)
-    {
-        // From shared memory or the gadget registry export, whichever the monitor found.
-        const string caption = "Other Components";
-        if (hwinfo.OtherSource != OtherSource.None && hwinfo.OtherWatts is double other)
-        {
-            var value = live is null ? UiFormat.Dash : UiFormat.Watts(other, culture);
-            return new StatCardState(caption, value, OtherSub(settings), Tone.Ink, false);
-        }
-
-        if (!hwinfo.SharedMemoryAvailable)
-        {
-            return new StatCardState(caption, SharedMemoryHint, string.Empty, Tone.Ink, true);
-        }
-
-        return new StatCardState(caption, RestartHwinfoHint, string.Empty, Tone.Ink, true);
-    }
-
-    private static string OtherSub(AppSettings settings)
-    {
-        if (!string.IsNullOrWhiteSpace(settings.CustomFormula))
-        {
-            return "custom formula";
-        }
-
-        var categories = settings.Sensors.Select(s => s.Category).Distinct().Order().Select(c => c switch
-        {
-            SensorCategory.Cpu => "CPU",
-            SensorCategory.Gpu => "GPU",
-            SensorCategory.Ram => "RAM",
-            _ => "other",
-        }).ToList();
-        return categories.Count == 0 ? "no sensors selected" : "DC minus " + string.Join(", ", categories);
     }
 }

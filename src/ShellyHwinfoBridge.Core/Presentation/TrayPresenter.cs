@@ -17,23 +17,32 @@ public enum TrayIconState
     Paused,
 }
 
-/// <summary>Builds the tray tooltip and icon state.</summary>
+/// <summary>Builds the tray tooltip and icon state (both follow the PC's plug).</summary>
 public static class TrayPresenter
 {
     /// <summary>The longest tooltip a NotifyIcon accepts (.NET 8).</summary>
     public const int MaxTooltipLength = 127;
 
     /// <summary>
-    /// Returns the tooltip: "AC 312.4 W · DC 294.8 W · Other 48.1 W" (Other only when HWiNFO's value is available
-    /// from shared memory or its gadget export), "Shelly offline", "Polling paused", "Setup not completed", …; never longer than
-    /// <see cref="MaxTooltipLength"/>.
+    /// Returns the tooltip: "AC 312.4 W · DC 294.8 W · Other 48.1 W · Total 380 W" (Other only when a component source
+    /// works, Total only with additional devices), "Shelly offline", "Polling paused", "Setup not completed", …; never
+    /// longer than <see cref="MaxTooltipLength"/>.
     /// </summary>
     /// <param name="state">The runtime state.</param>
-    /// <param name="online">The online state.</param>
-    /// <param name="last">The last reading.</param>
+    /// <param name="online">The PC's online state.</param>
+    /// <param name="last">The PC's last reading.</param>
     /// <param name="hwinfo">The HWiNFO snapshot.</param>
     /// <param name="culture">The culture; defaults to the current culture.</param>
-    public static string Tooltip(RuntimeState state, OnlineState online, PowerReadingEventArgs? last, HwinfoMonitorSnapshot hwinfo, CultureInfo? culture = null)
+    /// <param name="other">The app-computed Other Components (<see cref="IBridgeRuntime.Other"/>), or <c>null</c> to leave it out.</param>
+    /// <param name="totalWatts">Total Power (AC) (<see cref="IBridgeRuntime.TotalWatts"/>), or <c>null</c> to leave it out.</param>
+    public static string Tooltip(
+        RuntimeState state,
+        OnlineState online,
+        PowerReadingEventArgs? last,
+        HwinfoMonitorSnapshot hwinfo,
+        CultureInfo? culture = null,
+        OtherComponentsState? other = null,
+        double? totalWatts = null)
     {
         ArgumentNullException.ThrowIfNull(hwinfo);
         culture ??= CultureInfo.CurrentCulture;
@@ -45,16 +54,26 @@ public static class TrayPresenter
             _ => online switch
             {
                 OnlineState.Offline => "Shelly offline",
-                OnlineState.Online when last is not null => Live(last, hwinfo, culture),
+                OnlineState.Online when last is not null => Live(last, hwinfo, other, totalWatts, culture),
                 _ => "ShellyHwinfoBridge · connecting…",
             },
         };
         return text.Length <= MaxTooltipLength ? text : text[..(MaxTooltipLength - 1)] + "…";
     }
 
+    /// <summary>Returns the tooltip for a runtime (see the other overload).</summary>
+    /// <param name="runtime">The runtime.</param>
+    /// <param name="hwinfo">The HWiNFO snapshot.</param>
+    /// <param name="culture">The culture; defaults to the current culture.</param>
+    public static string Tooltip(IBridgeRuntime runtime, HwinfoMonitorSnapshot hwinfo, CultureInfo? culture = null)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        return Tooltip(runtime.State, runtime.OnlineState, runtime.LastReading, hwinfo, culture, runtime.Other, runtime.TotalWatts);
+    }
+
     /// <summary>Returns the icon state.</summary>
     /// <param name="state">The runtime state.</param>
-    /// <param name="online">The online state.</param>
+    /// <param name="online">The PC's online state.</param>
     public static TrayIconState IconState(RuntimeState state, OnlineState online) => state switch
     {
         RuntimeState.Paused => TrayIconState.Paused,
@@ -62,12 +81,17 @@ public static class TrayPresenter
         _ => TrayIconState.Offline,
     };
 
-    private static string Live(PowerReadingEventArgs last, HwinfoMonitorSnapshot hwinfo, CultureInfo culture)
+    private static string Live(PowerReadingEventArgs last, HwinfoMonitorSnapshot hwinfo, OtherComponentsState? other, double? totalWatts, CultureInfo culture)
     {
         var text = $"AC {UiFormat.Watts(last.Power.AcWatts, culture)} · DC {UiFormat.Watts(last.Power.DcWatts, culture)}";
-        if (hwinfo.OtherSource != OtherSource.None && hwinfo.OtherWatts is double other)
+        if (hwinfo.IsRunning && other is { Source: not OtherSource.None } o)
         {
-            text += $" · Other {UiFormat.Watts(other, culture)}";
+            text += $" · Other {UiFormat.Watts(o.Watts, culture)}";
+        }
+
+        if (totalWatts is double total)
+        {
+            text += " · Total " + total.ToString("0", culture) + " W";
         }
 
         return text;

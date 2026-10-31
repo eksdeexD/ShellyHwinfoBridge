@@ -106,7 +106,7 @@ internal static class ScreenRenderer
             s.Sensors.SetChecked(s.Sensors.Groups[0].Rows.Single(r => r.Name == "IA Cores Power").Id, true))),
         ("wizard-4-sensors-advanced", () =>
         {
-            var form = WizardPreview.At(WizardStep.Sensors, tweak: s => s.Sensors.SetCustomFormula("\"DC Power (Est.)\" - \"CPU Package Power\" - \"GPU Power\" - 15"));
+            var form = WizardPreview.At(WizardStep.Sensors);
             return form;
         }),
         ("wizard-4-sensors-manual", () => WizardPreview.At(WizardStep.Sensors, snapshot: WizardPreview.Snapshot.None, tweak: s =>
@@ -174,7 +174,7 @@ internal static class ScreenRenderer
         {
             var settings = SampleData.Settings();
             var model = new SensorStepModel(SampleData.Culture);
-            model.Load(WizardPreview.Sensors(withBridge: false).GetPowerSensors(), settings.Sensors, settings.CustomFormula);
+            model.Load(WizardPreview.Sensors(withBridge: false).GetPowerSensors(), settings.Sensors);
             return new StepDialog("Sensors and formula", "These HWiNFO power sensors are subtracted from DC power to compute Other Components.", new SensorStepView(model, () => { }), () => null);
         }),
     ];
@@ -210,7 +210,7 @@ internal static class ScreenRenderer
         var settings = SampleData.Settings();
         settings.EnergyPricePerKwh = 0.32m;
         settings.EnergyCurrency = "DKK";
-        return SampleData.MainView(RuntimeState.Running, OnlineState.Offline, new HwinfoMonitorSnapshot(true, true, false, false, null, null), settings);
+        return SampleData.MainView(RuntimeState.Running, OnlineState.Offline, new HwinfoMonitorSnapshot(true, true, false, false, null), settings);
     }
 
     /// <summary>Renders every screen into <paramref name="directory"/>; returns the process exit code.</summary>

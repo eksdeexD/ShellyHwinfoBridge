@@ -2,6 +2,7 @@ using System.Globalization;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Curves;
 using ShellyHwinfoBridge.Core.Database;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
 using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
 using ShellyHwinfoBridge.Core.Sensors;
@@ -12,7 +13,7 @@ namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 /// <summary>A label/value line of the summary.</summary>
 /// <param name="Label">The label ("Device").</param>
 /// <param name="Value">The value.</param>
-/// <param name="Monospace">Whether the value is drawn in the monospace font (formula).</param>
+/// <param name="Monospace">Whether the value is drawn in the monospace font (the calculation).</param>
 public sealed record SummaryLine(string Label, string Value, bool Monospace = false);
 
 /// <summary>The phase of the verification loop.</summary>
@@ -66,8 +67,8 @@ public sealed class ApplyStepModel
     /// <summary>The pending line during <see cref="VerifyGracePeriod"/>.</summary>
     public const string CheckingHwinfoText = "Checking HWiNFO…";
 
-    /// <summary>The success line once all four sensors were found.</summary>
-    public const string VerifiedText = "Verified: all four Shelly Power sensors are visible in HWiNFO.";
+    /// <summary>The success line once all sensors were found.</summary>
+    public const string VerifiedText = "Verified: all Shelly Power sensors are visible in HWiNFO.";
 
     private readonly IBridgeRuntime _runtime;
     private readonly Func<HwinfoStatus> _detect;
@@ -77,6 +78,7 @@ public sealed class ApplyStepModel
     private readonly TimeProvider _time;
     private readonly CultureInfo _culture;
     private DateTimeOffset _verifyStarted;
+    private AppSettings? _draft;
 
     /// <summary>Creates the model.</summary>
     /// <param name="dependencies">The wizard's dependencies.</param>
@@ -100,6 +102,9 @@ public sealed class ApplyStepModel
 
     /// <summary>Gets the summary lines (built by <see cref="Prepare"/>).</summary>
     public IReadOnlyList<SummaryLine> SummaryLines { get; private set; } = [];
+
+    /// <summary>Gets the gadget how-to for step 6 with the selected component sensor names (<see cref="HwinfoTips.GadgetExportFor"/>).</summary>
+    public string GadgetTip => HwinfoTips.GadgetExportFor((_runtime.Settings ?? _draft)?.Sensors.Select(s => s.Name) ?? []);
 
     /// <summary>Gets or sets whether to start with Windows.</summary>
     public bool StartWithWindows { get; set; }
@@ -179,6 +184,7 @@ public sealed class ApplyStepModel
     /// <param name="measuredVolts">The voltage measured in step 2, if any.</param>
     public void Prepare(AppSettings draft, PsuDatabase database, double? measuredVolts)
     {
+        _draft = draft.Clone();
         SummaryLines = BuildSummary(draft, database, measuredVolts, _culture);
         Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -240,27 +246,31 @@ public sealed class ApplyStepModel
         var sensors = draft.Sensors.Count == 0
             ? "None selected"
             : string.Join(", ", draft.Sensors.Select(x => $"{x.Name} ({CategoryText(x.Category)})"));
-        if (!string.IsNullOrWhiteSpace(draft.CustomFormula))
+        var lines = new List<SummaryLine> { new("Device", deviceText) };
+        if (draft.HasAdditionalDevices)
         {
-            sensors += " · custom formula";
+            lines.Add(new("Other devices", string.Join(", ", draft.AdditionalDevices.Select(d =>
+                $"{d.Label} · {d.Host.Trim()}{(d.IncludeInTotals ? string.Empty : " (not in totals)")}"))));
         }
 
-        return
+        var calculation = string.Join(" − ", draft.Sensors.Select(s => s.Name.Trim()).Where(n => n.Length > 0).Prepend(SensorNaming.PcDcName));
+        lines.AddRange(
         [
-            new("Device", deviceText),
             new("PSU", psu),
             new("Curve source", source),
             new("Voltage", voltageText),
             new("Sensors", sensors),
-            new("Formula", draft.GetEffectiveFormula(), Monospace: true),
-        ];
+            new("Other Components", calculation, Monospace: true),
+        ]);
+        return lines;
     }
 
     /// <summary>Applies the draft through the runtime; on failure keeps the step open with <see cref="ApplyError"/>.</summary>
     /// <param name="draft">The draft settings (a copy is handed to the runtime).</param>
     /// <param name="password">The device password, or <c>null</c>.</param>
+    /// <param name="devicePasswords">New passwords of additional devices by id, or <c>null</c>.</param>
     /// <returns><c>true</c> on success.</returns>
-    public bool Apply(AppSettings draft, string? password)
+    public bool Apply(AppSettings draft, string? password, IReadOnlyDictionary<string, string>? devicePasswords = null)
     {
         ArgumentNullException.ThrowIfNull(draft);
         if (IsApplied)
@@ -271,7 +281,7 @@ public sealed class ApplyStepModel
         ApplyOutcome outcome;
         try
         {
-            outcome = _runtime.ApplyFromWizard(draft.Clone(), string.IsNullOrEmpty(password) ? null : password, StartWithWindows);
+            outcome = _runtime.ApplyFromWizard(draft.Clone(), string.IsNullOrEmpty(password) ? null : password, StartWithWindows, devicePasswords);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -391,7 +401,8 @@ public sealed class ApplyStepModel
             snapshot = null;
         }
 
-        Verify = VerifyEvaluator.Evaluate(snapshot, _runtime.LastReading?.Power, _culture);
+        var layout = SensorLayout.Build(_runtime.Settings ?? _draft ?? new AppSettings());
+        Verify = VerifyEvaluator.Evaluate(snapshot, _runtime.LastReading?.Power, _culture, layout, _runtime.Other);
         if (Verify.AllFound)
         {
             VerifyPhase = VerifyPhase.Confirmed;

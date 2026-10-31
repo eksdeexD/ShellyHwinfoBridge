@@ -12,7 +12,7 @@ public class SensorStepModelTests
     private static SensorStepModel Loaded(IReadOnlyList<SensorSelection>? existing = null, params ShellyHwinfoBridge.Core.Hwinfo.SharedMemory.HwinfoReading[] extra)
     {
         var m = new SensorStepModel(EnUs);
-        m.Load(Snapshots.Desktop(extra).GetPowerSensors(), existing ?? [], null);
+        m.Load(Snapshots.Desktop(extra).GetPowerSensors(), existing ?? []);
         return m;
     }
 
@@ -32,7 +32,7 @@ public class SensorStepModelTests
         Assert.Equal("142.3 W", Row(m, "CPU Package Power").ValueText);
         Assert.Equal(Snapshots.Cpu, m.Selected[0].Device);
         Assert.Empty(m.Warnings);
-        Assert.Equal("\"DC Power (Est.)\" - \"CPU Package Power\" - \"GPU Power\" - \"DIMM1 Power\" - \"DIMM3 Power\"", m.EffectiveFormula);
+        Assert.Equal("PC Power (DC) − CPU Package Power − GPU Power − DIMM1 Power − DIMM3 Power", m.CalculationPreview);
         Assert.True(m.IsValid);
     }
 
@@ -86,7 +86,7 @@ public class SensorStepModelTests
         var m = Loaded(null, Snapshots.Watts(5, "GPU [#1]: AMD Radeon RX 7600", "GPU Power", 40));
         var warning = Assert.Single(m.Warnings);
         Assert.Equal(
-            "Two sensors are called \"GPU Power\". HWiNFO formulas reference sensors by name, so this is ambiguous. Rename one of them in HWiNFO (right-click the sensor › Rename).",
+            "Two sensors are called \"GPU Power\". The app reads component sensors by name, so this is ambiguous. Rename one of them in HWiNFO (right-click the sensor › Rename).",
             warning);
     }
 
@@ -99,8 +99,8 @@ public class SensorStepModelTests
             m.SetChecked(Row(m, row.Name).Id, false);
         }
 
-        Assert.Equal(["No sensors selected: Other Components will equal DC Power (Est.)."], m.Warnings);
-        Assert.Equal("\"DC Power (Est.)\"", m.EffectiveFormula);
+        Assert.Equal(["No sensors selected: Other Components will equal PC Power (DC)."], m.Warnings);
+        Assert.Equal("PC Power (DC)", m.CalculationPreview);
         Assert.True(m.IsValid);
     }
 
@@ -111,45 +111,29 @@ public class SensorStepModelTests
         m.SetChecked(Row(m, "Card \"X\" Power").Id, true);
 
         Assert.False(m.IsValid);
-        Assert.Contains("\"Card X Power\" contains a double quote and can't be used in a formula. Rename it in HWiNFO (right-click the sensor › Rename).", m.Warnings);
-        Assert.DoesNotContain("Card", m.GeneratedFormula, StringComparison.Ordinal);
+        Assert.Contains("\"Card X Power\" contains a double quote and can't be used. Rename it in HWiNFO (right-click the sensor › Rename).", m.Warnings);
+        Assert.DoesNotContain("Card", m.CalculationPreview, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CustomFormulaOverridesAndResets()
+    public void ApplyToKeepsARetiredCustomFormula()
     {
         var m = Loaded();
-        var generated = m.GeneratedFormula;
-
-        m.SetCustomFormula(generated);
-        Assert.False(m.IsCustomFormula);
-
-        m.SetCustomFormula("\"DC Power (Est.)\" - \"CPU Package Power\" * 0.9");
-        Assert.True(m.IsCustomFormula);
-        Assert.Equal("\"DC Power (Est.)\" - \"CPU Package Power\" * 0.9", m.EffectiveFormula);
-
-        var s = new AppSettings();
+        var s = new AppSettings { CustomFormula = "x" };
         m.ApplyTo(s);
-        Assert.Equal("\"DC Power (Est.)\" - \"CPU Package Power\" * 0.9", s.CustomFormula);
+        Assert.Equal("x", s.CustomFormula);
         Assert.Equal(4, s.Sensors.Count);
-
-        m.ResetFormula();
-        Assert.False(m.IsCustomFormula);
-        Assert.Equal(generated, m.EffectiveFormula);
-        m.ApplyTo(s);
-        Assert.Null(s.CustomFormula);
     }
 
     [Fact]
     public void ManualFallbackWithoutSharedMemory()
     {
         var m = new SensorStepModel(EnUs);
-        m.Load(null, [new SensorSelection { Name = "CPU Package Power", Category = SensorCategory.Cpu, Device = Snapshots.Cpu }], "\"DC Power (Est.)\" - 5");
+        m.Load(null, [new SensorSelection { Name = "CPU Package Power", Category = SensorCategory.Cpu, Device = Snapshots.Cpu }]);
 
         Assert.True(m.IsManual);
         Assert.Empty(m.Groups);
         Assert.Equal("CPU Package Power", Assert.Single(m.ManualRows).Name);
-        Assert.True(m.IsCustomFormula);
 
         var id = m.AddManual();
         m.SetManualName(id, "GPU Power");
@@ -163,15 +147,14 @@ public class SensorStepModelTests
         Assert.Equal("GPU Power", Assert.Single(m.Selected).Name);
         Assert.Equal(SensorCategory.OtherMeasured, m.Selected[0].Category);
 
-        m.ResetFormula();
-        Assert.Equal("\"DC Power (Est.)\" - \"GPU Power\"", m.EffectiveFormula);
+        Assert.Equal("PC Power (DC) − GPU Power", m.CalculationPreview);
     }
 
     [Fact]
     public void ManualDuplicatesAreFlagged()
     {
         var m = new SensorStepModel(EnUs);
-        m.Load(null, [], null);
+        m.Load(null, []);
         m.SetManualName(m.AddManual(), "GPU Power");
         m.SetManualName(m.AddManual(), "gpu power");
         Assert.Contains(m.Warnings, w => w.StartsWith("Two sensors are called \"GPU Power\"", StringComparison.Ordinal));

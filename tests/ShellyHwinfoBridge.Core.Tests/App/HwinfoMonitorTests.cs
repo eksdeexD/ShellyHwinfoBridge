@@ -3,6 +3,8 @@ using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
 using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
+using ShellyHwinfoBridge.Core.Sensors;
+using ShellyHwinfoBridge.Core.Settings;
 using ShellyHwinfoBridge.Core.Tests.TestSupport;
 
 namespace ShellyHwinfoBridge.Core.Tests.App;
@@ -27,36 +29,47 @@ public class HwinfoMonitorTests
         _time,
         gadget: new HwinfoGadgetRegistryReader(_registry));
 
-    private void ExportOtherToGadget(string raw)
-    {
-        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Sensor4", "Shelly Power");
-        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Label4", "Other Components");
-        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Value4", raw + " W");
-        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "ValueRaw4", raw);
-    }
-
     private static byte[] WithShellySensors(double other) => new HwinfoBufferBuilder()
         .Sensor("CPU [#0]: AMD Ryzen 7 7800X3D")
         .Sensor("Shelly Power")
         .Reading(0, Power, "CPU Package Power", "W", 142.3)
-        .Reading(1, Power, "AC Power (Wall)", "W", 312.4)
-        .Reading(1, Power, "Other Components", "W", other)
+        .Reading(1, Power, "PC Power (AC)", "W", 312.4)
+        .Reading(1, Power, "PC Other Components", "W", other)
         .Build();
 
+    private static readonly IReadOnlyList<SensorSelection> Selected =
+    [
+        new SensorSelection { Name = "CPU Package Power", Category = SensorCategory.Cpu },
+        new SensorSelection { Name = "GPU Power", Category = SensorCategory.Gpu },
+    ];
+
+    private void Export(int index, string sensor, string label, string raw)
+    {
+        var n = index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Sensor" + n, sensor);
+        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Label" + n, label);
+        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "Value" + n, raw + " W");
+        _registry.SetString(HwinfoGadgetRegistryReader.DefaultKeyPath, "ValueRaw" + n, raw);
+    }
+
     [Fact]
-    public void NotRunningSkipsSharedMemory()
+    public void NotRunningSkipsSharedMemoryAndReadsNoComponents()
     {
         _buffer = WithShellySensors(48.1);
         var monitor = Create();
 
         monitor.Refresh();
 
-        Assert.Equal(new HwinfoMonitorSnapshot(false, false, false, false, null, null), monitor.Current);
+        Assert.Equal(new HwinfoMonitorSnapshot(false, false, false, false, null), monitor.Current);
+        Assert.Equal(0, _reads);
+        var components = monitor.Read(Selected);
+        Assert.False(components.HwinfoRunning);
+        Assert.Equal(OtherSource.None, components.Source);
         Assert.Equal(0, _reads);
     }
 
     [Fact]
-    public void RunningWithSensorsVisibleReportsOtherFromHwinfo()
+    public void RunningWithSharedMemoryReadsTheSelectedComponents()
     {
         _system.Running = true;
         _buffer = WithShellySensors(48.1);
@@ -71,16 +84,22 @@ public class HwinfoMonitorTests
         Assert.True(s.IsRunning);
         Assert.True(s.SharedMemoryAvailable);
         Assert.True(s.SensorsVisible);
-        Assert.Equal(48.1, s.OtherWatts!.Value, 6);
+        Assert.Equal(OtherSource.SharedMemory, s.ComponentSource);
         Assert.Equal(@"C:\Program Files\HWiNFO64\HWiNFO64.exe", s.ExecutablePath);
         Assert.Equal(1, changes);
+
+        var components = monitor.Read(Selected);
+        Assert.Equal(OtherSource.SharedMemory, components.Source);
+        Assert.Equal(142.3, components.Values[0]!.Value, 6);
+        Assert.Null(components.Values[1]);
+        Assert.Empty(components.MissingGadgetSensors);
 
         monitor.Refresh();
         Assert.Equal(1, changes);
     }
 
     [Fact]
-    public void SharedMemoryWithoutBridgeSensorsHasNoOtherValue()
+    public void SharedMemoryWithoutBridgeSensorsIsNotVisible()
     {
         _system.Running = true;
         _buffer = new HwinfoBufferBuilder().Sensor("GPU [#0]").Reading(0, Power, "GPU Power", "W", 88.6).Build();
@@ -90,7 +109,7 @@ public class HwinfoMonitorTests
 
         Assert.True(monitor.Current.SharedMemoryAvailable);
         Assert.False(monitor.Current.SensorsVisible);
-        Assert.Null(monitor.Current.OtherWatts);
+        Assert.Equal(88.6, monitor.Read(Selected).Values[1]!.Value, 6);
     }
 
     [Fact]
@@ -103,7 +122,7 @@ public class HwinfoMonitorTests
 
         Assert.True(monitor.Current.IsRunning);
         Assert.False(monitor.Current.SharedMemoryAvailable);
-        Assert.Null(monitor.Current.OtherWatts);
+        Assert.Equal(OtherSource.None, monitor.Current.ComponentSource);
     }
 
     [Fact]
@@ -111,20 +130,22 @@ public class HwinfoMonitorTests
     {
         _system.Running = true;
         _buffer = WithShellySensors(48.1);
-        ExportOtherToGadget("40.0");
+        Export(0, "CPU [#0]: AMD Ryzen 7 7800X3D", "CPU Package Power", "99.0");
         var monitor = Create();
-
         monitor.Refresh();
 
-        Assert.Equal(OtherSource.SharedMemory, monitor.Current.OtherSource);
-        Assert.Equal(48.1, monitor.Current.OtherWatts!.Value, 6);
+        var components = monitor.Read(Selected);
+        Assert.Equal(OtherSource.SharedMemory, components.Source);
+        Assert.Equal(142.3, components.Values[0]!.Value, 6);
     }
 
     [Fact]
-    public void FallsBackToTheGadgetExportWhenSharedMemoryIsOff()
+    public void FallsBackToTheGadgetExportWhenItReportsEverySelectedSensor()
     {
         _system.Running = true;
-        ExportOtherToGadget("47.5");
+        Export(0, "CPU [#0]: AMD Ryzen 7 7800X3D", "CPU Package Power", "140.5");
+        Export(3, "GPU [#0]: NVIDIA GeForce RTX 4080", "GPU Power", "88.0");
+        Export(4, "Shelly Power", "PC Power (AC)", "312.4");
         var monitor = Create();
 
         monitor.Refresh();
@@ -132,20 +153,50 @@ public class HwinfoMonitorTests
         var s = monitor.Current;
         Assert.False(s.SharedMemoryAvailable);
         Assert.True(s.SensorsVisible);
-        Assert.Equal(OtherSource.Gadget, s.OtherSource);
-        Assert.Equal(47.5, s.OtherWatts!.Value, 6);
+        Assert.Equal(OtherSource.Gadget, s.ComponentSource);
+        var components = monitor.Read(Selected);
+        Assert.Equal(OtherSource.Gadget, components.Source);
+        Assert.Equal([140.5, 88.0], components.Values.Select(v => v!.Value));
+    }
+
+    [Fact]
+    public void AnIncompleteGadgetExportIsNoSourceAndNamesTheMissingSensors()
+    {
+        _system.Running = true;
+        Export(0, "CPU [#0]: AMD Ryzen 7 7800X3D", "CPU Package Power", "140.5");
+        var monitor = Create();
+        monitor.Refresh();
+
+        var components = monitor.Read(Selected);
+
+        Assert.Equal(OtherSource.None, components.Source);
+        Assert.True(components.HwinfoRunning);
+        Assert.Equal(["GPU Power"], components.MissingGadgetSensors);
+    }
+
+    [Fact]
+    public void TheBridgeOwnReadingsAreNeverUsedAsComponents()
+    {
+        _system.Running = true;
+        Export(0, "Shelly Power", "GPU Power", "1.0");
+        Export(1, "CPU [#0]", "CPU Package Power", "140.5");
+        var monitor = Create();
+        monitor.Refresh();
+
+        Assert.Equal(["GPU Power"], monitor.Read(Selected).MissingGadgetSensors);
     }
 
     [Fact]
     public void IgnoresAStaleGadgetExportWhileHwinfoIsNotRunning()
     {
-        ExportOtherToGadget("47.5");
+        Export(0, "CPU [#0]", "CPU Package Power", "140.5");
+        Export(1, "GPU [#0]", "GPU Power", "88.0");
         var monitor = Create();
 
         monitor.Refresh();
 
-        Assert.Equal(OtherSource.None, monitor.Current.OtherSource);
-        Assert.Null(monitor.Current.OtherWatts);
+        Assert.Equal(OtherSource.None, monitor.Current.ComponentSource);
+        Assert.Equal(OtherSource.None, monitor.Read(Selected).Source);
     }
 
     [Fact]
@@ -156,8 +207,8 @@ public class HwinfoMonitorTests
 
         monitor.Refresh();
 
-        Assert.Equal(OtherSource.None, monitor.Current.OtherSource);
-        Assert.Null(monitor.Current.OtherWatts);
+        Assert.Equal(OtherSource.None, monitor.Current.ComponentSource);
+        Assert.Equal(["CPU Package Power", "GPU Power"], monitor.Read(Selected).MissingGadgetSensors);
     }
 
     [Fact]
@@ -211,7 +262,7 @@ public class HwinfoMonitorTests
 
         Assert.False(monitor.Current.IsRunning);
         Assert.False(monitor.Current.SharedMemoryAvailable);
-        Assert.Null(monitor.Current.OtherWatts);
+        Assert.Equal(OtherSource.None, monitor.Current.ComponentSource);
     }
 
     private sealed class ProcessOnlySystem : IHwinfoSystem

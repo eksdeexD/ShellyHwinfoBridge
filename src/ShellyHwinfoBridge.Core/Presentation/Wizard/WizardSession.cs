@@ -41,6 +41,7 @@ public sealed class WizardSession
         Apply = new ApplyStepModel(dependencies, IsFirstRun || Draft.StartWithWindows, culture);
 
         Shelly.LoadFrom(Draft.Device, currentPassword);
+        Shelly.LoadAdditional(Draft.AdditionalDevices);
         if (!IsFirstRun)
         {
             Psu.LoadFrom(Draft);
@@ -99,7 +100,7 @@ public sealed class WizardSession
     public bool CanGoNext => !_busy && Current switch
     {
         WizardStep.Hwinfo => true,
-        WizardStep.Shelly => Shelly.IsReady && Shelly.IsHostValid && Shelly.TestState != ShellyTestState.Testing,
+        WizardStep.Shelly => Shelly.IsReady && Shelly.IsHostValid && Shelly.TestState != ShellyTestState.Testing && Shelly.DeviceForm is null,
         WizardStep.Psu => Psu.IsValid,
         WizardStep.Sensors => Sensors.IsValid,
         WizardStep.Apply => !IsApplied,
@@ -180,7 +181,7 @@ public sealed class WizardSession
                 break;
 
             case WizardStep.Apply:
-                if (!Apply.Apply(Draft, DraftPassword))
+                if (!Apply.Apply(Draft, DraftPassword, Shelly.AdditionalPasswordChanges))
                 {
                     RaiseChanged();
                     return false;
@@ -228,7 +229,7 @@ public sealed class WizardSession
     public void ReloadSensors()
     {
         Sensors.ApplyTo(Draft);
-        Sensors.Load(_dependencies.ReadSharedMemory()?.GetPowerSensors(), Draft.Sensors, Draft.CustomFormula);
+        Sensors.Load(_dependencies.ReadSharedMemory()?.GetPowerSensors(), Draft.Sensors);
     }
 
     private void Leave(WizardStep step)
@@ -237,6 +238,7 @@ public sealed class WizardSession
         {
             case WizardStep.Shelly:
                 Shelly.ApplyTo(Draft.Device);
+                Shelly.ApplyAdditionalTo(Draft);
                 DraftPassword = string.IsNullOrEmpty(Shelly.Password) ? null : Shelly.Password;
                 break;
             case WizardStep.Psu:
@@ -259,7 +261,7 @@ public sealed class WizardSession
                 Psu.MeasuredVolts = Shelly.MeasuredVolts;
                 break;
             case WizardStep.Sensors when !Sensors.IsLoaded:
-                Sensors.Load(_dependencies.ReadSharedMemory()?.GetPowerSensors(), Draft.Sensors, Draft.CustomFormula);
+                Sensors.Load(_dependencies.ReadSharedMemory()?.GetPowerSensors(), Draft.Sensors);
                 break;
             case WizardStep.Apply:
                 Apply.Prepare(Draft, _database, Shelly.MeasuredVolts);

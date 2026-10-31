@@ -1,20 +1,58 @@
+using System.Text.Json.Serialization;
 using ShellyHwinfoBridge.Core.Curves;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Polling;
+using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Sensors;
 
 namespace ShellyHwinfoBridge.Core.Settings;
 
 /// <summary>All user settings, persisted as JSON in <c>%APPDATA%\ShellyHwinfoBridge\settings.json</c>.</summary>
+/// <remarks>
+/// Schema 2 added <see cref="AdditionalDevices"/>, <see cref="SensorNames"/>, <see cref="ChartMode"/>,
+/// <see cref="ColourMode"/> / <see cref="BaseColour"/> and <see cref="SmoothComponents"/>. Version 1 files load
+/// unchanged with the defaults; <see cref="Normalize"/> raises <see cref="SchemaVersion"/> to the current version.
+/// </remarks>
 public sealed class AppSettings
 {
     /// <summary>The current settings schema version.</summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
+
+    /// <summary>The most devices (primary plus additional) the app supports.</summary>
+    public const int MaxDevices = 4;
+
+    /// <summary>The fixed device id of the primary (PC) Shelly.</summary>
+    public const string PrimaryDeviceId = "pc";
+
+    /// <summary>The label of the primary (PC) Shelly, reserved for it.</summary>
+    public const string PrimaryLabel = "PC";
 
     /// <summary>Gets or sets the settings schema version.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    /// <summary>Gets or sets the Shelly device.</summary>
+    /// <summary>Gets or sets the primary Shelly device (the PC's plug, id <see cref="PrimaryDeviceId"/>).</summary>
     public ShellyDeviceSettings Device { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the additional Shelly devices (a monitor or another device, AC only), in list order; at most
+    /// <see cref="MaxDevices"/> − 1.
+    /// </summary>
+    public List<AdditionalDeviceSettings> AdditionalDevices { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the custom HWiNFO sensor names: sensor key (<see cref="SensorKey.Id"/>) → name. A missing or empty
+    /// entry means the default name.
+    /// </summary>
+    public Dictionary<string, string> SensorNames { get; set; } = [];
+
+    /// <summary>Gets or sets the energy chart mode (the toggle is shown when more than one device exists).</summary>
+    public EnergyChartMode ChartMode { get; set; } = EnergyChartMode.Combined;
+
+    /// <summary>Gets or sets how device colours are chosen.</summary>
+    public ColourMode ColourMode { get; set; } = ColourMode.AutomaticScheme;
+
+    /// <summary>Gets or sets the base colour of the automatic scheme (<c>#RRGGBB</c>); it is the PC's colour.</summary>
+    public string BaseColour { get; set; } = DeviceColours.DefaultBase;
 
     /// <summary>Gets or sets the PSU selection.</summary>
     public PsuSettings Psu { get; set; } = new();
@@ -25,16 +63,25 @@ public sealed class AppSettings
     /// <summary>Gets or sets the AC moving-average window; 1 = off.</summary>
     public int SmoothingSamples { get; set; } = 1;
 
+    /// <summary>
+    /// Gets or sets whether the component sum of Other Components is smoothed with the same window as AC
+    /// (<see cref="SmoothingSamples"/>). Default off.
+    /// </summary>
+    public bool SmoothComponents { get; set; }
+
     /// <summary>Gets or sets the poll interval in milliseconds (500–5000).</summary>
     public int PollIntervalMs { get; set; } = PollingOptions.DefaultIntervalMs;
 
     /// <summary>Gets or sets the HTTP timeout in milliseconds (always below the interval).</summary>
     public int HttpTimeoutMs { get; set; } = PollingOptions.DefaultTimeoutMs;
 
-    /// <summary>Gets or sets the selected component sensors.</summary>
+    /// <summary>Gets or sets the selected component sensors (subtracted from DC to compute Other Components).</summary>
     public List<SensorSelection> Sensors { get; set; } = [];
 
-    /// <summary>Gets or sets a manually edited formula; <c>null</c> to generate it from <see cref="Sensors"/>.</summary>
+    /// <summary>
+    /// Gets or sets a formerly hand-edited HWiNFO formula. Retired: kept in the file for a possible future
+    /// "components expression" feature, never applied (Other Components is computed by the app).
+    /// </summary>
     public string? CustomFormula { get; set; }
 
     /// <summary>Gets or sets whether the tray icon is hidden.</summary>
@@ -66,24 +113,68 @@ public sealed class AppSettings
     /// </summary>
     public string? DatabaseUpdateUrl { get; set; }
 
+    /// <summary>Gets whether at least one additional device is configured.</summary>
+    [JsonIgnore]
+    public bool HasAdditionalDevices => AdditionalDevices is { Count: > 0 };
+
+    /// <summary>Gets the number of devices (primary plus additional).</summary>
+    [JsonIgnore]
+    public int DeviceCount => 1 + (AdditionalDevices?.Count ?? 0);
+
     /// <summary>Gets the database update URL to use: the configured one, or the built-in default.</summary>
     public string GetEffectiveDatabaseUpdateUrl() =>
         string.IsNullOrWhiteSpace(DatabaseUpdateUrl) ? DefaultDatabaseUpdateUrl : DatabaseUpdateUrl.Trim();
 
-    /// <summary>Returns the formula to write: the custom one if set, otherwise one built from the sensors.</summary>
-    public string GetEffectiveFormula() =>
-        string.IsNullOrWhiteSpace(CustomFormula) ? HwinfoFormula.Build(Sensors.Select(s => s.Name)) : CustomFormula;
+    /// <summary>Returns the additional device with an id (case-insensitive), or <c>null</c>.</summary>
+    /// <param name="deviceId">The device id.</param>
+    public AdditionalDeviceSettings? FindAdditionalDevice(string? deviceId) =>
+        deviceId is null ? null : AdditionalDevices.FirstOrDefault(d => string.Equals(d.Id, deviceId, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Returns whether an id is the primary device's id.</summary>
+    /// <param name="deviceId">The device id.</param>
+    public static bool IsPrimary(string? deviceId) => string.Equals(deviceId, PrimaryDeviceId, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Returns a device's label: "PC" for the primary, else the additional device's label, or <c>null</c> when unknown.</summary>
+    /// <param name="deviceId">The device id.</param>
+    public string? GetDeviceLabel(string? deviceId) => IsPrimary(deviceId) ? PrimaryLabel : FindAdditionalDevice(deviceId)?.Label;
+
+    /// <summary>Returns the ids of every device in display order: <see cref="PrimaryDeviceId"/> first, then the additional devices.</summary>
+    public IReadOnlyList<string> GetDeviceIds() => [PrimaryDeviceId, .. AdditionalDevices.Select(d => d.Id)];
+
+    /// <summary>Returns whether a device counts in Total Power and the energy totals (the primary always does).</summary>
+    /// <param name="deviceId">The device id.</param>
+    public bool IsIncludedInTotals(string? deviceId) => IsPrimary(deviceId) || FindAdditionalDevice(deviceId)?.IncludeInTotals == true;
 
     /// <summary>Returns the polling options described by these settings, normalized.</summary>
     public PollingOptions GetPollingOptions() =>
         new PollingOptions { IntervalMs = PollIntervalMs, TimeoutMs = HttpTimeoutMs }.Normalize();
 
-    /// <summary>Clamps numeric settings into their valid ranges and replaces missing objects.</summary>
+    /// <summary>
+    /// Clamps numeric settings into their valid ranges, replaces missing objects, repairs the device list (ids, labels,
+    /// colours, the device cap) and drops invalid custom sensor names. Raises <see cref="SchemaVersion"/> to the current
+    /// version.
+    /// </summary>
     public void Normalize()
     {
+        SchemaVersion = CurrentSchemaVersion;
         Device ??= new ShellyDeviceSettings();
+        Device.Host ??= string.Empty;
+        Device.Colour = DeviceColours.Normalize(Device.Colour);
         Psu ??= new PsuSettings();
         Sensors ??= [];
+        NormalizeDevices();
+        NormalizeSensorNames();
+        if (!Enum.IsDefined(ChartMode))
+        {
+            ChartMode = EnergyChartMode.Combined;
+        }
+
+        if (!Enum.IsDefined(ColourMode))
+        {
+            ColourMode = ColourMode.AutomaticScheme;
+        }
+
+        BaseColour = DeviceColours.Normalize(BaseColour) ?? DeviceColours.DefaultBase;
         var polling = GetPollingOptions();
         PollIntervalMs = polling.IntervalMs;
         HttpTimeoutMs = polling.TimeoutMs;
@@ -109,10 +200,63 @@ public sealed class AppSettings
     public AppSettings Clone() =>
         System.Text.Json.JsonSerializer.Deserialize<AppSettings>(
             System.Text.Json.JsonSerializer.Serialize(this, SettingsStore.JsonOptions), SettingsStore.JsonOptions)!;
+
+    private void NormalizeDevices()
+    {
+        var devices = new List<AdditionalDeviceSettings>();
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var device in AdditionalDevices ?? [])
+        {
+            if (device is null || devices.Count >= MaxDevices - 1)
+            {
+                continue;
+            }
+
+            if (!Guid.TryParse(device.Id, out var guid) || !ids.Add(guid.ToString("D")))
+            {
+                guid = Guid.NewGuid();
+                ids.Add(guid.ToString("D"));
+            }
+
+            device.Id = guid.ToString("D");
+            device.Host = (device.Host ?? string.Empty).Trim();
+            device.Colour = DeviceColours.Normalize(device.Colour);
+            device.Label = (device.Label ?? string.Empty).Trim();
+            devices.Add(device);
+        }
+
+        // A label that breaks the rules (a hand-edited file) gets a fresh default label, so sensor names stay unique.
+        for (var i = 0; i < devices.Count; i++)
+        {
+            var others = devices.Take(i).Select(d => d.Label).ToList();
+            if (DeviceLabelRules.Validate(devices[i].Label, others) is not null)
+            {
+                devices[i].Label = DeviceLabelRules.NextDefaultLabel(others);
+            }
+        }
+
+        AdditionalDevices = devices;
+    }
+
+    private void NormalizeSensorNames()
+    {
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, value) in SensorNames ?? [])
+        {
+            if (key is null || !SensorKey.TryParse(key, out var parsed) || !SensorNaming.IsValidName(value))
+            {
+                continue;
+            }
+
+            names[parsed.Id] = value.Trim();
+        }
+
+        SensorNames = names;
+    }
 }
 
-/// <summary>The Shelly device.</summary>
-public sealed class ShellyDeviceSettings
+/// <summary>A Shelly device: the primary (PC) plug, and the base of <see cref="AdditionalDeviceSettings"/>.</summary>
+public class ShellyDeviceSettings
 {
     /// <summary>Gets or sets the IP address or host name.</summary>
     public string Host { get; set; } = string.Empty;
@@ -125,6 +269,12 @@ public sealed class ShellyDeviceSettings
 
     /// <summary>Gets or sets the DPAPI-protected password (base64); <c>null</c> when auth is off.</summary>
     public string? ProtectedPassword { get; set; }
+
+    /// <summary>
+    /// Gets or sets the device's chart colour (<c>#RRGGBB</c>) used in <see cref="ColourMode.Custom"/>; <c>null</c> for
+    /// the automatic colour.
+    /// </summary>
+    public string? Colour { get; set; }
 }
 
 /// <summary>How the PSU curve is chosen.</summary>

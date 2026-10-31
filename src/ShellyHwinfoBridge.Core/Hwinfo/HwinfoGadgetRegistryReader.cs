@@ -112,9 +112,6 @@ public sealed partial class HwinfoGadgetRegistryReader
         return matches.FirstOrDefault();
     }
 
-    /// <summary>Returns the bridge's "Other Components" reading (preferring the "Shelly Power" sensor), or <c>null</c>.</summary>
-    public double? TryReadOtherComponents() => Find(HwinfoSensorNames.OtherComponents, HwinfoSensorNames.DeviceName)?.Value;
-
     /// <summary>
     /// Parses an exported number: <paramref name="raw"/> (ValueRaw) first, then <paramref name="display"/> (Value) with
     /// its unit stripped. A dot is the decimal separator (InvariantCulture); a lone decimal comma is accepted too.

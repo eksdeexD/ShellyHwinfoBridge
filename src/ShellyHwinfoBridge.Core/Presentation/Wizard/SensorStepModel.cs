@@ -1,4 +1,5 @@
 using System.Globalization;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
 using ShellyHwinfoBridge.Core.Sensors;
 using ShellyHwinfoBridge.Core.Settings;
@@ -27,7 +28,7 @@ public sealed record ManualSensorRow(int Id, string Name, SensorCategory Categor
 
 /// <summary>
 /// Wizard step 4 (and the Settings "Edit…" dialog): pick the component power sensors from HWiNFO's shared memory, or type
-/// them when shared memory is off; assign categories; preview or override the formula.
+/// them when shared memory is off; assign categories; preview the Other Components calculation.
 /// </summary>
 public sealed class SensorStepModel
 {
@@ -88,9 +89,9 @@ public sealed class SensorStepModel
             })
             .ToList();
 
-    /// <summary>Gets the selected names that cannot be used in a formula.</summary>
+    /// <summary>Gets the selected names that cannot be used (blank or with a double quote).</summary>
     public IReadOnlyList<string> InvalidNames =>
-        Selected.Select(s => s.Name).Where(n => !HwinfoFormula.IsValidSensorName(n)).Distinct(StringComparer.Ordinal).ToList();
+        Selected.Select(s => s.Name).Where(n => !SensorNaming.IsValidName(n)).Distinct(StringComparer.Ordinal).ToList();
 
     /// <summary>Gets the warnings: sub-component pairs, duplicate names, invalid names, none selected.</summary>
     public IReadOnlyList<string> Warnings
@@ -110,38 +111,32 @@ public sealed class SensorStepModel
             foreach (var duplicate in SensorSelectionAnalyzer.FindDuplicateNames(selected.Select(s => s.Name), IsManual ? null : _allNames))
             {
                 var count = duplicate.Count == 2 ? "Two" : duplicate.Count.ToString(_culture);
-                warnings.Add($"{count} sensors are called \"{duplicate.Name}\". HWiNFO formulas reference sensors by name, so this is ambiguous. Rename one of them in HWiNFO (right-click the sensor › Rename).");
+                warnings.Add($"{count} sensors are called \"{duplicate.Name}\". The app reads component sensors by name, so this is ambiguous. Rename one of them in HWiNFO (right-click the sensor › Rename).");
             }
 
             foreach (var name in InvalidNames)
             {
-                warnings.Add($"\"{name.Replace("\"", string.Empty, StringComparison.Ordinal)}\" contains a double quote and can't be used in a formula. Rename it in HWiNFO (right-click the sensor › Rename).");
+                warnings.Add($"\"{name.Replace("\"", string.Empty, StringComparison.Ordinal)}\" contains a double quote and can't be used. Rename it in HWiNFO (right-click the sensor › Rename).");
             }
 
-            if (selected.Count == 0 && !IsCustomFormula)
+            if (selected.Count == 0)
             {
-                warnings.Add("No sensors selected: Other Components will equal DC Power (Est.).");
+                warnings.Add("No sensors selected: Other Components will equal PC Power (DC).");
             }
 
             return warnings;
         }
     }
 
-    /// <summary>Gets the formula built from the valid selected names.</summary>
-    public string GeneratedFormula =>
-        HwinfoFormula.Build(Selected.Select(s => s.Name).Where(HwinfoFormula.IsValidSensorName));
+    /// <summary>
+    /// Gets the calculation the app performs each poll, for the preview: "PC Power (DC) − CPU Package Power − GPU Power"
+    /// (the valid selected names; just "PC Power (DC)" when none are selected).
+    /// </summary>
+    public string CalculationPreview =>
+        string.Join(" − ", Selected.Select(s => s.Name).Where(SensorNaming.IsValidName).Prepend(SensorNaming.PcDcName));
 
-    /// <summary>Gets the custom formula, or <c>null</c> when the generated one is used.</summary>
-    public string? CustomFormula { get; private set; }
-
-    /// <summary>Gets whether a custom formula is set.</summary>
-    public bool IsCustomFormula => !string.IsNullOrWhiteSpace(CustomFormula);
-
-    /// <summary>Gets the formula that will be written.</summary>
-    public string EffectiveFormula => IsCustomFormula ? CustomFormula!.Trim() : GeneratedFormula;
-
-    /// <summary>Gets whether Next is allowed: no invalid names and a non-blank formula.</summary>
-    public bool IsValid => InvalidNames.Count == 0 && !string.IsNullOrWhiteSpace(EffectiveFormula);
+    /// <summary>Gets whether Next is allowed: no invalid names.</summary>
+    public bool IsValid => InvalidNames.Count == 0;
 
     /// <summary>
     /// Loads the sensors. With <paramref name="groups"/> (shared memory on), lists the W sensors per device (without the
@@ -150,11 +145,9 @@ public sealed class SensorStepModel
     /// </summary>
     /// <param name="groups">The power sensor groups from shared memory, or <c>null</c> when it is off.</param>
     /// <param name="existing">The current selection (empty on first run).</param>
-    /// <param name="customFormula">The current custom formula, or <c>null</c>.</param>
-    public void Load(IReadOnlyList<HwinfoDeviceGroup>? groups, IReadOnlyList<SensorSelection> existing, string? customFormula)
+    public void Load(IReadOnlyList<HwinfoDeviceGroup>? groups, IReadOnlyList<SensorSelection> existing)
     {
         ArgumentNullException.ThrowIfNull(existing);
-        CustomFormula = string.IsNullOrWhiteSpace(customFormula) ? null : customFormula;
         IsLoaded = true;
         if (groups is null)
         {
@@ -300,28 +293,12 @@ public sealed class SensorStepModel
         }
     }
 
-    /// <summary>Sets the formula text; a text equal to the generated formula (or blank) means "generated".</summary>
-    /// <param name="formula">The formula.</param>
-    public void SetCustomFormula(string? formula)
-    {
-        var value = string.IsNullOrWhiteSpace(formula) || formula.Trim() == GeneratedFormula ? null : formula;
-        if (value != CustomFormula)
-        {
-            CustomFormula = value;
-            Changed?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    /// <summary>Drops the custom formula ("Reset to generated").</summary>
-    public void ResetFormula() => SetCustomFormula(null);
-
-    /// <summary>Writes the selection and the custom formula into settings.</summary>
+    /// <summary>Writes the selection into settings (a stored, retired custom formula is left untouched).</summary>
     /// <param name="settings">The draft settings.</param>
     public void ApplyTo(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
         settings.Sensors = Selected.ToList();
-        settings.CustomFormula = IsCustomFormula ? CustomFormula!.Trim() : null;
     }
 
     private void UpdateRow(int id, Func<SensorRow, SensorRow> change)

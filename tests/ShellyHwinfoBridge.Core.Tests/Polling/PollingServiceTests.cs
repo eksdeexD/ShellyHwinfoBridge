@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Time.Testing;
 using ShellyHwinfoBridge.Core.Curves;
-using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Shelly;
 using ShellyHwinfoBridge.Core.Tests.TestSupport;
@@ -10,17 +9,17 @@ namespace ShellyHwinfoBridge.Core.Tests.Polling;
 public class PollingServiceTests
 {
     private readonly FakeShellyClient _client = new();
-    private readonly RecordingRegistry _registry = new();
 
-    private PollingService CreateService(TimeProvider? time = null) => new(
-        _client,
-        _registry,
-        new PowerCalculator(PsuCurveSet.Single(TestCurves.Simple)),
+    private PollingService CreateService(TimeProvider? time = null, FakeShellyClient? client = null, bool withCurve = true, string deviceId = "pc", TimeSpan startDelay = default) => new(
+        client ?? _client,
+        withCurve ? new PowerCalculator(PsuCurveSet.Single(TestCurves.Simple)) : null,
         new PollingOptions(),
-        timeProvider: time);
+        timeProvider: time,
+        deviceId: deviceId,
+        startDelay: startDelay);
 
     [Fact]
-    public async Task SuccessfulPollWritesReadingsAndGoesOnline()
+    public async Task SuccessfulPollReportsTheReadingWithTheDeviceIdAndGoesOnline()
     {
         var service = CreateService();
         var states = new List<OnlineState>();
@@ -33,9 +32,28 @@ public class PollingServiceTests
 
         Assert.Equal(OnlineState.Online, service.State);
         Assert.Equal([OnlineState.Online], states);
-        Assert.Equal((150, 130, 20, true), _registry.Last);
         Assert.Equal(130, received!.Power.DcWatts, 9);
+        Assert.Equal(20, received.Power.LossWatts, 9);
         Assert.Equal(230, received.Raw.Volts);
+        Assert.Equal("pc", received.DeviceId);
+        Assert.True(received.IsPrimary);
+    }
+
+    [Fact]
+    public async Task ADeviceWithoutCurveReportsAcOnly()
+    {
+        var service = CreateService(withCurve: false, deviceId: "monitor-id");
+        PowerReadingEventArgs? received = null;
+        service.ReadingReceived += (_, e) => received = e;
+        _client.Enqueue(new ShellyReading(31.2, 230, 0.2));
+
+        await service.PollOnceAsync();
+
+        Assert.Equal(31.2, received!.Power.AcWatts, 9);
+        Assert.Equal(0, received.Power.DcWatts);
+        Assert.Equal(0, received.Power.LossWatts);
+        Assert.Equal("monitor-id", received.DeviceId);
+        Assert.False(received.IsPrimary);
     }
 
     [Fact]
@@ -43,7 +61,9 @@ public class PollingServiceTests
     {
         var service = CreateService();
         var transitions = new List<(OnlineState From, OnlineState To)>();
+        var failures = new List<PollFailedEventArgs>();
         service.OnlineStateChanged += (_, e) => transitions.Add((e.Previous, e.Current));
+        service.PollFailed += (_, e) => failures.Add(e);
 
         _client.Enqueue(new ShellyReading(150, 230, 0.6));
         await service.PollOnceAsync();
@@ -54,23 +74,22 @@ public class PollingServiceTests
         await service.PollOnceAsync();
         Assert.Equal(OnlineState.Online, service.State);
         Assert.Equal(2, service.ConsecutiveFailures);
-        Assert.Equal((150, 130, 20, true), _registry.Last);
 
         _client.EnqueueFailure();
         await service.PollOnceAsync();
         Assert.Equal(OnlineState.Offline, service.State);
-        Assert.Equal((0, 0, 0, false), _registry.Last);
 
         // Keeps retrying while offline, without repeating the transition.
         _client.EnqueueFailure();
         await service.PollOnceAsync();
         Assert.Equal(4, service.ConsecutiveFailures);
+        Assert.Equal([1, 2, 3, 4], failures.Select(f => f.ConsecutiveFailures));
+        Assert.Equal([OnlineState.Online, OnlineState.Online, OnlineState.Offline, OnlineState.Offline], failures.Select(f => f.State));
 
         _client.Enqueue(new ShellyReading(200, 230, 0.8));
         await service.PollOnceAsync();
         Assert.Equal(OnlineState.Online, service.State);
         Assert.Equal(0, service.ConsecutiveFailures);
-        Assert.Equal((200, 180, 20, true), _registry.Last);
 
         Assert.Equal(
             [(OnlineState.Unknown, OnlineState.Online), (OnlineState.Online, OnlineState.Offline), (OnlineState.Offline, OnlineState.Online)],
@@ -88,7 +107,6 @@ public class PollingServiceTests
         }
 
         Assert.Equal(OnlineState.Offline, service.State);
-        Assert.Equal((0, 0, 0, false), _registry.Last);
     }
 
     [Fact]
@@ -106,14 +124,13 @@ public class PollingServiceTests
     }
 
     [Fact]
-    public async Task PausedServiceDoesNotPollAndSetsOffline()
+    public async Task PausedServiceDoesNotPollAndGoesUnknown()
     {
         var service = CreateService();
         _client.Enqueue(new ShellyReading(150, 230, 0.6));
         await service.PollOnceAsync();
 
         service.Pause();
-        Assert.Equal((0, 0, 0, false), _registry.Last);
         Assert.Equal(OnlineState.Unknown, service.State);
         Assert.False(await service.PollOnceAsync());
         Assert.Equal(1, _client.Calls);
@@ -140,7 +157,7 @@ public class PollingServiceTests
     }
 
     [Fact]
-    public async Task LoopPollsImmediatelyThenEachIntervalAndStopSetsOffline()
+    public async Task LoopPollsImmediatelyThenEachIntervalAndStopGoesUnknown()
     {
         var time = new FakeTimeProvider();
         var service = CreateService(time);
@@ -166,7 +183,78 @@ public class PollingServiceTests
 
         await service.StopAsync();
         Assert.False(service.IsRunning);
-        Assert.Equal((0, 0, 0, false), _registry.Last);
+        Assert.Equal(OnlineState.Unknown, service.State);
+    }
+
+    [Fact]
+    public async Task StartDelayStaggersTheFirstPollAndKeepsTheInterval()
+    {
+        var time = new FakeTimeProvider();
+        var service = CreateService(time, startDelay: TimeSpan.FromMilliseconds(500));
+        var signal = new SemaphoreSlim(0);
+        var at = new List<TimeSpan>();
+        var start = time.GetUtcNow();
+        service.ReadingReceived += (_, _) =>
+        {
+            lock (at)
+            {
+                at.Add(time.GetUtcNow() - start);
+            }
+
+            signal.Release();
+        };
+        for (var i = 0; i < 5; i++)
+        {
+            _client.Enqueue(new ShellyReading(100, 230, 0.4));
+        }
+
+        service.Start();
+        await WaitForTimersAsync(time);
+        Assert.False(await signal.WaitAsync(TimeSpan.FromMilliseconds(100)));
+
+        time.Advance(TimeSpan.FromMilliseconds(500));
+        Assert.True(await signal.WaitAsync(TimeSpan.FromSeconds(5)));
+        await WaitForTimersAsync(time);
+        time.Advance(TimeSpan.FromMilliseconds(1000));
+        Assert.True(await signal.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Equal([TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1500)], at);
+        await service.StopAsync();
+    }
+
+    [Fact]
+    public async Task OneDeviceFailingNeverAffectsAnother()
+    {
+        var time = new FakeTimeProvider();
+        var good = new FakeShellyClient();
+        var bad = new FakeShellyClient { Hang = true };
+        var pc = CreateService(time, good, deviceId: "pc");
+        var monitor = CreateService(time, bad, withCurve: false, deviceId: "monitor", startDelay: TimeSpan.FromMilliseconds(500));
+        var signal = new SemaphoreSlim(0);
+        pc.ReadingReceived += (_, _) => signal.Release();
+        for (var i = 0; i < 10; i++)
+        {
+            good.Enqueue(new ShellyReading(100, 230, 0.4));
+        }
+
+        pc.Start();
+        monitor.Start();
+        Assert.True(await signal.WaitAsync(TimeSpan.FromSeconds(5)));
+        for (var tick = 0; tick < 4; tick++)
+        {
+            await WaitForTimersAsync(time);
+            time.Advance(TimeSpan.FromMilliseconds(500));
+            await WaitForTimersAsync(time);
+            time.Advance(TimeSpan.FromMilliseconds(500));
+            Assert.True(await signal.WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+
+        Assert.Equal(OnlineState.Online, pc.State);
+        Assert.Equal(0, pc.ConsecutiveFailures);
+        Assert.Equal(5, good.Calls);
+        Assert.True(bad.Calls >= 1);
+        await pc.StopAsync();
+        await monitor.StopAsync();
     }
 
     [Fact]
@@ -177,23 +265,43 @@ public class PollingServiceTests
         Assert.Equal(new PollingOptions { IntervalMs = 1000, TimeoutMs = 800 }, new PollingOptions().Normalize());
     }
 
-    private sealed class FakeShellyClient : IShellyClient
+    /// <summary>Lets the background loops reach their next timer wait before the fake clock moves.</summary>
+    private static async Task WaitForTimersAsync(FakeTimeProvider time)
+    {
+        _ = time;
+        await Task.Delay(50);
+    }
+
+    internal sealed class FakeShellyClient : IShellyClient
     {
         private readonly Queue<ShellyReading?> _results = new();
+        private int _calls;
 
-        public int Calls { get; private set; }
+        public int Calls => Volatile.Read(ref _calls);
 
         public bool Hang { get; set; }
 
         public Task<ShellyReading>? Pending { get; set; }
 
-        public void Enqueue(ShellyReading reading) => _results.Enqueue(reading);
+        public void Enqueue(ShellyReading reading)
+        {
+            lock (_results)
+            {
+                _results.Enqueue(reading);
+            }
+        }
 
-        public void EnqueueFailure() => _results.Enqueue(null);
+        public void EnqueueFailure()
+        {
+            lock (_results)
+            {
+                _results.Enqueue(null);
+            }
+        }
 
         public async Task<ShellyReading> GetReadingAsync(CancellationToken cancellationToken = default)
         {
-            Calls++;
+            Interlocked.Increment(ref _calls);
             if (Hang)
             {
                 await Task.Delay(Timeout.Infinite, cancellationToken);
@@ -204,34 +312,16 @@ public class PollingServiceTests
                 return await Pending;
             }
 
-            return _results.Dequeue() ?? throw new ShellyException("unreachable");
+            ShellyReading? next;
+            lock (_results)
+            {
+                next = _results.Count > 0 ? _results.Dequeue() : null;
+            }
+
+            return next ?? throw new ShellyException("unreachable");
         }
 
         public Task<ShellyDeviceInfo> GetDeviceInfoAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(new ShellyDeviceInfo("Fake plug", "TEST-1", "Test", 3, "shellytest-000000"));
-    }
-
-    private sealed class RecordingRegistry : IHwinfoSensorRegistry
-    {
-        public (double Ac, double Dc, double Loss, bool Online) Last { get; private set; }
-
-        public bool EnsureKeys() => false;
-
-        public void WriteReadings(double acWatts, double dcWatts, double lossWatts, bool online) =>
-            Last = (Math.Round(acWatts, 6), Math.Round(dcWatts, 6), Math.Round(lossWatts, 6), online);
-
-        public void WriteFormula(string formula)
-        {
-        }
-
-        public void WriteEnergy(double todayKwh, double monthKwh)
-        {
-        }
-
-        public void SetOffline() => WriteReadings(0, 0, 0, false);
-
-        public void RemoveAll()
-        {
-        }
     }
 }

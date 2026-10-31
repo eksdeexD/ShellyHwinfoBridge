@@ -1,4 +1,5 @@
 using System.Globalization;
+using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Curves;
 using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
@@ -49,32 +50,32 @@ public sealed record RestartAdvice(Tone Tone, string Text, IReadOnlyList<Restart
 }
 
 /// <summary>A sensor in the verify checklist.</summary>
-/// <param name="Label">The sensor name ("AC Power (Wall)").</param>
+/// <param name="Label">The sensor name ("PC Power (AC)", or the user's custom name).</param>
 /// <param name="Found">Whether HWiNFO shows it under "Shelly Power".</param>
 public sealed record VerifyItem(string Label, bool Found);
 
 /// <summary>One verification result.</summary>
 /// <param name="SharedMemoryAvailable">Whether shared memory could be read.</param>
-/// <param name="Items">The four sensors.</param>
+/// <param name="Items">The power sensors of the layout (PC AC/DC/Loss/Other, each device's AC, Total).</param>
 /// <param name="Tiles">The live AC/DC/Loss/Other values.</param>
 /// <param name="Implausible">Whether Other Components is negative or more than half of DC.</param>
 /// <param name="Message">A warning (implausible, shared memory off), or <c>null</c>.</param>
 public sealed record VerifyResult(bool SharedMemoryAvailable, IReadOnlyList<VerifyItem> Items, IReadOnlyList<WizardTile> Tiles, bool Implausible, string? Message)
 {
-    /// <summary>Gets whether all four sensors are visible.</summary>
+    /// <summary>Gets whether every sensor is visible.</summary>
     public bool AllFound => Items.Count > 0 && Items.All(i => i.Found);
 }
 
-/// <summary>Checks HWiNFO's shared memory for the four Shelly Power sensors and judges the Other value.</summary>
+/// <summary>Checks HWiNFO's shared memory for the Shelly Power sensors (by their current names) and judges the Other value.</summary>
 public static class VerifyEvaluator
 {
     /// <summary>The message when shared memory is off.</summary>
     public const string SharedMemoryOffText =
         "Shared memory is off, so the app can't confirm. Look for 'Shelly Power' in HWiNFO's sensor window.";
 
-    /// <summary>The four labels to look for.</summary>
+    /// <summary>The default names of the four PC power sensors.</summary>
     public static IReadOnlyList<string> Labels { get; } =
-        [HwinfoSensorNames.AcPower, HwinfoSensorNames.DcPower, HwinfoSensorNames.PsuLoss, HwinfoSensorNames.OtherComponents];
+        [SensorNaming.PcAcName, SensorNaming.PcDcName, SensorNaming.PcLossName, SensorNaming.PcOtherName];
 
     /// <summary>Returns whether an Other value is implausible: negative or more than half of DC.</summary>
     /// <param name="other">Other Components in W.</param>
@@ -83,18 +84,22 @@ public static class VerifyEvaluator
 
     /// <summary>Evaluates a snapshot.</summary>
     /// <param name="snapshot">HWiNFO's shared memory, or <c>null</c> when it is off.</param>
-    /// <param name="poller">The bridge's latest reading (fallback for AC/DC/Loss), or <c>null</c>.</param>
+    /// <param name="poller">The bridge's latest PC reading (fallback for AC/DC/Loss), or <c>null</c>.</param>
     /// <param name="culture">The display culture; <c>null</c> for the current culture.</param>
-    public static VerifyResult Evaluate(HwinfoSnapshot? snapshot, PowerReading? poller, CultureInfo? culture = null)
+    /// <param name="layout">The published layout (names); <c>null</c> for <see cref="SensorLayout.Default"/>.</param>
+    /// <param name="other">The app-computed Other Components (fallback for the Other tile), or <c>null</c>.</param>
+    public static VerifyResult Evaluate(HwinfoSnapshot? snapshot, PowerReading? poller, CultureInfo? culture = null, SensorLayout? layout = null, OtherComponentsState? other = null)
     {
         culture ??= CultureInfo.CurrentCulture;
-        var readings = Labels.Select(l => snapshot?.FindReading(l, WizardText.BridgeDevice)).ToList();
-        var items = Labels.Select((l, i) => new VerifyItem(l, readings[i] is not null)).ToList();
+        layout ??= SensorLayout.Default;
+        var slots = layout.Slots.Where(s => s.Key.ValueKind == SensorValueKind.Watts).ToList();
+        var items = slots.Select(s => new VerifyItem(s.Name, snapshot?.FindReading(s.Name, WizardText.BridgeDevice) is not null)).ToList();
 
-        double? ac = readings[0]?.Value ?? poller?.AcWatts;
-        double? dc = readings[1]?.Value ?? poller?.DcWatts;
-        double? loss = readings[2]?.Value ?? poller?.LossWatts;
-        double? other = readings[3]?.Value;
+        double? Read(SensorKey key) => layout[key] is { } slot ? snapshot?.FindReading(slot.Name, WizardText.BridgeDevice)?.Value : null;
+        double? ac = Read(SensorKey.PcAc) ?? poller?.AcWatts;
+        double? dc = Read(SensorKey.PcDc) ?? poller?.DcWatts;
+        double? loss = Read(SensorKey.PcLoss) ?? poller?.LossWatts;
+        double? otherWatts = Read(SensorKey.PcOther) ?? (other is { Source: not OtherSource.None } o ? o.Watts : null);
 
         string Watts(double? w) => w is double v ? WizardText.SignedWatts(v, culture) : UiFormat.Dash;
         var tiles = new List<WizardTile>
@@ -102,7 +107,7 @@ public static class VerifyEvaluator
             new("AC", Watts(ac)),
             new("DC", Watts(dc)),
             new("Loss", Watts(loss)),
-            new("Other", Watts(other)),
+            new("Other", Watts(otherWatts)),
         };
 
         if (snapshot is null)
@@ -110,9 +115,9 @@ public static class VerifyEvaluator
             return new VerifyResult(false, items, tiles, false, SharedMemoryOffText);
         }
 
-        var implausible = other is double o && dc is double d && IsImplausible(o, d);
+        var implausible = otherWatts is double ow && dc is double d && IsImplausible(ow, d);
         var message = implausible
-            ? $"Other Components looks implausible ({Watts(other)}). Check the sensor selection; a sensor may be counted twice or missing."
+            ? $"Other Components looks implausible ({Watts(otherWatts)}). Check the sensor selection; a sensor may be counted twice or missing."
             : null;
         return new VerifyResult(true, items, tiles, implausible, message);
     }

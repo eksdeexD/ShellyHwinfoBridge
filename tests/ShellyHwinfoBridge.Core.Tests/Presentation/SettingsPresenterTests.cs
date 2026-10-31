@@ -21,7 +21,9 @@ public class SettingsPresenterTests
         Assert.Equal("192.168.1.42", state.Host);
         Assert.Equal("Seasonic Prime Fanless TX-700", state.PsuTitle);
         Assert.Equal("700 W · Titanium · Cybenetics 21PS1872A", state.PsuSubtitle);
-        Assert.Equal("\"DC Power (Est.)\"\r\n - \"CPU Package Power\"\r\n - \"GPU Power\"\r\n - \"DIMM1 Power\"\r\n - \"DIMM3 Power\"", state.FormulaText);
+        Assert.Equal("PC Power (DC)\r\n − CPU Package Power\r\n − GPU Power\r\n − DIMM1 Power\r\n − DIMM3 Power", state.FormulaText);
+        Assert.Null(state.RetiredFormulaNote);
+        Assert.Equal("PC · 192.168.1.42", state.DevicesText);
         Assert.Equal("1000 ms", state.IntervalText);
         Assert.Equal("1 sample", state.SmoothingText);
         Assert.Equal("Last updated 2026-10-29 · 1 entry", state.DatabaseText);

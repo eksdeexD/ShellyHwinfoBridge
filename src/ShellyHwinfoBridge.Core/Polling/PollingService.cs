@@ -1,31 +1,36 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ShellyHwinfoBridge.Core.Curves;
-using ShellyHwinfoBridge.Core.Hwinfo;
+using ShellyHwinfoBridge.Core.Settings;
 using ShellyHwinfoBridge.Core.Shelly;
 
 namespace ShellyHwinfoBridge.Core.Polling;
 
 /// <summary>
-/// Polls the Shelly at a fixed interval and writes AC, DC, loss and the online flag to HWiNFO.
+/// Polls one Shelly device at a fixed interval and reports readings, failures and online-state changes. The caller
+/// (<see cref="App.BridgeRuntime"/>) publishes the values to HWiNFO.
 /// </summary>
 /// <remarks>
 /// <para>Requests never overlap: the loop awaits each poll before waiting for the next tick, and
-/// <see cref="PollOnceAsync"/> skips if a poll is already running.</para>
+/// <see cref="PollOnceAsync"/> skips if a poll is already running. Each device has its own poller, so one device's
+/// slow or failing requests never delay another's.</para>
+/// <para>The first poll happens after <see cref="StartDelay"/> (used to stagger several devices), then every
+/// interval.</para>
 /// <para>After <see cref="PollingOptions.OfflineAfterFailures"/> consecutive failures the device is reported
-/// offline (Online = 0, values 0); polling continues and the first success brings it back online.</para>
-/// <para>Pausing and stopping set the sensors offline so HWiNFO never shows stale values.</para>
-/// <para>Events are raised on a thread-pool thread; UI subscribers must marshal to their own thread.</para>
+/// offline; polling continues and the first success brings it back online.</para>
+/// <para>The primary device has a <see cref="PowerCalculator"/> (PSU curve); an additional device has none and its
+/// readings carry DC and loss 0.</para>
+/// <para>Events are raised on a thread-pool thread; UI subscribers must marshal to their own thread. No event is raised
+/// for a poll that completes after <see cref="Pause"/> or <see cref="StopAsync"/>.</para>
 /// </remarks>
 public sealed class PollingService : IAsyncDisposable
 {
-    private readonly IHwinfoSensorRegistry _registry;
     private readonly ILogger _logger;
     private readonly TimeProvider _time;
     private readonly object _gate = new();
 
     private IShellyClient _client;
-    private PowerCalculator _calculator;
+    private PowerCalculator? _calculator;
     private PollingOptions _options;
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _loopCts;
@@ -38,25 +43,29 @@ public sealed class PollingService : IAsyncDisposable
 
     /// <summary>Creates a poller.</summary>
     /// <param name="client">The Shelly client.</param>
-    /// <param name="registry">The HWiNFO sensor writer.</param>
-    /// <param name="calculator">Converts AC to DC.</param>
+    /// <param name="calculator">Converts AC to DC (the primary device), or <c>null</c> for an AC-only device.</param>
     /// <param name="options">Interval and timeout; normalized on use.</param>
     /// <param name="logger">Optional logger.</param>
     /// <param name="timeProvider">Clock for the interval and timeout; defaults to the system clock.</param>
+    /// <param name="deviceId">The device id carried by the events.</param>
+    /// <param name="startDelay">The delay before the first poll (stagger); zero polls immediately.</param>
     public PollingService(
         IShellyClient client,
-        IHwinfoSensorRegistry registry,
-        PowerCalculator calculator,
+        PowerCalculator? calculator,
         PollingOptions? options = null,
         ILogger? logger = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        string deviceId = AppSettings.PrimaryDeviceId,
+        TimeSpan startDelay = default)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
-        _registry = registry ?? throw new ArgumentNullException(nameof(registry));
-        _calculator = calculator ?? throw new ArgumentNullException(nameof(calculator));
+        _calculator = calculator;
         _options = (options ?? new PollingOptions()).Normalize();
         _logger = logger ?? NullLogger.Instance;
         _time = timeProvider ?? TimeProvider.System;
+        ArgumentException.ThrowIfNullOrWhiteSpace(deviceId);
+        DeviceId = deviceId;
+        StartDelay = startDelay > TimeSpan.Zero ? startDelay : TimeSpan.Zero;
     }
 
     /// <summary>Raised after each successful poll.</summary>
@@ -64,6 +73,15 @@ public sealed class PollingService : IAsyncDisposable
 
     /// <summary>Raised when <see cref="State"/> changes.</summary>
     public event EventHandler<OnlineStateChangedEventArgs>? OnlineStateChanged;
+
+    /// <summary>Raised after each failed poll (also while offline).</summary>
+    public event EventHandler<PollFailedEventArgs>? PollFailed;
+
+    /// <summary>Gets the device id.</summary>
+    public string DeviceId { get; }
+
+    /// <summary>Gets the delay before the first poll.</summary>
+    public TimeSpan StartDelay { get; }
 
     /// <summary>Gets the current online state.</summary>
     public OnlineState State
@@ -89,7 +107,7 @@ public sealed class PollingService : IAsyncDisposable
     /// <summary>Gets the current (normalized) options.</summary>
     public PollingOptions Options => _options;
 
-    /// <summary>Starts the polling loop; the first poll happens immediately. Does nothing if already running.</summary>
+    /// <summary>Starts the polling loop; the first poll happens after <see cref="StartDelay"/>. Does nothing if already running.</summary>
     public void Start()
     {
         lock (_gate)
@@ -101,14 +119,18 @@ public sealed class PollingService : IAsyncDisposable
 
             _stopping = false;
             _loopCts = new CancellationTokenSource();
-            _timer = new PeriodicTimer(_options.Interval, _time);
-            _loopTask = RunAsync(_timer, _loopCts.Token);
+            _loopTask = RunAsync(_loopCts.Token);
         }
 
-        _logger.LogInformation("Polling started (interval {Interval} ms, timeout {Timeout} ms).", _options.IntervalMs, _options.TimeoutMs);
+        _logger.LogInformation(
+            "Polling {Device} started (interval {Interval} ms, timeout {Timeout} ms, offset {Offset} ms).",
+            DeviceId,
+            _options.IntervalMs,
+            _options.TimeoutMs,
+            (int)StartDelay.TotalMilliseconds);
     }
 
-    /// <summary>Stops the loop, waits for an in-flight poll, then sets the sensors offline.</summary>
+    /// <summary>Stops the loop and waits for an in-flight poll; the state becomes <see cref="OnlineState.Unknown"/>.</summary>
     public async Task StopAsync()
     {
         Task? loop;
@@ -133,10 +155,10 @@ public sealed class PollingService : IAsyncDisposable
             _loopTask = null;
         }
 
-        GoIdle("Polling stopped.");
+        GoIdle("stopped");
     }
 
-    /// <summary>Pauses polling and sets the sensors offline.</summary>
+    /// <summary>Pauses polling; the state becomes <see cref="OnlineState.Unknown"/>.</summary>
     public void Pause()
     {
         lock (_gate)
@@ -149,7 +171,7 @@ public sealed class PollingService : IAsyncDisposable
             _paused = true;
         }
 
-        GoIdle("Polling paused.");
+        GoIdle("paused");
     }
 
     /// <summary>Resumes polling at the next tick.</summary>
@@ -165,7 +187,7 @@ public sealed class PollingService : IAsyncDisposable
             _paused = false;
         }
 
-        _logger.LogInformation("Polling resumed.");
+        _logger.LogInformation("Polling {Device} resumed.", DeviceId);
     }
 
     /// <summary>Applies new interval/timeout; takes effect from the next tick.</summary>
@@ -183,11 +205,10 @@ public sealed class PollingService : IAsyncDisposable
         }
     }
 
-    /// <summary>Replaces the calculator (new curve, voltage mode or smoothing).</summary>
+    /// <summary>Replaces the calculator (new curve, voltage mode or smoothing); <c>null</c> for AC only.</summary>
     /// <param name="calculator">The new calculator.</param>
-    public void UpdateCalculator(PowerCalculator calculator)
+    public void UpdateCalculator(PowerCalculator? calculator)
     {
-        ArgumentNullException.ThrowIfNull(calculator);
         lock (_gate)
         {
             _calculator = calculator;
@@ -255,11 +276,32 @@ public sealed class PollingService : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
 
-    private async Task RunAsync(PeriodicTimer timer, CancellationToken cancellationToken)
+    /// <summary>Converts a reading without a PSU curve: AC only, DC and loss 0.</summary>
+    /// <param name="acWatts">The measured AC power.</param>
+    /// <param name="volts">The measured voltage.</param>
+    public static PowerReading AcOnly(double acWatts, double? volts)
+    {
+        var ac = double.IsFinite(acWatts) && acWatts > 0 ? acWatts : 0;
+        return new PowerReading(ac, ac, 0, 0, VoltageSelector.Resolve(InputVoltageMode.Auto, volts));
+    }
+
+    private async Task RunAsync(CancellationToken cancellationToken)
     {
         await Task.Yield();
         try
         {
+            if (StartDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(StartDelay, _time, cancellationToken).ConfigureAwait(false);
+            }
+
+            PeriodicTimer timer;
+            lock (_gate)
+            {
+                timer = new PeriodicTimer(_options.Interval, _time);
+                _timer = timer;
+            }
+
             do
             {
                 await PollOnceAsync(cancellationToken).ConfigureAwait(false);
@@ -272,7 +314,7 @@ public sealed class PollingService : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Polling loop failed unexpectedly.");
+            _logger.LogError(ex, "Polling loop of {Device} failed unexpectedly.", DeviceId);
         }
     }
 
@@ -288,24 +330,27 @@ public sealed class PollingService : IAsyncDisposable
             }
 
             _failures = 0;
-            power = _calculator.Calculate(reading.ActivePowerWatts, reading.Volts);
-            TryWrite(() => _registry.WriteReadings(power.AcWatts, power.DcWatts, power.LossWatts, online: true));
+            power = _calculator is { } calculator
+                ? calculator.Calculate(reading.ActivePowerWatts, reading.Volts)
+                : AcOnly(reading.ActivePowerWatts, reading.Volts);
             previous = _state;
             _state = OnlineState.Online;
         }
 
         if (previous != OnlineState.Online)
         {
-            _logger.LogInformation("Shelly online.");
-            OnlineStateChanged?.Invoke(this, new OnlineStateChangedEventArgs(previous, OnlineState.Online, null));
+            _logger.LogInformation("Shelly {Device} online.", DeviceId);
+            OnlineStateChanged?.Invoke(this, new OnlineStateChangedEventArgs(previous, OnlineState.Online, null, DeviceId));
         }
 
-        ReadingReceived?.Invoke(this, new PowerReadingEventArgs(reading, power));
+        ReadingReceived?.Invoke(this, new PowerReadingEventArgs(reading, power, DeviceId));
     }
 
     private void OnFailure(Exception error)
     {
         OnlineState previous;
+        int failures;
+        var wentOffline = false;
         lock (_gate)
         {
             if (_paused || _stopping)
@@ -314,56 +359,41 @@ public sealed class PollingService : IAsyncDisposable
             }
 
             _failures++;
-            _logger.LogDebug(error, "Poll failed ({Failures} in a row).", _failures);
-            if (_failures < PollingOptions.OfflineAfterFailures)
-            {
-                return;
-            }
-
-            // Keep the sensors zeroed on every failed poll while offline.
-            TryWrite(_registry.SetOffline);
+            failures = _failures;
             previous = _state;
-            if (previous == OnlineState.Offline)
+            _logger.LogDebug(error, "Poll of {Device} failed ({Failures} in a row).", DeviceId, _failures);
+            if (_failures >= PollingOptions.OfflineAfterFailures && previous != OnlineState.Offline)
             {
-                return;
+                _state = OnlineState.Offline;
+                _calculator?.Reset();
+                wentOffline = true;
             }
-
-            _state = OnlineState.Offline;
-            _calculator.Reset();
         }
 
-        _logger.LogWarning("Shelly offline after {Failures} failed polls: {Error}", PollingOptions.OfflineAfterFailures, error.Message);
-        OnlineStateChanged?.Invoke(this, new OnlineStateChangedEventArgs(previous, OnlineState.Offline, error));
+        if (wentOffline)
+        {
+            _logger.LogWarning("Shelly {Device} offline after {Failures} failed polls: {Error}", DeviceId, PollingOptions.OfflineAfterFailures, error.Message);
+            OnlineStateChanged?.Invoke(this, new OnlineStateChangedEventArgs(previous, OnlineState.Offline, error, DeviceId));
+        }
+
+        PollFailed?.Invoke(this, new PollFailedEventArgs(DeviceId, failures, State, error));
     }
 
-    private void GoIdle(string message)
+    private void GoIdle(string what)
     {
         OnlineState previous;
         lock (_gate)
         {
-            TryWrite(_registry.SetOffline);
             _failures = 0;
-            _calculator.Reset();
+            _calculator?.Reset();
             previous = _state;
             _state = OnlineState.Unknown;
         }
 
-        _logger.LogInformation("{Message}", message);
+        _logger.LogInformation("Polling {Device} {What}.", DeviceId, what);
         if (previous != OnlineState.Unknown)
         {
-            OnlineStateChanged?.Invoke(this, new OnlineStateChangedEventArgs(previous, OnlineState.Unknown, null));
-        }
-    }
-
-    private void TryWrite(Action write)
-    {
-        try
-        {
-            write();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
-        {
-            _logger.LogError(ex, "Writing HWiNFO sensor values failed.");
+            OnlineStateChanged?.Invoke(this, new OnlineStateChangedEventArgs(previous, OnlineState.Unknown, null, DeviceId));
         }
     }
 }

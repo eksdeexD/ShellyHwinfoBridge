@@ -3,41 +3,30 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
 using ShellyHwinfoBridge.Core.Hwinfo.SharedMemory;
+using ShellyHwinfoBridge.Core.Settings;
 
 namespace ShellyHwinfoBridge.Core.App;
-
-/// <summary>Where the "Other Components" value in <see cref="HwinfoMonitorSnapshot.OtherWatts"/> comes from.</summary>
-public enum OtherSource
-{
-    /// <summary>Not available.</summary>
-    None,
-
-    /// <summary>HWiNFO's shared memory.</summary>
-    SharedMemory,
-
-    /// <summary>HWiNFO's gadget registry export (<see cref="HwinfoGadgetRegistryReader"/>).</summary>
-    Gadget,
-}
 
 /// <summary>What the app currently knows about HWiNFO.</summary>
 /// <param name="IsInstalled">Whether HWiNFO64 appears to be installed.</param>
 /// <param name="IsRunning">Whether an HWiNFO64 process is running.</param>
 /// <param name="SharedMemoryAvailable">Whether HWiNFO's shared memory can be read.</param>
-/// <param name="SensorsVisible">Whether HWiNFO shows the bridge's sensors (the AC reading on "Shelly Power").</param>
-/// <param name="OtherWatts">HWiNFO's own "Other Components" reading on "Shelly Power", or <c>null</c> when not available.</param>
+/// <param name="SensorsVisible">Whether HWiNFO shows the bridge's sensors (any reading on "Shelly Power").</param>
 /// <param name="ExecutablePath">The HWiNFO64.exe path, when known.</param>
-/// <param name="OtherSource">Where <paramref name="OtherWatts"/> comes from.</param>
+/// <param name="ComponentSource">
+/// Which component source exists: shared memory, else the gadget export (when it exports anything), else none. Whether
+/// the export covers every selected sensor is reported per tick in <see cref="ComponentReadings"/>.
+/// </param>
 public sealed record HwinfoMonitorSnapshot(
     bool IsInstalled,
     bool IsRunning,
     bool SharedMemoryAvailable,
     bool SensorsVisible,
-    double? OtherWatts,
     string? ExecutablePath,
-    OtherSource OtherSource = OtherSource.None)
+    OtherSource ComponentSource = OtherSource.None)
 {
     /// <summary>The state before the first check.</summary>
-    public static HwinfoMonitorSnapshot Unknown { get; } = new(false, false, false, false, null, null);
+    public static HwinfoMonitorSnapshot Unknown { get; } = new(false, false, false, false, null);
 }
 
 /// <summary>
@@ -45,10 +34,10 @@ public sealed record HwinfoMonitorSnapshot(
 /// <see cref="ProcessInterval"/>, installation details every <see cref="DetectInterval"/> (or when the running state
 /// changes) and the shared memory every <see cref="ActiveSharedMemoryInterval"/> while a window or the tray icon is
 /// visible (<see cref="Active"/>), else every <see cref="IdleSharedMemoryInterval"/>. Polling never depends on it.
-/// "Other Components" comes from shared memory when it shows the bridge's sensors, else from HWiNFO's gadget registry
-/// export (read on the same schedule), else it is not available (<see cref="OtherSource"/>).
+/// As an <see cref="IComponentSensorSource"/> it reads the selected component sensors fresh on each call while HWiNFO
+/// runs: from shared memory, else from HWiNFO's gadget registry export when it reports every selected sensor.
 /// </summary>
-public sealed class HwinfoMonitor : IDisposable
+public sealed class HwinfoMonitor : IComponentSensorSource, IDisposable
 {
     /// <summary>How often the process list is checked.</summary>
     public static readonly TimeSpan ProcessInterval = TimeSpan.FromSeconds(5);
@@ -76,8 +65,7 @@ public sealed class HwinfoMonitor : IDisposable
     private bool _running;
     private bool _sharedMemory;
     private bool _sensorsVisible;
-    private double? _other;
-    private OtherSource _otherSource;
+    private OtherSource _componentSource;
     private DateTimeOffset _lastProcess = DateTimeOffset.MinValue;
     private DateTimeOffset _lastDetect = DateTimeOffset.MinValue;
     private DateTimeOffset _lastSharedMemory = DateTimeOffset.MinValue;
@@ -90,7 +78,7 @@ public sealed class HwinfoMonitor : IDisposable
     /// <param name="reader">Reads HWiNFO's shared memory.</param>
     /// <param name="timeProvider">The clock.</param>
     /// <param name="logger">Optional logger.</param>
-    /// <param name="gadget">Reads HWiNFO's gadget registry export (the fallback for "Other Components"), or <c>null</c>.</param>
+    /// <param name="gadget">Reads HWiNFO's gadget registry export (the fallback component source), or <c>null</c>.</param>
     public HwinfoMonitor(HwinfoLocator locator, HwinfoSharedMemoryReader reader, TimeProvider? timeProvider = null, ILogger? logger = null, HwinfoGadgetRegistryReader? gadget = null)
     {
         _locator = locator ?? throw new ArgumentNullException(nameof(locator));
@@ -215,9 +203,8 @@ public sealed class HwinfoMonitor : IDisposable
                 _running,
                 _sharedMemory,
                 _sensorsVisible,
-                _other,
                 _status?.ExecutablePath,
-                _otherSource);
+                _componentSource);
             changed = snapshot != _current;
             _current = snapshot;
         }
@@ -228,10 +215,85 @@ public sealed class HwinfoMonitor : IDisposable
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Reads fresh on every call (HWiNFO's process state comes from the last check). While HWiNFO does not run nothing is
+    /// read: the gadget export stays in the registry after HWiNFO exits and would be stale.
+    /// </remarks>
+    public ComponentReadings Read(IReadOnlyList<SensorSelection> sensors)
+    {
+        ArgumentNullException.ThrowIfNull(sensors);
+        bool running;
+        lock (_gate)
+        {
+            running = _running;
+        }
+
+        return running ? ReadComponents(_reader, _gadget, sensors, _logger) : ComponentReadings.NotRunning;
+    }
+
+    /// <summary>
+    /// Reads the selected sensors from shared memory, else from the gadget export (a source only when it reports every
+    /// selected sensor). Assumes HWiNFO runs.
+    /// </summary>
+    /// <param name="reader">The shared-memory reader.</param>
+    /// <param name="gadget">The gadget export reader, or <c>null</c>.</param>
+    /// <param name="sensors">The selected sensors.</param>
+    /// <param name="logger">Optional logger.</param>
+    public static ComponentReadings ReadComponents(HwinfoSharedMemoryReader reader, HwinfoGadgetRegistryReader? gadget, IReadOnlyList<SensorSelection> sensors, ILogger? logger = null)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        ArgumentNullException.ThrowIfNull(sensors);
+        HwinfoSnapshot? snapshot = null;
+        try
+        {
+            snapshot = reader.TryGetSnapshot();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            logger?.LogDebug(ex, "Reading shared memory for the component sensors failed.");
+        }
+
+        if (snapshot is not null)
+        {
+            var values = sensors.Select(s => FindShared(snapshot, s)).ToList();
+            return new ComponentReadings(OtherSource.SharedMemory, values, true, []);
+        }
+
+        var exported = gadget?.ReadAll() ?? [];
+        var found = sensors.Select(s => FindGadget(exported, s)).ToList();
+        var missing = sensors.Where((_, i) => found[i] is null).Select(s => s.Name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return missing.Count == 0
+            ? new ComponentReadings(OtherSource.Gadget, found, true, [])
+            : new ComponentReadings(OtherSource.None, found, true, missing);
+    }
+
+    private static double? FindShared(HwinfoSnapshot snapshot, SensorSelection sensor)
+    {
+        var reading = (sensor.Device is { } device ? snapshot.FindReading(sensor.Name, device) : null) ?? snapshot.FindReading(sensor.Name);
+        return reading is { } r && !IsBridgeDevice(r.Device) ? r.Value : null;
+    }
+
+    private static double? FindGadget(IReadOnlyList<GadgetReading> exported, SensorSelection sensor)
+    {
+        var name = sensor.Name.Trim();
+        var matches = exported.Where(r => string.Equals(r.Label, name, StringComparison.OrdinalIgnoreCase) && !IsBridgeDevice(r.Sensor)).ToList();
+        var exact = sensor.Device is { } device
+            ? matches.FirstOrDefault(r => r.Sensor is not null && (string.Equals(r.Sensor, device.Trim(), StringComparison.OrdinalIgnoreCase) || device.Trim().EndsWith(": " + r.Sensor, StringComparison.OrdinalIgnoreCase) || r.Sensor.EndsWith(": " + device.Trim(), StringComparison.OrdinalIgnoreCase)))
+            : null;
+        return (exact ?? matches.FirstOrDefault())?.Value;
+    }
+
+    private static bool IsBridgeDevice(string? device)
+    {
+        var d = (device ?? string.Empty).Trim();
+        return d.Equals(SensorNaming.DeviceName, StringComparison.OrdinalIgnoreCase) ||
+               d.EndsWith(": " + SensorNaming.DeviceName, StringComparison.OrdinalIgnoreCase);
+    }
+
     private void ReadSharedMemory()
     {
-        _other = null;
-        _otherSource = OtherSource.None;
+        _componentSource = OtherSource.None;
         if (!_running)
         {
             // The gadget export stays in the registry after HWiNFO exits: it is only current while HWiNFO runs.
@@ -242,20 +304,22 @@ public sealed class HwinfoMonitor : IDisposable
 
         var snapshot = _reader.TryGetSnapshot();
         _sharedMemory = snapshot is not null;
-        _sensorsVisible = snapshot?.FindReading(HwinfoSensorNames.AcPower, HwinfoSensorNames.DeviceName) is not null;
-        if (snapshot?.FindReading(HwinfoSensorNames.OtherComponents, HwinfoSensorNames.DeviceName)?.Value is double shared)
+        _sensorsVisible = snapshot?.Readings.Any(r => IsBridgeDevice(r.Device)) == true;
+        if (snapshot is not null)
         {
-            _other = shared;
-            _otherSource = OtherSource.SharedMemory;
+            _componentSource = OtherSource.SharedMemory;
             return;
         }
 
-        if (_gadget?.TryReadOtherComponents() is double exported)
+        IReadOnlyList<GadgetReading> exported = _gadget?.ReadAll() ?? [];
+        if (exported.Count > 0)
         {
-            // HWiNFO exports the value, so it shows the bridge's sensors.
-            _other = exported;
-            _otherSource = OtherSource.Gadget;
-            _sensorsVisible = true;
+            _componentSource = OtherSource.Gadget;
+            if (exported.Any(r => IsBridgeDevice(r.Sensor)))
+            {
+                // HWiNFO exports one of the bridge's values, so it shows the bridge's sensors.
+                _sensorsVisible = true;
+            }
         }
     }
 

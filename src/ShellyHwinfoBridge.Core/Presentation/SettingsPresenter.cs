@@ -2,6 +2,7 @@ using System.Globalization;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Curves;
 using ShellyHwinfoBridge.Core.Database;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Settings;
 using ShellyHwinfoBridge.Core.Shelly;
@@ -21,7 +22,7 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// <param name="PsuTitle">"Seasonic Prime Fanless TX-700".</param>
 /// <param name="PsuSubtitle">"700 W · Titanium · Cybenetics 21PS1872A".</param>
 /// <param name="VoltageMode">The voltage override.</param>
-/// <param name="FormulaText">The effective formula broken across lines at " - ".</param>
+/// <param name="FormulaText">The Other Components calculation ("PC Power (DC) − CPU Package Power − …") broken across lines before each " − ".</param>
 /// <param name="IntervalMs">The poll interval.</param>
 /// <param name="IntervalText">"1000 ms".</param>
 /// <param name="Smoothing">The smoothing window.</param>
@@ -41,6 +42,12 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// "230 V curve (115 V data not available for this unit)" when the selected PSU has no curve for the voltage in use;
 /// otherwise <c>null</c>.
 /// </param>
+/// <param name="RetiredFormulaNote">
+/// When the settings still hold a retired custom formula: the note that it is no longer applied; otherwise <c>null</c>.
+/// </param>
+/// <param name="GadgetTip">The gadget how-to with the selected sensor names (<see cref="HwinfoTips.GadgetExportFor"/>).</param>
+/// <param name="SmoothComponents">Whether the component sum uses the AC smoothing window.</param>
+/// <param name="DevicesText">The Manage Shellys summary ("PC · 192.168.1.42", "PC + 1 more device").</param>
 public sealed record SettingsViewState(
     string Host,
     string? HostError,
@@ -65,7 +72,11 @@ public sealed record SettingsViewState(
     ResultLine? DatabaseResult,
     string? ApplyError,
     bool IsBusy,
-    string? CurveNote = null);
+    string? CurveNote = null,
+    string? RetiredFormulaNote = null,
+    string GadgetTip = "",
+    bool SmoothComponents = false,
+    string DevicesText = "");
 
 /// <summary>
 /// Drives the settings page: every setter clones the current settings, changes one thing and applies it through
@@ -83,6 +94,9 @@ public sealed class SettingsPresenter
 
     /// <summary>The password placeholder when none is stored.</summary>
     public const string PasswordEmptyPlaceholder = "leave empty if not set";
+
+    /// <summary>The note shown when a retired custom formula is still stored.</summary>
+    public const string RetiredFormulaText = "A custom formula from an earlier version is stored but no longer applied: Other Components is now computed by the app from the selected sensors.";
 
     private readonly IBridgeRuntime _runtime;
     private readonly CultureInfo _culture;
@@ -288,10 +302,26 @@ public sealed class SettingsPresenter
                decimal.TryParse(text, styles, CultureInfo.InvariantCulture, out price);
     }
 
-    /// <summary>Breaks a formula across lines before each " - ".</summary>
-    /// <param name="formula">The formula.</param>
+    /// <summary>Breaks a calculation across lines before each " − " (or " - ").</summary>
+    /// <param name="formula">The calculation text.</param>
     public static string BreakFormula(string formula) =>
-        (formula ?? string.Empty).Replace(" - ", "\r\n - ", StringComparison.Ordinal);
+        (formula ?? string.Empty).Replace(" − ", "\r\n − ", StringComparison.Ordinal).Replace(" - ", "\r\n - ", StringComparison.Ordinal);
+
+    /// <summary>Sets the energy chart mode (the Combined / Per device toggle).</summary>
+    /// <param name="mode">The mode.</param>
+    public void SetChartMode(EnergyChartMode mode) => Update(s => s.ChartMode = mode);
+
+    /// <summary>Turns smoothing of the Other Components component sum on or off.</summary>
+    /// <param name="enabled">Whether to smooth.</param>
+    public void SetSmoothComponents(bool enabled) => Update(s => s.SmoothComponents = enabled);
+
+    /// <summary>Creates the Manage Shellys page model over the same runtime.</summary>
+    /// <param name="discover">Browses the network for plugs (for the device form).</param>
+    public ManageShellysModel CreateManageShellys(Func<CancellationToken, Task<IReadOnlyList<Shelly.Discovery.DiscoveredShelly>>> discover) =>
+        new(_runtime, discover, _culture);
+
+    /// <summary>Creates the "Customize HWiNFO sensor names" dialog model over the same runtime.</summary>
+    public SensorNamesModel CreateSensorNames() => new(_runtime);
 
     private string ConnectedText(ConnectionTestResult result, ShellyReading r)
     {
@@ -316,15 +346,7 @@ public sealed class SettingsPresenter
         var db = _runtime.Database;
         var (psuTitle, psuSubtitle) = PsuText(s, db);
         var hasPassword = _runtime.HasPassword;
-        var formula = string.Empty;
-        try
-        {
-            formula = BreakFormula(s.GetEffectiveFormula());
-        }
-        catch (ArgumentException)
-        {
-            formula = "(invalid sensor name)";
-        }
+        var formula = BreakFormula(CalculationText(s));
 
         return new SettingsViewState(
             _hostText ?? s.Device.Host,
@@ -350,7 +372,31 @@ public sealed class SettingsPresenter
             _databaseResult,
             _applyError,
             _busy,
-            CurveNote(s, db));
+            CurveNote(s, db),
+            string.IsNullOrWhiteSpace(s.CustomFormula) ? null : RetiredFormulaText,
+            HwinfoTips.GadgetExportFor(s.Sensors.Select(x => x.Name)),
+            s.SmoothComponents,
+            DevicesText(s));
+    }
+
+    /// <summary>Returns the Other Components calculation: "PC Power (DC) − CPU Package Power − GPU Power".</summary>
+    /// <param name="settings">The settings.</param>
+    public static string CalculationText(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        return string.Join(" − ", settings.Sensors.Select(x => x.Name.Trim()).Where(SensorNaming.IsValidName).Prepend(SensorNaming.PcDcName));
+    }
+
+    private string DevicesText(AppSettings s)
+    {
+        var host = s.Device.Host.Trim();
+        var pc = host.Length == 0 ? AppSettings.PrimaryLabel : AppSettings.PrimaryLabel + " · " + host;
+        return s.AdditionalDevices.Count switch
+        {
+            0 => pc,
+            1 => pc + " + 1 more device",
+            var n => pc + " + " + n.ToString(_culture) + " more devices",
+        };
     }
 
     private string? CurveNote(AppSettings s, PsuDatabase db)

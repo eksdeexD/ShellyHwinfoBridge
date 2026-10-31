@@ -15,10 +15,15 @@ using ShellyHwinfoBridge.Core.Startup;
 namespace ShellyHwinfoBridge.Core.App;
 
 /// <summary>
-/// The bridge's composition of settings, Shelly client, <see cref="PollingService"/>, HWiNFO registry writer,
-/// autostart and <see cref="EnergyLogger"/>. See <see cref="IBridgeRuntime"/>.
+/// The bridge's composition of settings, one <see cref="PollingService"/> per Shelly device, the HWiNFO registry
+/// writer, autostart, the <see cref="EnergyLogger"/> and the Other Components calculation. See <see cref="IBridgeRuntime"/>.
 /// </summary>
 /// <remarks>
+/// <para>Every device is polled on the shared interval by its own poller (own request pipeline and offline counter);
+/// device i of n starts i × interval / n after the first, so requests do not fire at the same instant. One device's
+/// failure never affects the others. The PC's readings drive the PSU curve, Other Components, the status and the tray.</para>
+/// <para>After every poll of any device (success or failure) every power and online value of the
+/// <see cref="SensorLayout"/> is written to HWiNFO; the energy logger writes the energy totals after each reading.</para>
 /// <para>Settings changes rebuild only what changed. A replaced Shelly client is disposed immediately; an in-flight
 /// request on it fails and counts as one poll failure (never enough to go offline).</para>
 /// <para>All members are thread-safe; events are raised outside the internal lock.</para>
@@ -34,18 +39,21 @@ public sealed class BridgeRuntime : IBridgeRuntime
     private readonly IHwinfoSensorRegistry _registry;
     private readonly AutostartManager _autostart;
     private readonly EnergyLogger _energy;
+    private readonly IComponentSensorSource? _components;
     private readonly Func<string, string?, IShellyClient> _clientFactory;
     private readonly TimeProvider _time;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger _logger;
     private readonly object _gate = new();
+    private readonly Dictionary<string, DevicePoller> _pollers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _devicePasswords = new(StringComparer.OrdinalIgnoreCase);
+    private readonly OtherComponentsCalculator _other = new();
 
     private AppSettings? _settings;
     private string? _password;
     private PsuDatabase _database;
-    private PollingService? _poller;
-    private IShellyClient? _client;
     private PowerReadingEventArgs? _last;
+    private OtherComponentsState _otherState = OtherComponentsState.Unknown;
     private bool _started;
     private bool _userPaused;
     private bool _sensorsRemoved;
@@ -55,12 +63,13 @@ public sealed class BridgeRuntime : IBridgeRuntime
     /// <param name="store">Settings persistence and password protection.</param>
     /// <param name="databaseLoader">Loads the PSU database.</param>
     /// <param name="databaseUpdater">Checks for database updates.</param>
-    /// <param name="registry">The HWiNFO sensor writer.</param>
+    /// <param name="registry">The HWiNFO sensor writer; its layout is set from <paramref name="settings"/> (no registry access).</param>
     /// <param name="autostart">The Run-key manager.</param>
     /// <param name="energy">The energy logger (fed with every reading).</param>
     /// <param name="clientFactory">Creates a Shelly client for a host and password; defaults to <see cref="ShellyClient"/>.</param>
     /// <param name="timeProvider">The clock; defaults to the system clock.</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
+    /// <param name="components">Reads the selected component sensors (e.g. <see cref="HwinfoMonitor"/>); <c>null</c> = no source, Other stays 0.</param>
     public BridgeRuntime(
         AppSettings? settings,
         SettingsStore store,
@@ -71,7 +80,8 @@ public sealed class BridgeRuntime : IBridgeRuntime
         EnergyLogger energy,
         Func<string, string?, IShellyClient>? clientFactory = null,
         TimeProvider? timeProvider = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        IComponentSensorSource? components = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _databaseLoader = databaseLoader ?? throw new ArgumentNullException(nameof(databaseLoader));
@@ -79,6 +89,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _autostart = autostart ?? throw new ArgumentNullException(nameof(autostart));
         _energy = energy ?? throw new ArgumentNullException(nameof(energy));
+        _components = components;
         _clientFactory = clientFactory ?? ((host, password) => new ShellyClient(host, password));
         _time = timeProvider ?? TimeProvider.System;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
@@ -89,6 +100,8 @@ public sealed class BridgeRuntime : IBridgeRuntime
             settings.Normalize();
             _settings = settings;
             _password = store.GetPassword(settings);
+            LoadDevicePasswords(settings);
+            _registry.SetLayout(SensorLayout.Build(settings));
         }
     }
 
@@ -171,7 +184,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
         {
             lock (_gate)
             {
-                return _poller?.State ?? OnlineState.Unknown;
+                return Primary?.Poller.State ?? OnlineState.Unknown;
             }
         }
     }
@@ -188,9 +201,71 @@ public sealed class BridgeRuntime : IBridgeRuntime
         }
     }
 
+    /// <inheritdoc />
+    public IReadOnlyList<DeviceStatus> Devices
+    {
+        get
+        {
+            lock (_gate)
+            {
+                var settings = _settings ?? new AppSettings();
+                var list = new List<DeviceStatus>
+                {
+                    Status(AppSettings.PrimaryDeviceId, AppSettings.PrimaryLabel, settings.Device, true),
+                };
+                list.AddRange(settings.AdditionalDevices.Select(d => Status(d.Id, d.Label, d, d.IncludeInTotals)));
+                return list;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public double? TotalWatts
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _settings is { HasAdditionalDevices: true } && _last is not null && ComputeState() == RuntimeState.Running
+                    ? ComputeTotal()
+                    : null;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public OtherComponentsState Other
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _otherState;
+            }
+        }
+    }
+
+    private DevicePoller? Primary => _pollers.TryGetValue(AppSettings.PrimaryDeviceId, out var p) ? p : null;
+
     /// <summary>Gets whether settings describe a device (a host is set).</summary>
     /// <param name="settings">The settings.</param>
     public static bool IsConfigured(AppSettings? settings) => settings is not null && !string.IsNullOrWhiteSpace(settings.Device.Host);
+
+    /// <summary>Returns the stagger offset of the device at <paramref name="index"/> among <paramref name="count"/> devices.</summary>
+    /// <param name="index">The device index (0 = PC).</param>
+    /// <param name="count">The number of devices.</param>
+    /// <param name="interval">The poll interval.</param>
+    public static TimeSpan StaggerOffset(int index, int count, TimeSpan interval) =>
+        count <= 1 || index <= 0 ? TimeSpan.Zero : TimeSpan.FromTicks(interval.Ticks * index / count);
+
+    /// <inheritdoc />
+    public string? GetDevicePassword(string deviceId)
+    {
+        lock (_gate)
+        {
+            return AppSettings.IsPrimary(deviceId) ? _password : _devicePasswords.GetValueOrDefault(deviceId);
+        }
+    }
 
     /// <inheritdoc />
     public void Start()
@@ -203,12 +278,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
             }
 
             _started = true;
-            if (IsConfigured(_settings))
-            {
-                TryWriteFormula(_settings!);
-            }
-
-            Reconcile(rebuildClient: false, rebuildCalculator: false);
+            Reconcile(rebuildCalculator: false);
         }
 
         RaiseStateChanged();
@@ -217,26 +287,31 @@ public sealed class BridgeRuntime : IBridgeRuntime
     /// <inheritdoc />
     public async Task StopAsync()
     {
-        PollingService? poller;
-        IShellyClient? client;
+        List<DevicePoller> pollers;
         lock (_gate)
         {
             _started = false;
-            poller = _poller;
-            client = _client;
-            _poller = null;
-            _client = null;
+            pollers = [.. _pollers.Values];
+            _pollers.Clear();
             _last = null;
         }
 
-        if (poller is not null)
+        foreach (var entry in pollers)
         {
-            poller.ReadingReceived -= OnPollerReading;
-            poller.OnlineStateChanged -= OnPollerOnlineStateChanged;
-            await poller.StopAsync().ConfigureAwait(false);
+            Unsubscribe(entry.Poller);
         }
 
-        (client as IDisposable)?.Dispose();
+        await Task.WhenAll(pollers.Select(p => p.Poller.StopAsync())).ConfigureAwait(false);
+        foreach (var entry in pollers)
+        {
+            (entry.Client as IDisposable)?.Dispose();
+        }
+
+        lock (_gate)
+        {
+            GoOfflineLocked();
+        }
+
         _energy.Flush();
         RaiseStateChanged();
     }
@@ -252,8 +327,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
             }
 
             _userPaused = true;
-            _last = null;
-            _poller?.Pause();
+            PauseAllLocked();
         }
 
         _logger.LogInformation("Polling paused by the user.");
@@ -273,17 +347,12 @@ public sealed class BridgeRuntime : IBridgeRuntime
 
             if (_sensorsRemoved)
             {
-                keysCreated = TryEnsureKeys();
-                if (_settings is not null)
-                {
-                    TryWriteFormula(_settings);
-                }
-
+                keysCreated = TryApplyLayout(_settings is null ? _registry.Layout : SensorLayout.Build(_settings));
                 _sensorsRemoved = false;
             }
 
             _userPaused = false;
-            Reconcile(rebuildClient: false, rebuildCalculator: false);
+            Reconcile(rebuildCalculator: false);
         }
 
         _logger.LogInformation("Polling resumed by the user.");
@@ -296,14 +365,16 @@ public sealed class BridgeRuntime : IBridgeRuntime
     }
 
     /// <inheritdoc />
-    public ApplyOutcome Apply(AppSettings settings, string? newPassword = null)
+    public ApplyOutcome Apply(AppSettings settings, string? newPassword = null, IReadOnlyDictionary<string, string>? devicePasswords = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         var errors = new List<string>();
         List<string> changed;
+        var layoutChanged = false;
         lock (_gate)
         {
             var old = _settings;
+            var oldPasswords = new Dictionary<string, string?>(_devicePasswords, StringComparer.OrdinalIgnoreCase);
             string? password;
             try
             {
@@ -312,6 +383,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
                     _store.SetPassword(settings, newPassword);
                 }
 
+                ApplyDevicePasswords(settings, devicePasswords);
                 settings.Normalize();
                 password = newPassword is null ? _store.GetPassword(settings) : (newPassword.Length == 0 ? null : newPassword);
                 _store.Save(settings);
@@ -323,14 +395,30 @@ public sealed class BridgeRuntime : IBridgeRuntime
             }
 
             changed = Diff(old, _password, settings, password);
-            var clientChanged = changed.Contains(Keys.Host) || changed.Contains(Keys.Password);
             var calculatorChanged = changed.Contains(Keys.Psu) || changed.Contains(Keys.VoltageMode) || changed.Contains(Keys.Smoothing);
             _settings = settings;
             _password = password;
-
-            if (changed.Contains(Keys.Formula) && IsConfigured(settings) && !TryWriteFormula(settings))
+            LoadDevicePasswords(settings);
+            if (!changed.Contains(Keys.Devices) && DevicePasswordsDiffer(oldPasswords, _devicePasswords))
             {
-                errors.Add("The HWiNFO formula could not be written.");
+                changed.Add(Keys.Devices);
+            }
+
+            if (IsConfigured(settings) && !_sensorsRemoved)
+            {
+                var layout = SensorLayout.Build(settings);
+                if (!layout.Equals(_registry.Layout))
+                {
+                    layoutChanged = TryApplyLayout(layout);
+                    if (!changed.Contains(Keys.SensorLayout))
+                    {
+                        changed.Add(Keys.SensorLayout);
+                    }
+                }
+            }
+            else
+            {
+                _registry.SetLayout(SensorLayout.Build(settings));
             }
 
             if (changed.Contains(Keys.StartWithWindows) && !TryApplyAutostart(settings.StartWithWindows))
@@ -339,12 +427,17 @@ public sealed class BridgeRuntime : IBridgeRuntime
             }
 
             _energy.Enabled = settings.EnergyLoggingEnabled;
-            Reconcile(clientChanged, calculatorChanged);
+            Reconcile(calculatorChanged);
         }
 
         if (changed.Count > 0)
         {
             _logger.LogInformation("Settings changed: {Keys}.", string.Join(", ", changed));
+        }
+
+        if (layoutChanged)
+        {
+            SensorKeysCreated?.Invoke(this, EventArgs.Empty);
         }
 
         SettingsChanged?.Invoke(this, EventArgs.Empty);
@@ -353,7 +446,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
     }
 
     /// <inheritdoc />
-    public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows)
+    public ApplyOutcome ApplyFromWizard(AppSettings draft, string? password, bool startWithWindows, IReadOnlyDictionary<string, string>? devicePasswords = null)
     {
         ArgumentNullException.ThrowIfNull(draft);
         lock (_gate)
@@ -361,16 +454,11 @@ public sealed class BridgeRuntime : IBridgeRuntime
             try
             {
                 _store.SetPassword(draft, password);
+                ApplyDevicePasswords(draft, devicePasswords);
                 draft.StartWithWindows = startWithWindows;
                 draft.Normalize();
                 _store.Save(draft);
-                _registry.EnsureKeys();
-                var formula = draft.GetEffectiveFormula();
-                if (!string.IsNullOrWhiteSpace(formula))
-                {
-                    _registry.WriteFormula(formula);
-                }
-
+                _registry.ApplyLayout(SensorLayout.Build(draft));
                 _autostart.Apply(startWithWindows);
             }
             catch (Exception ex) when (IsIoError(ex))
@@ -381,11 +469,13 @@ public sealed class BridgeRuntime : IBridgeRuntime
 
             _settings = draft;
             _password = string.IsNullOrEmpty(password) ? null : password;
+            LoadDevicePasswords(draft);
             _userPaused = false;
             _sensorsRemoved = false;
             _started = true;
             _energy.Enabled = draft.EnergyLoggingEnabled;
-            Reconcile(rebuildClient: true, rebuildCalculator: true);
+            RebuildAllClients();
+            Reconcile(rebuildCalculator: true);
         }
 
         _logger.LogInformation("Setup wizard applied.");
@@ -411,7 +501,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
             lock (_gate)
             {
                 _database = updated;
-                Reconcile(rebuildClient: false, rebuildCalculator: true);
+                Reconcile(rebuildCalculator: true);
             }
 
             SettingsChanged?.Invoke(this, EventArgs.Empty);
@@ -427,8 +517,12 @@ public sealed class BridgeRuntime : IBridgeRuntime
         lock (_gate)
         {
             _userPaused = true;
-            _last = null;
-            _poller?.Pause();
+            foreach (var entry in _pollers.Values)
+            {
+                entry.Poller.Pause();
+            }
+
+            ResetLiveLocked();
             try
             {
                 _registry.RemoveAll();
@@ -509,7 +603,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
             changed.Add(Keys.Host);
             changed.Add(Keys.Password);
             changed.Add(Keys.Psu);
-            changed.Add(Keys.Formula);
+            changed.Add(Keys.Sensors);
             changed.Add(Keys.StartWithWindows);
             return changed;
         }
@@ -525,11 +619,18 @@ public sealed class BridgeRuntime : IBridgeRuntime
         Check(!string.Equals(old.Device.Host.Trim(), now.Device.Host.Trim(), StringComparison.OrdinalIgnoreCase), Keys.Host);
         Check(!string.Equals(oldPassword ?? string.Empty, newPassword ?? string.Empty, StringComparison.Ordinal), Keys.Password);
         Check(old.Device.Name != now.Device.Name || old.Device.Model != now.Device.Model, Keys.DeviceName);
+        Check(Json(old.AdditionalDevices.Select(d => new { d.Id, d.Label, d.Host, d.Name, d.Model, d.IncludeInTotals })) !=
+              Json(now.AdditionalDevices.Select(d => new { d.Id, d.Label, d.Host, d.Name, d.Model, d.IncludeInTotals })), Keys.Devices);
+        Check(Json(old.SensorNames.OrderBy(p => p.Key, StringComparer.Ordinal)) != Json(now.SensorNames.OrderBy(p => p.Key, StringComparer.Ordinal)), Keys.SensorNames);
+        Check(old.ChartMode != now.ChartMode, Keys.ChartMode);
+        Check(old.ColourMode != now.ColourMode || old.BaseColour != now.BaseColour || old.Device.Colour != now.Device.Colour ||
+              !old.AdditionalDevices.Select(d => d.Colour).SequenceEqual(now.AdditionalDevices.Select(d => d.Colour)), Keys.Colours);
         Check(Json(old.Psu) != Json(now.Psu), Keys.Psu);
         Check(old.VoltageMode != now.VoltageMode, Keys.VoltageMode);
-        Check(old.SmoothingSamples != now.SmoothingSamples, Keys.Smoothing);
+        Check(old.SmoothingSamples != now.SmoothingSamples || old.SmoothComponents != now.SmoothComponents, Keys.Smoothing);
         Check(old.GetPollingOptions() != now.GetPollingOptions(), Keys.Interval);
-        Check(old.CustomFormula != now.CustomFormula || Json(old.Sensors) != Json(now.Sensors), Keys.Formula);
+        Check(Json(old.Sensors) != Json(now.Sensors), Keys.Sensors);
+        Check(old.CustomFormula != now.CustomFormula, Keys.CustomFormula);
         Check(old.StartWithWindows != now.StartWithWindows, Keys.StartWithWindows);
         Check(old.HideTrayIcon != now.HideTrayIcon, Keys.HideTrayIcon);
         Check(old.EnergyLoggingEnabled != now.EnergyLoggingEnabled, Keys.EnergyLogging);
@@ -538,7 +639,46 @@ public sealed class BridgeRuntime : IBridgeRuntime
         return changed;
     }
 
+    private static bool DevicePasswordsDiffer(Dictionary<string, string?> a, Dictionary<string, string?> b) =>
+        a.Count != b.Count || a.Any(p => !b.TryGetValue(p.Key, out var v) || !string.Equals(v, p.Value, StringComparison.Ordinal));
+
     private static string Json<T>(T value) => JsonSerializer.Serialize(value, SettingsStore.JsonOptions);
+
+    private static PowerCalculator CreateCalculator(AppSettings settings, PsuCurveSet curves) =>
+        new(curves, settings.VoltageMode, settings.SmoothingSamples);
+
+    private DeviceStatus Status(string id, string label, ShellyDeviceSettings device, bool included)
+    {
+        var entry = _pollers.GetValueOrDefault(id);
+        var state = entry?.Poller.State ?? OnlineState.Unknown;
+        var live = state == OnlineState.Online && ComputeState() == RuntimeState.Running ? entry?.LastAc : null;
+        return new DeviceStatus(id, label, device.Host, device.Name, device.Model, state, live, included);
+    }
+
+    private void ApplyDevicePasswords(AppSettings settings, IReadOnlyDictionary<string, string>? passwords)
+    {
+        if (passwords is null)
+        {
+            return;
+        }
+
+        foreach (var (id, password) in passwords)
+        {
+            if (settings.FindAdditionalDevice(id) is { } device && password is not null)
+            {
+                _store.SetDevicePassword(device, password);
+            }
+        }
+    }
+
+    private void LoadDevicePasswords(AppSettings settings)
+    {
+        _devicePasswords.Clear();
+        foreach (var device in settings.AdditionalDevices)
+        {
+            _devicePasswords[device.Id] = _store.GetDevicePassword(device);
+        }
+    }
 
     private RuntimeState ComputeState()
     {
@@ -555,8 +695,8 @@ public sealed class BridgeRuntime : IBridgeRuntime
         return _userPaused ? RuntimeState.Paused : RuntimeState.Running;
     }
 
-    /// <summary>Brings the poller in line with the settings and state. Caller holds the lock.</summary>
-    private void Reconcile(bool rebuildClient, bool rebuildCalculator)
+    /// <summary>Brings the pollers in line with the settings and state. Caller holds the lock.</summary>
+    private void Reconcile(bool rebuildCalculator)
     {
         if (!_started)
         {
@@ -568,93 +708,199 @@ public sealed class BridgeRuntime : IBridgeRuntime
         if (curves is null)
         {
             // Unconfigured or no curve: keep the sensors offline.
-            _last = null;
-            _poller?.Pause();
+            PauseAllLocked();
             return;
         }
 
         _energy.DeviceKey = EnergyLogger.BuildDeviceKey(settings!.Device.Host, null);
+        _energy.SetDevices(EnergyLogger.DevicesFrom(settings));
         _energy.PollInterval = settings.GetPollingOptions().Interval;
         _energy.Enabled = settings.EnergyLoggingEnabled;
+        _other.SetSmoothing(settings.SmoothComponents ? settings.SmoothingSamples : 1);
 
-        if (_poller is null)
+        var options = settings.GetPollingOptions();
+        var wanted = new List<(string Id, string Host, string? Password)> { (AppSettings.PrimaryDeviceId, settings.Device.Host.Trim(), _password) };
+        wanted.AddRange(settings.AdditionalDevices.Where(d => !string.IsNullOrWhiteSpace(d.Host)).Select(d => (d.Id, d.Host.Trim(), _devicePasswords.GetValueOrDefault(d.Id))));
+
+        // Removed devices: stop their pollers (the new layout no longer has their sensors).
+        foreach (var id in _pollers.Keys.Where(id => !wanted.Any(w => string.Equals(w.Id, id, StringComparison.OrdinalIgnoreCase))).ToList())
         {
-            _client = _clientFactory(settings.Device.Host.Trim(), _password);
-            _poller = new PollingService(
-                _client,
-                _registry,
-                CreateCalculator(settings, curves),
-                settings.GetPollingOptions(),
-                _loggerFactory.CreateLogger<PollingService>(),
-                _time);
-            _poller.ReadingReceived += OnPollerReading;
-            _poller.OnlineStateChanged += OnPollerOnlineStateChanged;
-            if (_userPaused)
+            var removed = _pollers[id];
+            _pollers.Remove(id);
+            Unsubscribe(removed.Poller);
+            _ = StopAndDisposeAsync(removed);
+        }
+
+        for (var i = 0; i < wanted.Count; i++)
+        {
+            var (id, host, password) = wanted[i];
+            var isPrimary = i == 0;
+            if (!_pollers.TryGetValue(id, out var entry))
             {
-                _poller.Pause();
+                var client = CreateClient(id, host, password);
+                if (client is null)
+                {
+                    continue;
+                }
+
+                var poller = new PollingService(
+                    client,
+                    isPrimary ? CreateCalculator(settings, curves) : null,
+                    options,
+                    _loggerFactory.CreateLogger<PollingService>(),
+                    _time,
+                    id,
+                    StaggerOffset(i, wanted.Count, options.Interval));
+                entry = new DevicePoller(id, poller, client, host, password);
+                _pollers[id] = entry;
+                poller.ReadingReceived += OnPollerReading;
+                poller.OnlineStateChanged += OnPollerOnlineStateChanged;
+                poller.PollFailed += OnPollerFailed;
+                if (_userPaused)
+                {
+                    poller.Pause();
+                }
+
+                poller.Start();
+                continue;
             }
 
-            _poller.Start();
-            return;
+            if (!string.Equals(entry.Host, host, StringComparison.OrdinalIgnoreCase) || !string.Equals(entry.Password, password, StringComparison.Ordinal))
+            {
+                var client = CreateClient(id, host, password);
+                if (client is not null)
+                {
+                    var old = entry.Client;
+                    entry.Client = client;
+                    entry.Host = host;
+                    entry.Password = password;
+                    entry.Poller.UpdateClient(client);
+                    (old as IDisposable)?.Dispose();
+                    entry.LastAc = null;
+                    if (isPrimary)
+                    {
+                        _last = null;
+                    }
+                }
+            }
+
+            if (isPrimary && rebuildCalculator)
+            {
+                entry.Poller.UpdateCalculator(CreateCalculator(settings, curves));
+            }
+
+            entry.Poller.UpdateOptions(options);
+            if (_userPaused)
+            {
+                entry.Poller.Pause();
+            }
+            else
+            {
+                entry.Poller.Resume();
+            }
         }
 
-        if (rebuildClient)
-        {
-            var old = _client;
-            _client = _clientFactory(settings.Device.Host.Trim(), _password);
-            _poller.UpdateClient(_client);
-            (old as IDisposable)?.Dispose();
-            _last = null;
-        }
-
-        if (rebuildCalculator)
-        {
-            _poller.UpdateCalculator(CreateCalculator(settings, curves));
-        }
-
-        _poller.UpdateOptions(settings.GetPollingOptions());
         if (_userPaused)
         {
-            _poller.Pause();
+            ResetLiveLocked();
+        }
+    }
+
+    private IShellyClient? CreateClient(string id, string host, string? password)
+    {
+        try
+        {
+            return _clientFactory(host, password);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogError(ex, "The host of device {Device} is invalid.", id);
+            return null;
+        }
+    }
+
+    /// <summary>Recreates every client (the wizard may have changed hosts or passwords). Caller holds the lock.</summary>
+    private void RebuildAllClients()
+    {
+        foreach (var entry in _pollers.Values)
+        {
+            // Force a rebuild on the next reconcile.
+            entry.Host = string.Empty;
+        }
+    }
+
+    private async Task StopAndDisposeAsync(DevicePoller entry)
+    {
+        try
+        {
+            await entry.Poller.StopAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Stopping the poller of {Device} failed.", entry.Id);
+        }
+        finally
+        {
+            (entry.Client as IDisposable)?.Dispose();
+        }
+    }
+
+    private void Unsubscribe(PollingService poller)
+    {
+        poller.ReadingReceived -= OnPollerReading;
+        poller.OnlineStateChanged -= OnPollerOnlineStateChanged;
+        poller.PollFailed -= OnPollerFailed;
+    }
+
+    /// <summary>Pauses every poller and sets the sensors offline. Caller holds the lock.</summary>
+    private void PauseAllLocked()
+    {
+        foreach (var entry in _pollers.Values)
+        {
+            entry.Poller.Pause();
+        }
+
+        if (!_sensorsRemoved)
+        {
+            GoOfflineLocked();
         }
         else
         {
-            _poller.Resume();
+            ResetLiveLocked();
         }
     }
 
-    private static PowerCalculator CreateCalculator(AppSettings settings, PsuCurveSet curves) =>
-        new(curves, settings.VoltageMode, settings.SmoothingSamples);
-
-    private bool TryWriteFormula(AppSettings settings)
+    /// <summary>Clears the live values and writes the sensors offline (every value 0). Caller holds the lock.</summary>
+    private void GoOfflineLocked()
     {
-        var formula = settings.GetEffectiveFormula();
-        if (string.IsNullOrWhiteSpace(formula))
+        ResetLiveLocked();
+        if (!_sensorsRemoved)
         {
-            return true;
-        }
-
-        try
-        {
-            _registry.WriteFormula(formula);
-            return true;
-        }
-        catch (Exception ex) when (IsIoError(ex))
-        {
-            _logger.LogError(ex, "Writing the HWiNFO formula failed.");
-            return false;
+            TryWrite(_registry.SetOffline);
         }
     }
 
-    private bool TryEnsureKeys()
+    private void ResetLiveLocked()
+    {
+        _last = null;
+        _other.Reset();
+        _otherState = _otherState with { Watts = 0, HasValue = false };
+        foreach (var entry in _pollers.Values)
+        {
+            entry.LastAc = null;
+        }
+    }
+
+    private bool TryApplyLayout(SensorLayout layout)
     {
         try
         {
-            return _registry.EnsureKeys();
+            return _registry.ApplyLayout(layout);
         }
         catch (Exception ex) when (IsIoError(ex))
         {
             _logger.LogError(ex, "Creating the HWiNFO sensor keys failed.");
+            _registry.SetLayout(layout);
             return false;
         }
     }
@@ -673,16 +919,121 @@ public sealed class BridgeRuntime : IBridgeRuntime
         }
     }
 
+    private void TryWrite(Action write)
+    {
+        try
+        {
+            write();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            _logger.LogError(ex, "Writing HWiNFO sensor values failed.");
+        }
+    }
+
+    /// <summary>Whether events from a poller should be applied now. Caller holds the lock.</summary>
+    private bool IsCurrent(object? sender, out DevicePoller entry)
+    {
+        entry = null!;
+        if (sender is not PollingService poller || !_started || _userPaused || _sensorsRemoved || poller.IsPaused)
+        {
+            return false;
+        }
+
+        if (!_pollers.TryGetValue(poller.DeviceId, out var found) || !ReferenceEquals(found.Poller, poller))
+        {
+            return false;
+        }
+
+        entry = found;
+        return true;
+    }
+
+    private double ComputeTotal()
+    {
+        var total = _last?.Power.AcWatts ?? 0;
+        foreach (var device in _settings?.AdditionalDevices ?? [])
+        {
+            if (device.IncludeInTotals && _pollers.TryGetValue(device.Id, out var entry) && entry.LastAc is double ac)
+            {
+                total += ac;
+            }
+        }
+
+        return total;
+    }
+
+    /// <summary>Writes every power and online value of the layout. Caller holds the lock.</summary>
+    private void WriteAllLocked()
+    {
+        var values = new Dictionary<SensorKey, double>
+        {
+            [SensorKey.PcAc] = _last?.Power.AcWatts ?? 0,
+            [SensorKey.PcDc] = _last?.Power.DcWatts ?? 0,
+            [SensorKey.PcLoss] = _last?.Power.LossWatts ?? 0,
+            [SensorKey.PcOther] = _last is null ? 0 : _other.Value,
+            [SensorKey.PcOnline] = Primary?.Poller.State == OnlineState.Online && _last is not null ? 1 : 0,
+        };
+        foreach (var device in _settings?.AdditionalDevices ?? [])
+        {
+            var entry = _pollers.GetValueOrDefault(device.Id);
+            var online = entry is not null && entry.Poller.State == OnlineState.Online && entry.LastAc is not null;
+            values[SensorKey.DeviceAc(device.Id)] = online ? entry!.LastAc!.Value : 0;
+            values[SensorKey.DeviceOnline(device.Id)] = online ? 1 : 0;
+        }
+
+        if (_settings?.HasAdditionalDevices == true)
+        {
+            values[SensorKey.Total] = ComputeTotal();
+        }
+
+        TryWrite(() => _registry.WriteValues(values));
+    }
+
     private void OnPollerReading(object? sender, PowerReadingEventArgs e)
     {
+        // Component readings are read outside the lock (shared memory or registry).
+        IReadOnlyList<SensorSelection> sensors;
         lock (_gate)
         {
-            if (!ReferenceEquals(sender, _poller))
+            if (!IsCurrent(sender, out _))
             {
                 return;
             }
 
-            _last = e;
+            sensors = e.IsPrimary ? [.. _settings?.Sensors ?? []] : [];
+        }
+
+        ComponentReadings? components = null;
+        if (e.IsPrimary)
+        {
+            try
+            {
+                components = _components?.Read(sensors) ?? ComponentReadings.NotRunning;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Reading the component sensors failed.");
+                components = ComponentReadings.NotRunning;
+            }
+        }
+
+        lock (_gate)
+        {
+            if (!IsCurrent(sender, out var entry))
+            {
+                return;
+            }
+
+            entry.LastAc = e.Power.AcWatts;
+            if (e.IsPrimary)
+            {
+                _last = e;
+                var other = _other.Update(e.Power.DcWatts, components!);
+                _otherState = new OtherComponentsState(other, components!.Source, components.HwinfoRunning, components.MissingGadgetSensors, _other.HasValue);
+            }
+
+            WriteAllLocked();
         }
 
         // Never let a subscriber break the polling loop.
@@ -705,13 +1056,42 @@ public sealed class BridgeRuntime : IBridgeRuntime
         }
     }
 
+    private void OnPollerFailed(object? sender, PollFailedEventArgs e)
+    {
+        lock (_gate)
+        {
+            if (!IsCurrent(sender, out var entry) || e.State != OnlineState.Offline)
+            {
+                return;
+            }
+
+            // Offline: keep this device's values zeroed on every failed poll; the others are unaffected.
+            entry.LastAc = null;
+            if (AppSettings.IsPrimary(e.DeviceId))
+            {
+                _last = null;
+                _other.Reset();
+                _otherState = _otherState with { Watts = 0, HasValue = false };
+            }
+
+            WriteAllLocked();
+        }
+    }
+
     private void OnPollerOnlineStateChanged(object? sender, OnlineStateChangedEventArgs e)
     {
         if (e.Current != OnlineState.Online)
         {
             lock (_gate)
             {
-                _last = null;
+                if (_pollers.TryGetValue(e.DeviceId, out var entry) && ReferenceEquals(entry.Poller, sender))
+                {
+                    entry.LastAc = null;
+                    if (AppSettings.IsPrimary(e.DeviceId))
+                    {
+                        _last = null;
+                    }
+                }
             }
         }
 
@@ -730,17 +1110,39 @@ public sealed class BridgeRuntime : IBridgeRuntime
         }
     }
 
+    /// <summary>One device's poller and client.</summary>
+    private sealed class DevicePoller(string id, PollingService poller, IShellyClient client, string host, string? password)
+    {
+        public string Id { get; } = id;
+
+        public PollingService Poller { get; } = poller;
+
+        public IShellyClient Client { get; set; } = client;
+
+        public string Host { get; set; } = host;
+
+        public string? Password { get; set; } = password;
+
+        public double? LastAc { get; set; }
+    }
+
     /// <summary>Names of settings groups, for change detection and logging.</summary>
     private static class Keys
     {
         public const string Host = "Device.Host";
         public const string Password = "Device.Password";
         public const string DeviceName = "Device.Name";
+        public const string Devices = "AdditionalDevices";
+        public const string SensorNames = "SensorNames";
+        public const string SensorLayout = "SensorLayout";
+        public const string ChartMode = "ChartMode";
+        public const string Colours = "Colours";
         public const string Psu = "Psu";
         public const string VoltageMode = "VoltageMode";
         public const string Smoothing = "SmoothingSamples";
         public const string Interval = "PollInterval";
-        public const string Formula = "Sensors";
+        public const string Sensors = "Sensors";
+        public const string CustomFormula = "CustomFormula";
         public const string StartWithWindows = "StartWithWindows";
         public const string HideTrayIcon = "HideTrayIcon";
         public const string EnergyLogging = "EnergyLogging";

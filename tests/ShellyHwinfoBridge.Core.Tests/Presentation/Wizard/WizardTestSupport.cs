@@ -87,13 +87,13 @@ internal static class Snapshots
     {
         var list = new List<HwinfoReading>
         {
-            Watts(9, "Shelly Power", "AC Power (Wall)", ac),
-            Watts(9, "Shelly Power", "DC Power (Est.)", dc),
-            Watts(9, "Shelly Power", "PSU Loss", loss),
+            Watts(9, "Shelly Power", "PC Power (AC)", ac),
+            Watts(9, "Shelly Power", "PC Power (DC)", dc),
+            Watts(9, "Shelly Power", "PC PSU Loss", loss),
         };
         if (other is double o)
         {
-            list.Add(Watts(9, "Shelly Power", "Other Components", o));
+            list.Add(Watts(9, "Shelly Power", "PC Other Components", o));
         }
 
         return [.. list];

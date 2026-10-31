@@ -1,36 +1,25 @@
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Sensors;
 
 namespace ShellyHwinfoBridge.Core.Tests.Sensors;
 
 public class SensorTests
 {
-    [Fact]
-    public void FormulaSubtractsQuotedSensorsFromDc()
-    {
-        var formula = HwinfoFormula.Build(["CPU Package Power", "GPU Power", "DIMM1 Power", "DIMM3 Power"]);
-        Assert.Equal("\"DC Power (Est.)\" - \"CPU Package Power\" - \"GPU Power\" - \"DIMM1 Power\" - \"DIMM3 Power\"", formula);
-    }
-
-    [Fact]
-    public void FormulaWithoutSensorsIsJustDc()
-    {
-        Assert.Equal("\"DC Power (Est.)\"", HwinfoFormula.Build([]));
-    }
-
-    [Fact]
-    public void FormulaTrimsNames()
-    {
-        Assert.Equal("\"DC Power (Est.)\" - \"GPU Power\"", HwinfoFormula.Build(["  GPU Power "]));
-    }
-
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("Bad \"name\"")]
-    public void FormulaRejectsUnquotableNames(string name)
+    public void SensorNamesMustBeNonBlankWithoutQuotes(string name)
     {
-        Assert.False(HwinfoFormula.IsValidSensorName(name));
-        Assert.Throws<ArgumentException>(() => HwinfoFormula.Build([name]));
+        Assert.False(SensorNaming.IsValidName(name));
+    }
+
+    [Fact]
+    public void SensorNamesAcceptNormalNamesUpToTheLimit()
+    {
+        Assert.True(SensorNaming.IsValidName("  GPU Power "));
+        Assert.True(SensorNaming.IsValidName(new string('x', SensorNaming.MaxNameLength)));
+        Assert.False(SensorNaming.IsValidName(new string('x', SensorNaming.MaxNameLength + 1)));
     }
 
     [Fact]

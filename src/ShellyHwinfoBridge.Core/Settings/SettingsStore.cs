@@ -77,12 +77,29 @@ public sealed class SettingsStore
         File.Move(tempPath, FilePath, overwrite: true);
     }
 
-    /// <summary>Returns the decrypted device password, or <c>null</c> when none is set or it cannot be decrypted.</summary>
+    /// <summary>Returns the decrypted primary device password, or <c>null</c> when none is set or it cannot be decrypted.</summary>
     /// <param name="settings">The settings.</param>
     public string? GetPassword(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        var stored = settings.Device.ProtectedPassword;
+        return GetDevicePassword(settings.Device);
+    }
+
+    /// <summary>Encrypts and stores the primary device password; <c>null</c> or empty clears it.</summary>
+    /// <param name="settings">The settings.</param>
+    /// <param name="password">The password.</param>
+    public void SetPassword(AppSettings settings, string? password)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        SetDevicePassword(settings.Device, password);
+    }
+
+    /// <summary>Returns a device's decrypted password, or <c>null</c> when none is set or it cannot be decrypted.</summary>
+    /// <param name="device">The device (primary or additional).</param>
+    public string? GetDevicePassword(ShellyDeviceSettings device)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        var stored = device.ProtectedPassword;
         if (string.IsNullOrEmpty(stored))
         {
             return null;
@@ -98,12 +115,12 @@ public sealed class SettingsStore
         }
     }
 
-    /// <summary>Encrypts and stores the device password; <c>null</c> or empty clears it.</summary>
-    /// <param name="settings">The settings.</param>
+    /// <summary>Encrypts and stores a device's password; <c>null</c> or empty clears it.</summary>
+    /// <param name="device">The device (primary or additional).</param>
     /// <param name="password">The password.</param>
-    public void SetPassword(AppSettings settings, string? password)
+    public void SetDevicePassword(ShellyDeviceSettings device, string? password)
     {
-        ArgumentNullException.ThrowIfNull(settings);
-        settings.Device.ProtectedPassword = string.IsNullOrEmpty(password) ? null : _protector.Protect(password);
+        ArgumentNullException.ThrowIfNull(device);
+        device.ProtectedPassword = string.IsNullOrEmpty(password) ? null : _protector.Protect(password);
     }
 }

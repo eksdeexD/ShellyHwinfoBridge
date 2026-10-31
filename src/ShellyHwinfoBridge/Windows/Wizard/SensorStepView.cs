@@ -1,4 +1,5 @@
 using ShellyHwinfoBridge.Controls;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
 using ShellyHwinfoBridge.Core.Sensors;
 using ShellyHwinfoBridge.Theming;
@@ -49,7 +50,8 @@ internal sealed class SensorStepView : WizardStepView
         _card.Controls.Add(_rows);
         _formulaCard.Controls.AddRange([_formulaCaption, _formula, _advanced, _editor, _reset]);
         Controls.AddRange([_notice, _card, _formulaCard]);
-        _editorOpen = _model.IsCustomFormula;
+        _editorOpen = false;
+        _advanced.Visible = false;
 
         _notice.LinkClicked += (_, _) => _reload();
         _advanced.Click += (_, _) =>
@@ -59,18 +61,6 @@ internal sealed class SensorStepView : WizardStepView
             if (_editorOpen)
             {
                 _editor.Focus();
-            }
-        };
-        _reset.Click += (_, _) =>
-        {
-            _model.ResetFormula();
-            _editor.SetText(_model.EffectiveFormula);
-        };
-        _editor.TextChanged += (_, _) =>
-        {
-            if (!IsRefreshing)
-            {
-                _model.SetCustomFormula(_editor.Text);
             }
         };
         _rows.Layout += (_, _) => LayoutRows();
@@ -103,7 +93,7 @@ internal sealed class SensorStepView : WizardStepView
             {
                 SetTextIfChanged(c.Name, row.Name);
                 c.Category.SelectedIndex = IndexOf(ManualCategories, row.Category);
-                c.Name.HasError = !string.IsNullOrEmpty(row.Name) && !HwinfoFormula.IsValidSensorName(row.Name);
+                c.Name.HasError = !string.IsNullOrEmpty(row.Name) && !SensorNaming.IsValidName(row.Name);
             }
         }
 
@@ -126,15 +116,15 @@ internal sealed class SensorStepView : WizardStepView
             }
         }
 
-        _formula.Text = _model.EffectiveFormula;
+        _formula.Text = _model.CalculationPreview;
         _formula.Visible = !_editorOpen;
         _editor.Visible = _editorOpen;
         _reset.Visible = _editorOpen;
-        _reset.Enabled = _model.IsCustomFormula;
-        _advanced.Text = _editorOpen ? "Hide formula editor" : "Advanced: edit formula";
+        _reset.Enabled = false;
+        _advanced.Visible = false;
         if (!_editor.InnerTextBox.Focused || !_editorOpen)
         {
-            SetTextIfChanged(_editor, _model.EffectiveFormula);
+            SetTextIfChanged(_editor, _model.CalculationPreview);
         }
     }
 

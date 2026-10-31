@@ -1,56 +1,27 @@
+using System.Globalization;
+
 namespace ShellyHwinfoBridge.Core.Hwinfo;
 
 /// <summary>
-/// Writes the custom sensors under <c>HKCU\Software\HWiNFO64\Sensors\Custom\Shelly Power</c>:
-/// Power0 AC Power (Wall), Power1 DC Power (Est.), Power2 PSU Loss, Power3 Other Components (formula),
-/// Other0 Shelly Online, Other1 Energy Today (kWh), Other2 Energy This Month (kWh). Every value is REG_SZ with
-/// Name, Unit and Value entries.
+/// Writes the custom sensors under <c>HKCU\Software\HWiNFO64\Sensors\Custom\Shelly Power</c> following a
+/// <see cref="SensorLayout"/>: one <c>PowerN</c>/<c>OtherN</c> subkey per sensor, each with REG_SZ Name, Unit and Value.
 /// </summary>
+/// <remarks>Thread-safe: every member takes an internal lock.</remarks>
 public sealed class HwinfoSensorRegistry : IHwinfoSensorRegistry
 {
-    /// <summary>Subkey of the AC sensor.</summary>
-    public const string AcSubkey = "Power0";
-
-    /// <summary>Subkey of the DC sensor.</summary>
-    public const string DcSubkey = "Power1";
-
-    /// <summary>Subkey of the loss sensor.</summary>
-    public const string LossSubkey = "Power2";
-
-    /// <summary>Subkey of the formula sensor.</summary>
-    public const string OtherSubkey = "Power3";
-
-    /// <summary>Subkey of the online sensor.</summary>
-    public const string OnlineSubkey = "Other0";
-
-    /// <summary>Subkey of the energy-today sensor.</summary>
-    public const string EnergyTodaySubkey = "Other1";
-
-    /// <summary>Subkey of the energy-this-month sensor.</summary>
-    public const string EnergyMonthSubkey = "Other2";
-
     private const string NameValue = "Name";
     private const string UnitValue = "Unit";
     private const string ValueValue = "Value";
 
-    private static readonly (string Subkey, string Name, string Unit, string Default)[] Sensors =
-    [
-        (AcSubkey, HwinfoSensorNames.AcPower, "W", "0.0"),
-        (DcSubkey, HwinfoSensorNames.DcPower, "W", "0.0"),
-        (LossSubkey, HwinfoSensorNames.PsuLoss, "W", "0.0"),
-        (OtherSubkey, HwinfoSensorNames.OtherComponents, "W", "0.0"),
-        (OnlineSubkey, HwinfoSensorNames.ShellyOnline, string.Empty, "0"),
-        (EnergyTodaySubkey, HwinfoSensorNames.EnergyToday, "kWh", "0.00"),
-        (EnergyMonthSubkey, HwinfoSensorNames.EnergyThisMonth, "kWh", "0.00"),
-    ];
-
     private readonly IRegistryBackend _backend;
     private readonly string _basePath;
+    private readonly object _gate = new();
+    private SensorLayout _layout = SensorLayout.Default;
 
-    /// <summary>Creates a writer.</summary>
+    /// <summary>Creates a writer with the <see cref="SensorLayout.Default"/> layout.</summary>
     /// <param name="backend">Registry access.</param>
-    /// <param name="basePath">Base key path relative to HKCU; defaults to <see cref="HwinfoSensorNames.BaseKeyPath"/>.</param>
-    public HwinfoSensorRegistry(IRegistryBackend backend, string basePath = HwinfoSensorNames.BaseKeyPath)
+    /// <param name="basePath">Base key path relative to HKCU; defaults to <see cref="SensorNaming.BaseKeyPath"/>.</param>
+    public HwinfoSensorRegistry(IRegistryBackend backend, string basePath = SensorNaming.BaseKeyPath)
     {
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
         ArgumentException.ThrowIfNullOrWhiteSpace(basePath);
@@ -58,57 +29,120 @@ public sealed class HwinfoSensorRegistry : IHwinfoSensorRegistry
     }
 
     /// <inheritdoc />
-    public bool EnsureKeys()
+    public SensorLayout Layout
     {
-        var changed = false;
-        foreach (var (subkey, name, unit, defaultValue) in Sensors)
+        get
         {
-            var path = PathOf(subkey);
-            if (!_backend.KeyExists(path))
+            lock (_gate)
             {
-                _backend.CreateKey(path);
-                changed = true;
-            }
-
-            changed |= EnsureValue(path, NameValue, name);
-            changed |= EnsureValue(path, UnitValue, unit);
-            if (_backend.GetString(path, ValueValue) is null)
-            {
-                _backend.SetString(path, ValueValue, defaultValue);
+                return _layout;
             }
         }
-
-        return changed;
     }
 
     /// <inheritdoc />
-    public void WriteReadings(double acWatts, double dcWatts, double lossWatts, bool online)
+    public void SetLayout(SensorLayout layout)
     {
-        _backend.SetString(PathOf(AcSubkey), ValueValue, SensorValueFormatter.FormatWatts(acWatts));
-        _backend.SetString(PathOf(DcSubkey), ValueValue, SensorValueFormatter.FormatWatts(dcWatts));
-        _backend.SetString(PathOf(LossSubkey), ValueValue, SensorValueFormatter.FormatWatts(lossWatts));
-        _backend.SetString(PathOf(OnlineSubkey), ValueValue, SensorValueFormatter.FormatFlag(online));
+        ArgumentNullException.ThrowIfNull(layout);
+        lock (_gate)
+        {
+            _layout = layout;
+        }
     }
 
     /// <inheritdoc />
-    public void WriteFormula(string formula)
+    public bool EnsureKeys() => ApplyLayout(Layout);
+
+    /// <inheritdoc />
+    public bool ApplyLayout(SensorLayout layout)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(formula);
-        _backend.SetString(PathOf(OtherSubkey), ValueValue, formula);
+        ArgumentNullException.ThrowIfNull(layout);
+        lock (_gate)
+        {
+            _layout = layout;
+            var changed = false;
+            foreach (var slot in layout.Slots)
+            {
+                var path = PathOf(slot.Subkey);
+                if (!_backend.KeyExists(path))
+                {
+                    _backend.CreateKey(path);
+                    changed = true;
+                }
+
+                changed |= EnsureValue(path, NameValue, slot.Name);
+                changed |= EnsureValue(path, UnitValue, slot.Unit);
+                if (!IsNumber(_backend.GetString(path, ValueValue)))
+                {
+                    // Missing, or an old formula (Other Components was a HWiNFO formula sensor before).
+                    _backend.SetString(path, ValueValue, slot.DefaultValue);
+                }
+            }
+
+            var used = layout.Slots.Select(s => s.Subkey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var subkey in _backend.GetSubKeyNames(_basePath))
+            {
+                if (SensorLayout.IsManagedSubkey(subkey) && !used.Contains(subkey))
+                {
+                    _backend.DeleteTree(PathOf(subkey));
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
     }
 
     /// <inheritdoc />
-    public void WriteEnergy(double todayKwh, double monthKwh)
+    public void WriteValues(IReadOnlyDictionary<SensorKey, double> values)
     {
-        _backend.SetString(PathOf(EnergyTodaySubkey), ValueValue, SensorValueFormatter.FormatKwh(todayKwh));
-        _backend.SetString(PathOf(EnergyMonthSubkey), ValueValue, SensorValueFormatter.FormatKwh(monthKwh));
+        ArgumentNullException.ThrowIfNull(values);
+        lock (_gate)
+        {
+            foreach (var (key, value) in values)
+            {
+                if (_layout[key] is { } slot)
+                {
+                    _backend.SetString(PathOf(slot.Subkey), ValueValue, Format(key, value));
+                }
+            }
+        }
     }
 
     /// <inheritdoc />
-    public void SetOffline() => WriteReadings(0, 0, 0, online: false);
+    public void WriteEnergy(double todayKwh, double monthKwh) =>
+        WriteValues(new Dictionary<SensorKey, double> { [SensorKey.EnergyToday] = todayKwh, [SensorKey.EnergyMonth] = monthKwh });
 
     /// <inheritdoc />
-    public void RemoveAll() => _backend.DeleteTree(_basePath);
+    public void SetOffline()
+    {
+        lock (_gate)
+        {
+            foreach (var slot in _layout.Slots.Where(s => s.Key.ValueKind != SensorValueKind.Kwh && _backend.KeyExists(PathOf(s.Subkey))))
+            {
+                _backend.SetString(PathOf(slot.Subkey), ValueValue, slot.DefaultValue);
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public void RemoveAll()
+    {
+        lock (_gate)
+        {
+            _backend.DeleteTree(_basePath);
+        }
+    }
+
+    private static string Format(SensorKey key, double value) => key.ValueKind switch
+    {
+        SensorValueKind.Flag => SensorValueFormatter.FormatFlag(value != 0),
+        SensorValueKind.Kwh => SensorValueFormatter.FormatKwh(value),
+        _ => SensorValueFormatter.FormatWatts(value),
+    };
+
+    private static bool IsNumber(string? value) =>
+        value is not null && double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number);
 
     private string PathOf(string subkey) => _basePath + "\\" + subkey;
 

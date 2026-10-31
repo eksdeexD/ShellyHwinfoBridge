@@ -463,7 +463,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _iconState = iconState;
         }
 
-        var tooltip = TrayPresenter.Tooltip(state, online, runtime.LastReading, hw);
+        var tooltip = TrayPresenter.Tooltip(runtime, hw);
         if (_notifyIcon.Text != tooltip)
         {
             _notifyIcon.Text = tooltip;
@@ -483,7 +483,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var energy = _services.Energy;
         _mainForm.Apply(_mainPresenter.Build(_services.Monitor.Current, energy.GetTotals()));
         var period = _mainForm.SelectedPeriod;
-        _mainForm.ApplyChart(EnergyChartModel.Build(energy.GetBuckets(period), period, CultureInfo.CurrentCulture));
+        _mainForm.ApplyChart(EnergyChartModel.Build(energy.GetChartData(period), period, _services.Runtime.Settings ?? new Core.Settings.AppSettings(), CultureInfo.CurrentCulture));
     }
 
     private void UpdateMonitorActivity() =>

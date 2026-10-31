@@ -24,6 +24,13 @@ internal sealed class InMemoryRegistryBackend : IRegistryBackend
             ? new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+    public IReadOnlyList<string> GetSubKeyNames(string path) =>
+        Keys.Keys
+            .Where(k => k.StartsWith(path + "\\", StringComparison.OrdinalIgnoreCase))
+            .Select(k => k[(path.Length + 1)..].Split('\\')[0])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
     public void SetString(string path, string name, string value)
     {
         CreateKey(path);

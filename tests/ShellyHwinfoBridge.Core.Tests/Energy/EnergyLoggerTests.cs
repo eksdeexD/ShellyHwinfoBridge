@@ -3,6 +3,7 @@ using ShellyHwinfoBridge.Core.Curves;
 using ShellyHwinfoBridge.Core.Energy;
 using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Polling;
+using ShellyHwinfoBridge.Core.Settings;
 using ShellyHwinfoBridge.Core.Shelly;
 using ShellyHwinfoBridge.Core.Tests.TestSupport;
 using static ShellyHwinfoBridge.Core.Tests.Energy.EnergyTestSupport;
@@ -11,7 +12,9 @@ namespace ShellyHwinfoBridge.Core.Tests.Energy;
 
 public sealed class EnergyLoggerTests : IDisposable
 {
-    private const string Base = HwinfoSensorNames.BaseKeyPath;
+    private const string Base = SensorNaming.BaseKeyPath;
+    private const string MonitorId = "11111111-1111-1111-1111-111111111111";
+    private const string LampId = "22222222-2222-2222-2222-222222222222";
     private const string Plug = "10.0.0.2|shellyplugmg3-aa";
 
     private readonly string _dir = NewTempDirectory();
@@ -198,6 +201,122 @@ public sealed class EnergyLoggerTests : IDisposable
     {
         Assert.Equal("10.0.0.2|shellyplugmg3-aa", EnergyLogger.BuildDeviceKey(" 10.0.0.2 ", "ShellyPlugMG3-AA"));
         Assert.Equal("plug.local|", EnergyLogger.BuildDeviceKey("Plug.local", null));
+    }
+
+    private static PowerReadingEventArgs DeviceReading(string id, double acW, double? counterWh) =>
+        new(new ShellyReading(acW, 230, acW / 230, counterWh), PollingService.AcOnly(acW, 230), id);
+
+    private EnergyLogger CreateMultiLogger(bool monitorIncluded = true)
+    {
+        var logger = CreateLogger();
+        logger.SetDevices(
+        [
+            new EnergyDevice(AppSettings.PrimaryDeviceId, "PC", Plug, true),
+            new EnergyDevice(MonitorId, "Monitor", "10.0.0.3|", monitorIncluded),
+            new EnergyDevice(LampId, "Lamp", "10.0.0.4|", false),
+        ]);
+        return logger;
+    }
+
+    private void PollAll(EnergyLogger logger, double pcCounter, double monitorCounter, double lampCounter)
+    {
+        logger.OnReading(Reading(300, 280, pcCounter));
+        logger.OnReading(DeviceReading(MonitorId, 30, monitorCounter));
+        logger.OnReading(DeviceReading(LampId, 10, lampCounter));
+        _time.Advance(TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public void AdditionalDevicesLogToTheirOwnFolderWithTheSameColumnsAndNoDc()
+    {
+        _time.SetUtcNow(Utc(2026, 10, 30, 18, 59, 58));
+        var logger = CreateMultiLogger();
+        PollAll(logger, 1000, 500, 100);
+        PollAll(logger, 1001, 500.5, 100.1);
+        PollAll(logger, 1002, 501, 100.2);
+
+        var pcFile = Path.Combine(_dir, "2026-10.csv");
+        var monitorFile = Path.Combine(_dir, MonitorId, "2026-10.csv");
+        var lampFile = Path.Combine(_dir, LampId, "2026-10.csv");
+        Assert.True(File.Exists(pcFile));
+        Assert.True(File.Exists(monitorFile));
+        Assert.True(File.Exists(lampFile), "Excluded devices are still logged.");
+        Assert.Equal(File.ReadAllLines(pcFile)[0], File.ReadAllLines(monitorFile)[0]);
+
+        var monitorRow = Assert.Single(new EnergyCsvStore(Path.Combine(_dir, MonitorId)).Read(Utc(2026, 10, 1), Utc(2026, 11, 1)));
+        Assert.Equal(1, monitorRow.AcWh, 9);
+        Assert.Equal(0, monitorRow.DcEstWh);
+        Assert.True(File.Exists(Path.Combine(_dir, MonitorId, EnergyCsvStore.StateFileName)));
+    }
+
+    [Fact]
+    public void TotalsAndHwinfoSumThePcAndIncludedDevicesOnly()
+    {
+        using var _ = new CultureScope("da-DK");
+        var logger = CreateMultiLogger();
+        PollAll(logger, 1000, 500, 100);
+        PollAll(logger, 1100, 550, 200);
+
+        // PC 100 Wh + monitor 50 Wh; the lamp's 100 Wh is excluded.
+        Assert.Equal(0.15, logger.GetTotals().TodayAcKwh, 9);
+        Assert.Equal("0.15", Value("Other1"));
+        Assert.Equal(0.1, logger.GetDeviceTotals(LampId).TodayAcKwh, 9);
+        Assert.Equal(0.05, logger.GetDeviceTotals(MonitorId).TodayAcKwh, 9);
+    }
+
+    [Fact]
+    public void ExcludingADeviceRemovesItsWholeHistoryFromTotalsAndIncludingBringsItBack()
+    {
+        new EnergyCsvStore(Path.Combine(_dir, MonitorId)).Append([new EnergyHourRecord(Utc(2026, 10, 30, 10), 400, 0, 3600, 1, 1, 1)]);
+        _store.Append([new EnergyHourRecord(Utc(2026, 10, 30, 10), 1000, 900, 3600, 1, 1, 1)]);
+        var logger = CreateMultiLogger(monitorIncluded: false);
+        Assert.Equal(1.0, logger.GetTotals().TodayAcKwh, 9);
+        Assert.Single(logger.GetChartData(EnergyPeriod.Days).Devices);
+
+        logger.SetDevices(
+        [
+            new EnergyDevice(AppSettings.PrimaryDeviceId, "PC", Plug, true),
+            new EnergyDevice(MonitorId, "Monitor", "10.0.0.3|", true),
+        ]);
+        Assert.Equal(1.4, logger.GetTotals().TodayAcKwh, 9);
+        var chart = logger.GetChartData(EnergyPeriod.Days);
+        Assert.Equal(["PC", "Monitor"], chart.Devices.Select(d => d.Label));
+        Assert.Equal(1.4, chart.Combined[^1].AcKwh, 9);
+        Assert.Equal(0.4, chart.Devices[1].Buckets[^1].AcKwh, 9);
+        Assert.Equal(0.9, chart.Combined[^1].DcEstKwh, 9);
+    }
+
+    [Fact]
+    public void ACounterResetOnOneDeviceDiscardsOnlyThatDelta()
+    {
+        var logger = CreateMultiLogger();
+        PollAll(logger, 1000, 500, 100);
+        PollAll(logger, 1010, 2, 100);
+
+        // The monitor's counter went down: its delta is dropped, the PC's 10 Wh count.
+        Assert.Equal(0.01, logger.GetTotals().TodayAcKwh, 9);
+        PollAll(logger, 1020, 7, 100);
+        Assert.Equal(0.025, logger.GetTotals().TodayAcKwh, 9);
+    }
+
+    [Fact]
+    public void ReadingsOfUnknownDevicesAreIgnored()
+    {
+        var logger = CreateLogger();
+        logger.OnReading(DeviceReading(MonitorId, 30, 500));
+        Assert.Equal(0, logger.GetTotals().TodayAcKwh);
+        Assert.False(Directory.Exists(Path.Combine(_dir, MonitorId)));
+    }
+
+    [Fact]
+    public void DevicesFromSettingsListsThePcFirst()
+    {
+        var settings = new AppSettings { Device = new ShellyDeviceSettings { Host = "10.0.0.2" } };
+        settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Id = MonitorId, Label = "Monitor", Host = "10.0.0.3", IncludeInTotals = false });
+        var devices = EnergyLogger.DevicesFrom(settings);
+        Assert.Equal([AppSettings.PrimaryDeviceId, MonitorId], devices.Select(d => d.Id));
+        Assert.False(devices[1].IncludeInTotals);
+        Assert.Equal("10.0.0.3|", devices[1].DeviceKey);
     }
 
     private static EnergyTotals Round(EnergyTotals t) =>
