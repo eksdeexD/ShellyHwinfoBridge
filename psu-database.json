@@ -1074,6 +1074,40 @@
       }
     },
     {
+      "id": "cooler-master-x-silent-edge-platinum-1100-230v",
+      "brand": "Cooler Master",
+      "series": "X Silent Edge Platinum",
+      "model": "X Silent Edge Platinum 1100 230V",
+      "revision": null,
+      "wattage": 1100,
+      "rating80Plus": "Platinum",
+      "ratingCybenetics": null,
+      "source": {
+        "name": "Cybenetics",
+        "reportId": "24PS2485A",
+        "url": "https://www.cybenetics.com/evaluations/psus/2485/"
+      },
+      "curves": {
+        "230": [
+          [34.968, 20.004],
+          [55.217, 40.003],
+          [75.663, 60.002],
+          [96.403, 79.965],
+          [127.399, 110.014],
+          [240.560, 219.977],
+          [353.914, 330.031],
+          [467.883, 439.721],
+          [583.105, 549.848],
+          [699.122, 659.985],
+          [816.174, 770.157],
+          [933.429, 879.740],
+          [1052.251, 989.952],
+          [1172.157, 1099.578],
+          [1294.201, 1209.855]
+        ]
+      }
+    },
+    {
       "id": "cooler-master-x-silent-edge-platinum-850",
       "brand": "Cooler Master",
       "series": "X Silent Edge Platinum",
@@ -2961,6 +2995,74 @@
       }
     },
     {
+      "id": "msi-mpg-a1000gs-pcie5",
+      "brand": "MSI",
+      "series": "MPG A-GS PCIE5",
+      "model": "MPG A1000GS PCIE5",
+      "revision": null,
+      "wattage": 1000,
+      "rating80Plus": "Gold",
+      "ratingCybenetics": null,
+      "source": {
+        "name": "Cybenetics",
+        "reportId": "24PS2701A",
+        "url": "https://www.cybenetics.com/evaluations/psus/2701/"
+      },
+      "curves": {
+        "230": [
+          [26.744, 19.996],
+          [49.494, 39.996],
+          [71.580, 59.996],
+          [93.362, 79.932],
+          [114.129, 99.982],
+          [218.190, 199.927],
+          [323.655, 299.968],
+          [430.000, 399.459],
+          [538.378, 499.199],
+          [649.098, 599.732],
+          [760.290, 699.456],
+          [873.976, 799.467],
+          [988.772, 899.266],
+          [1106.961, 999.310],
+          [1229.986, 1099.924]
+        ]
+      }
+    },
+    {
+      "id": "msi-mpg-a1250gs-pcie5",
+      "brand": "MSI",
+      "series": "MPG A-GS PCIE5",
+      "model": "MPG A1250GS PCIE5",
+      "revision": null,
+      "wattage": 1250,
+      "rating80Plus": "Gold",
+      "ratingCybenetics": null,
+      "source": {
+        "name": "Cybenetics",
+        "reportId": "25PS3023A",
+        "url": "https://www.cybenetics.com/evaluations/psus/3023/"
+      },
+      "curves": {
+        "230": [
+          [27.590, 20.001],
+          [51.348, 40.001],
+          [74.002, 60.000],
+          [94.652, 79.942],
+          [141.206, 124.955],
+          [271.290, 249.959],
+          [402.399, 374.399],
+          [536.092, 499.539],
+          [671.475, 624.882],
+          [809.079, 749.415],
+          [949.454, 874.698],
+          [1091.326, 999.464],
+          [1237.267, 1124.878],
+          [1385.154, 1249.715],
+          [1536.925, 1374.331]
+        ]
+      }
+    },
+    {
       "id": "msi-pro-a1000pl-pcie5",
       "brand": "MSI",
       "series": "PRO A-PL PCIE5",
@@ -3773,6 +3875,39 @@
           [1579.562, 1439.413],
           [1771.483, 1599.461],
           [1964.205, 1760.026]
+        ]
+      }
+    },
+    {
+      "id": "thermaltake-ax-3200w",
+      "brand": "Thermaltake",
+      "series": "AX",
+      "model": "AX 3200W",
+      "revision": null,
+      "wattage": 3200,
+      "rating80Plus": "Titanium",
+      "ratingCybenetics": null,
+      "source": {
+        "name": "Cybenetics",
+        "reportId": "26PS3410A",
+        "url": "https://www.cybenetics.com/evaluations/psus/3410/"
+      },
+      "curves": {
+        "230": [
+          [40.857, 19.996],
+          [60.939, 39.998],
+          [81.522, 59.998],
+          [101.565, 79.937],
+          [348.830, 320.018],
+          [680.974, 639.640],
+          [1017.172, 959.189],
+          [1357.137, 1279.634],
+          [1702.495, 1599.277],
+          [2054.006, 1919.866],
+          [2411.952, 2239.594],
+          [2778.358, 2559.532],
+          [3150.667, 2879.251],
+          [3509.430, 3199.384]
         ]
       }
     },
