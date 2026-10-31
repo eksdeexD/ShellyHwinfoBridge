@@ -6,8 +6,8 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
 /// The setup wizard window (design/final/wizard-step3-psu.png): header with logo, "Setup wizard" and the step indicator;
-/// page title and subtitle; the step view; footer with Cancel, Back and Next (Apply, then Finish). Enter = Next,
-/// Esc = Cancel. Closing before Apply cancels without changing anything.
+/// page title and subtitle; the step view; footer with Cancel, Back and Next ("Apply" on step 5; "Finish" on step 6,
+/// where Back and Cancel are hidden). Enter = Next, Esc = Cancel. Closing before Apply cancels without changing anything.
 /// </summary>
 internal sealed class WizardForm : ThemedForm
 {
@@ -156,7 +156,7 @@ internal sealed class WizardForm : ThemedForm
             return;
         }
 
-        if (_session.IsApplied && _session.Current == WizardStep.Apply)
+        if (_session.Current == WizardStep.Verify)
         {
             Close();
             return;
@@ -270,7 +270,8 @@ internal sealed class WizardForm : ThemedForm
             WizardStep.Shelly => CreateShellyView(),
             WizardStep.Psu => new PsuStepView(_session.Psu),
             WizardStep.Sensors => new SensorStepView(_session.Sensors, _session.ReloadSensors),
-            _ => new ApplyStepView(_session),
+            WizardStep.Apply => new ApplyStepView(_session),
+            _ => new VerifyStepView(_session),
         };
         view.Visible = false;
         _host.Controls.Add(view);

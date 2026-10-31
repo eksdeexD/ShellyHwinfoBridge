@@ -122,6 +122,7 @@ internal sealed class HwinfoStepView : WizardStepView
         Tone.Success => InfoTone.Success,
         Tone.Warning => InfoTone.Warning,
         Tone.Error => InfoTone.Error,
+        Tone.Pending => InfoTone.Pending,
         _ => InfoTone.Info,
     };
 

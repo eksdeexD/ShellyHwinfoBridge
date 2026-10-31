@@ -25,6 +25,9 @@ public enum Tone
 
     /// <summary>Error (offline dot, error lines).</summary>
     Error,
+
+    /// <summary>A check that has not finished yet (neutral ring, secondary text).</summary>
+    Pending,
 }
 
 /// <summary>Number formatting for the UI (current culture; the registry uses the invariant culture instead).</summary>

@@ -57,6 +57,18 @@ public sealed class ApplyStepModel
     /// <summary>How often the view should call <see cref="VerifyTick"/>.</summary>
     public static readonly TimeSpan VerifyInterval = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// How long after a verification starts (after Apply, a restart or a start of HWiNFO) missing shared memory is
+    /// shown as <see cref="CheckingHwinfoText"/> instead of a warning: HWiNFO takes a while to come up.
+    /// </summary>
+    public static readonly TimeSpan VerifyGracePeriod = TimeSpan.FromSeconds(20);
+
+    /// <summary>The pending line during <see cref="VerifyGracePeriod"/>.</summary>
+    public const string CheckingHwinfoText = "Checking HWiNFO…";
+
+    /// <summary>The success line once all four sensors were found.</summary>
+    public const string VerifiedText = "Verified: all four Shelly Power sensors are visible in HWiNFO.";
+
     private readonly IBridgeRuntime _runtime;
     private readonly Func<HwinfoStatus> _detect;
     private readonly Func<CancellationToken, Task<HwinfoRestartResult>> _restart;
@@ -134,6 +146,9 @@ public sealed class ApplyStepModel
     /// <summary>Gets whether the view should keep calling <see cref="VerifyTick"/>.</summary>
     public bool IsVerifyRunning => VerifyPhase is VerifyPhase.Checking or VerifyPhase.Confirmed;
 
+    /// <summary>Gets whether "Verify" can be clicked: not once all four sensors are confirmed, and not while restarting.</summary>
+    public bool CanVerify => VerifyPhase != VerifyPhase.Confirmed && !IsRestarting;
+
     /// <summary>Gets the verification status line (tone, text), or <c>null</c> before verifying.</summary>
     public WizardStatusLine? VerifyStatus
     {
@@ -144,11 +159,13 @@ public sealed class ApplyStepModel
                 return new WizardStatusLine(Tone.Warning, warning);
             }
 
+            var inGrace = _time.GetUtcNow() - _verifyStarted < VerifyGracePeriod;
             return VerifyPhase switch
             {
+                VerifyPhase.Checking when Verify is { SharedMemoryAvailable: false } && inGrace => new WizardStatusLine(Tone.Pending, CheckingHwinfoText),
                 VerifyPhase.Checking when Verify is { SharedMemoryAvailable: false, Message: { } off } => new WizardStatusLine(Tone.Warning, off),
                 VerifyPhase.Checking => new WizardStatusLine(Tone.Secondary, "Looking for the Shelly Power sensors in HWiNFO…"),
-                VerifyPhase.Confirmed => new WizardStatusLine(Tone.Success, "All four Shelly Power sensors are visible in HWiNFO."),
+                VerifyPhase.Confirmed => new WizardStatusLine(Tone.Success, VerifiedText),
                 VerifyPhase.TimedOut when Verify is { SharedMemoryAvailable: false, Message: { } off } => new WizardStatusLine(Tone.Warning, off),
                 VerifyPhase.TimedOut => new WizardStatusLine(Tone.Warning, "Not visible yet. Restart HWiNFO, then click Verify again."),
                 _ => null,
@@ -376,6 +393,12 @@ public sealed class ApplyStepModel
         if (Verify.AllFound)
         {
             VerifyPhase = VerifyPhase.Confirmed;
+        }
+        else if (VerifyPhase == VerifyPhase.Confirmed)
+        {
+            // The sensors went away (HWiNFO closed or restarted): look again, and let the user verify again.
+            VerifyPhase = VerifyPhase.Checking;
+            _verifyStarted = _time.GetUtcNow();
         }
         else if (VerifyPhase == VerifyPhase.Checking && _time.GetUtcNow() - _verifyStarted >= VerifyTimeout)
         {

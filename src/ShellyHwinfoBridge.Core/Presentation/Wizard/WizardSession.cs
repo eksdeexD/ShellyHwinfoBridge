@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Settings;
@@ -6,14 +6,14 @@ using ShellyHwinfoBridge.Core.Settings;
 namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 
 /// <summary>
-/// The setup wizard's state machine: five steps, Back/Next, and a draft of the settings. Nothing touches the registry,
+/// The setup wizard's state machine: six steps (the last one, Verify, only after Apply), Back/Next, and a draft of the settings. Nothing touches the registry,
 /// the settings file or autostart before <see cref="Apply"/>: the steps only read (process list, shared memory, mDNS,
 /// HTTP GET). Cancel = drop the session.
 /// </summary>
 public sealed class WizardSession
 {
     /// <summary>The step labels for the step indicator.</summary>
-    public static IReadOnlyList<string> StepLabels { get; } = ["HWiNFO", "Shelly", "PSU", "Sensors", "Apply"];
+    public static IReadOnlyList<string> StepLabels { get; } = ["HWiNFO", "Shelly", "PSU", "Sensors", "Apply", "Verify"];
 
     private readonly WizardDependencies _dependencies;
     private readonly PsuDatabase _database;
@@ -83,10 +83,10 @@ public sealed class WizardSession
     /// <summary>Gets step 4.</summary>
     public SensorStepModel Sensors { get; }
 
-    /// <summary>Gets step 5.</summary>
+    /// <summary>Gets steps 5 (summary and Apply) and 6 (HWiNFO restart and verification).</summary>
     public ApplyStepModel Apply { get; }
 
-    /// <summary>Gets whether the settings were applied (Back and Cancel are gone; Next reads "Finish").</summary>
+    /// <summary>Gets whether the settings were applied (the wizard is on step 6: Back and Cancel are gone).</summary>
     public bool IsApplied => Apply.IsApplied;
 
     /// <summary>Gets whether a Next transition (connection test) is running.</summary>
@@ -102,11 +102,17 @@ public sealed class WizardSession
         WizardStep.Shelly => Shelly.IsHostValid && Shelly.TestState != ShellyTestState.Testing,
         WizardStep.Psu => Psu.IsValid,
         WizardStep.Sensors => Sensors.IsValid,
+        WizardStep.Apply => !IsApplied,
         _ => !Apply.IsRestarting,
     };
 
-    /// <summary>Gets the Next button text: "Next", then "Apply" on step 5, then "Finish".</summary>
-    public string NextText => Current != WizardStep.Apply ? "Next" : IsApplied ? "Finish" : "Apply";
+    /// <summary>Gets the Next button text: "Next", "Apply" on step 5, "Finish" on step 6.</summary>
+    public string NextText => Current switch
+    {
+        WizardStep.Apply => "Apply",
+        WizardStep.Verify => "Finish",
+        _ => "Next",
+    };
 
     /// <summary>Gets the page title of the current step.</summary>
     public string PageTitle => Current switch
@@ -115,7 +121,8 @@ public sealed class WizardSession
         WizardStep.Shelly => "Connect your Shelly plug",
         WizardStep.Psu => "Choose your power supply",
         WizardStep.Sensors => "Choose the component sensors",
-        _ => IsApplied ? "Setup applied" : "Review and apply",
+        WizardStep.Apply => "Review and apply",
+        _ => "Verify in HWiNFO",
     };
 
     /// <summary>Gets the page subtitle of the current step.</summary>
@@ -125,15 +132,15 @@ public sealed class WizardSession
         WizardStep.Shelly => "Pick your plug or type its IP address. The password is only needed if you set one in the Shelly app.",
         WizardStep.Psu => "Pick it from the database for the most accurate curve. If it is missing, use a generic curve by rating or enter your own.",
         WizardStep.Sensors => "These HWiNFO power sensors are subtracted from DC power to compute Other Components. Likely candidates are already ticked.",
-        _ => IsApplied
-            ? "The sensors are written and polling runs. Restart HWiNFO so it shows them, then verify."
-            : "Nothing has been changed yet. Check the summary, then click Apply.",
+        WizardStep.Apply => "Nothing has been changed yet. Check the summary, then click Apply.",
+        _ => "The sensors are written and polling runs. Restart HWiNFO so it shows them, then verify.",
     };
 
     /// <summary>
     /// Goes to the next step. On step 2 it runs the connection test first unless the last successful test matches or the
     /// user chose "Continue anyway"; a failed test keeps the step (see <see cref="ShellyStepModel.OfferContinueAnyway"/>).
-    /// On step 5 it applies (first click) and returns <c>false</c> afterwards when already applied ("Finish" closes).
+    /// On step 5 it applies and, when that worked, moves on to step 6 (which starts the verification). On step 6 it
+    /// returns <c>false</c> ("Finish" closes the wizard).
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns><c>true</c> when the step changed or Apply succeeded.</returns>
@@ -168,19 +175,16 @@ public sealed class WizardSession
                 break;
 
             case WizardStep.Apply:
-                if (IsApplied)
+                if (!Apply.Apply(Draft, DraftPassword))
                 {
+                    RaiseChanged();
                     return false;
                 }
 
-                var applied = Apply.Apply(Draft, DraftPassword);
-                if (applied)
-                {
-                    _completed.Add(WizardStep.Apply);
-                }
+                break;
 
-                RaiseChanged();
-                return applied;
+            case WizardStep.Verify:
+                return false;
         }
 
         Leave(Current);
@@ -254,6 +258,10 @@ public sealed class WizardSession
                 break;
             case WizardStep.Apply:
                 Apply.Prepare(Draft, _database, Shelly.MeasuredVolts);
+                break;
+            case WizardStep.Verify:
+                // Right after Apply: HWiNFO may already show the sensors (a re-run); the grace period covers a slow start.
+                Apply.StartVerify();
                 break;
         }
     }

@@ -63,12 +63,20 @@ public class WizardSessionTests
         Assert.True(startWithWindows);
 
         Assert.True(session.IsApplied);
+        Assert.Equal(WizardStep.Verify, session.Current);
+        Assert.Equal("Verify in HWiNFO", session.PageTitle);
         Assert.False(session.CanGoBack);
+        Assert.True(session.CanGoNext);
         Assert.Equal("Finish", session.NextText);
         Assert.Contains(WizardStep.Apply, session.Completed);
         Assert.Equal(HwinfoPrimaryAction.Restart, session.Apply.PrimaryAction);
+
+        // Step 6 starts verifying at once.
+        Assert.True(session.Apply.IsVerifyRunning);
         Assert.False(await session.GoNextAsync());
+        Assert.Equal(WizardStep.Verify, session.Current);
         Assert.Single(f.Runtime.WizardApplied);
+        Assert.Equal(6, WizardSession.StepLabels.Count);
     }
 
     [Fact]
@@ -84,10 +92,13 @@ public class WizardSessionTests
         Assert.True(session.CanGoBack);
         Assert.Equal("Apply", session.NextText);
 
+        Assert.Equal(WizardStep.Apply, session.Current);
+
         f.Runtime.WizardApplyError = null;
         Assert.True(await session.GoNextAsync());
         Assert.Null(session.Apply.ApplyError);
         Assert.True(session.IsApplied);
+        Assert.Equal(WizardStep.Verify, session.Current);
     }
 
     [Fact]

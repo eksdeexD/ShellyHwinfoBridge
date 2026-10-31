@@ -221,7 +221,50 @@ public class RestartAndVerifyTests
         Assert.Equal(Tone.Success, m.Advice!.Tone);
         Assert.Equal(VerifyPhase.Confirmed, m.VerifyPhase);
         Assert.True(m.IsVerifyRunning);
-        Assert.Equal(new WizardStatusLine(Tone.Success, "All four Shelly Power sensors are visible in HWiNFO."), m.VerifyStatus);
+        Assert.Equal(new WizardStatusLine(Tone.Success, "Verified: all four Shelly Power sensors are visible in HWiNFO."), m.VerifyStatus);
+        Assert.False(m.CanVerify);
+    }
+
+    [Fact]
+    public void VerifyIsOfferedAgainWhenTheSensorsGoAway()
+    {
+        var f = new WizardFixture { Snapshot = Snapshots.Desktop(Snapshots.Bridge()) };
+        var m = Applied(f);
+        Assert.True(m.CanVerify);
+        m.StartVerify();
+        Assert.Equal(VerifyPhase.Confirmed, m.VerifyPhase);
+        Assert.False(m.CanVerify);
+
+        f.Snapshot = Snapshots.Desktop();
+        m.VerifyTick();
+        Assert.Equal(VerifyPhase.Checking, m.VerifyPhase);
+        Assert.True(m.CanVerify);
+
+        f.Snapshot = Snapshots.Desktop(Snapshots.Bridge());
+        m.VerifyTick();
+        Assert.Equal(VerifyPhase.Confirmed, m.VerifyPhase);
+        Assert.False(m.CanVerify);
+    }
+
+    [Fact]
+    public void MissingSharedMemoryIsPendingDuringTheGracePeriod()
+    {
+        var f = new WizardFixture { Snapshot = null };
+        var m = Applied(f);
+        m.StartVerify();
+        Assert.Equal(new WizardStatusLine(Tone.Pending, ApplyStepModel.CheckingHwinfoText), m.VerifyStatus);
+
+        f.Time.Advance(TimeSpan.FromSeconds(19));
+        m.VerifyTick();
+        Assert.Equal(Tone.Pending, m.VerifyStatus!.Tone);
+
+        f.Time.Advance(TimeSpan.FromSeconds(1));
+        m.VerifyTick();
+        Assert.Equal(new WizardStatusLine(Tone.Warning, VerifyEvaluator.SharedMemoryOffText), m.VerifyStatus);
+
+        // A restart starts a new grace period.
+        m.StartVerify();
+        Assert.Equal(Tone.Pending, m.VerifyStatus!.Tone);
     }
 
     [Fact]
@@ -272,6 +315,9 @@ public class RestartAndVerifyTests
         m.StartHwinfo();
         Assert.Equal(1, f.Starts);
         Assert.Equal(VerifyPhase.Checking, m.VerifyPhase);
+        Assert.Equal(new WizardStatusLine(Tone.Pending, ApplyStepModel.CheckingHwinfoText), m.VerifyStatus);
+        f.Time.Advance(ApplyStepModel.VerifyGracePeriod);
+        m.VerifyTick();
         Assert.Equal(new WizardStatusLine(Tone.Warning, VerifyEvaluator.SharedMemoryOffText), m.VerifyStatus);
 
         f.StartWorks = false;

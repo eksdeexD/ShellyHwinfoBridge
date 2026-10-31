@@ -6,7 +6,7 @@ using ShellyHwinfoBridge.Core.Shelly.Discovery;
 
 namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 
-/// <summary>The five steps of the setup wizard, in order.</summary>
+/// <summary>The six steps of the setup wizard, in order.</summary>
 public enum WizardStep
 {
     /// <summary>Step 1: HWiNFO check.</summary>
@@ -23,6 +23,9 @@ public enum WizardStep
 
     /// <summary>Step 5: review and apply.</summary>
     Apply = 4,
+
+    /// <summary>Step 6: restart HWiNFO and verify the sensors (after Apply).</summary>
+    Verify = 5,
 }
 
 /// <summary>An entry of a drop-down: a value (<c>null</c> for "Any" or "—") and its text.</summary>

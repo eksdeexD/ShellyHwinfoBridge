@@ -104,16 +104,15 @@ internal static class ScreenRenderer
             s.Sensors.SetManualName(s.Sensors.AddManual(), "GPU Power");
         })),
         ("wizard-5-apply", () => WizardPreview.At(WizardStep.Apply)),
-        ("wizard-5-applied-could-not-close", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.Desktop, tweak: s =>
+        ("wizard-6-verify-pending", () => WizardPreview.At(WizardStep.Apply, afterApply: WizardPreview.Snapshot.None, tweak: s =>
+            s.GoNextAsync().GetAwaiter().GetResult())),
+        ("wizard-6-verify-could-not-close", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.Desktop, tweak: s =>
         {
             s.GoNextAsync().GetAwaiter().GetResult();
             s.Apply.RestartHwinfoAsync().GetAwaiter().GetResult();
         })),
-        ("wizard-5-applied-verified", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: s =>
-        {
-            s.GoNextAsync().GetAwaiter().GetResult();
-            s.Apply.StartVerify();
-        })),
+        ("wizard-6-verify-verified", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: s =>
+            s.GoNextAsync().GetAwaiter().GetResult())),
         ("main-settings", () => Settings()),
         ("main-settings-results", () =>
         {

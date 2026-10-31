@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Hwinfo.Locator;
@@ -15,14 +15,18 @@ namespace ShellyHwinfoBridge.Diagnostics;
 /// <summary>Wizard screens with the design brief's example data (for <c>--render-screens</c>).</summary>
 internal static class WizardPreview
 {
-    /// <summary>Builds a wizard positioned at <paramref name="step"/>; <paramref name="tweak"/> adjusts the session first.</summary>
-    public static WizardForm At(WizardStep step, bool firstRun = true, Action<WizardSession>? tweak = null, Snapshot snapshot = Snapshot.Desktop)
+    /// <summary>
+    /// Builds a wizard positioned at <paramref name="step"/>; <paramref name="tweak"/> adjusts the session first.
+    /// <paramref name="afterApply"/>, when set, replaces <paramref name="snapshot"/> once the setup was applied.
+    /// </summary>
+    public static WizardForm At(WizardStep step, bool firstRun = true, Action<WizardSession>? tweak = null, Snapshot snapshot = Snapshot.Desktop, Snapshot? afterApply = null)
     {
         var runtime = new PreviewRuntime();
+        WizardSession? session = null;
         var dependencies = new WizardDependencies(
             runtime,
             () => new HwinfoStatus(true, true, @"C:\Program Files\HWiNFO64\HWiNFO64.exe", HwinfoPathSource.RunningProcess),
-            () => snapshot switch
+            () => (session is { IsApplied: true } && afterApply is { } applied ? applied : snapshot) switch
             {
                 Snapshot.None => null,
                 Snapshot.WithBridge => Sensors(withBridge: true),
@@ -38,7 +42,7 @@ internal static class WizardPreview
             TimeProvider.System);
 
         var settings = firstRun ? null : SampleData.Settings();
-        var session = new WizardSession(settings, null, Database(), dependencies, SampleData.Culture);
+        session = new WizardSession(settings, null, Database(), dependencies, SampleData.Culture);
         session.Shelly.DiscoverAsync().GetAwaiter().GetResult();
         if (step > WizardStep.Hwinfo)
         {
