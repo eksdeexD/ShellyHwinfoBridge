@@ -125,6 +125,34 @@ public sealed class BatchMergeDownloadTests : IDisposable
     }
 
     [Fact]
+    public void MergeRemovesTheGivenIdsAndRejectsUnknownOrConflictingOnes()
+    {
+        var database = Path.Combine(_dir, "psu-database.json");
+        var original = MergeCommand.Format(new PsuDatabase
+        {
+            SchemaVersion = 1, Updated = "2026-01-01", Psus = [Entry("old-name", "Antec", "Old 650"), Entry("keep", "Antec", "Keep 750")],
+        });
+        File.WriteAllText(database, original);
+        var entries = Sub("entries");
+        File.WriteAllText(Path.Combine(entries, "new.json"), EntryWriter.Format(Entry("new-name", "Antec", "New 650")));
+
+        var (missingExit, missingLog) = RunWithLog("merge", "--entries", entries, "--into", database, "--remove", "nope");
+        Assert.Equal(ImportCommand.Failed, missingExit);
+        Assert.Contains("--remove nope", missingLog, StringComparison.Ordinal);
+        Assert.Equal(original, File.ReadAllText(database));
+
+        var (conflictExit, conflictLog) = RunWithLog("merge", "--entries", entries, "--into", database, "--remove", "NEW-NAME");
+        Assert.Equal(ImportCommand.Failed, conflictExit);
+        Assert.Contains("entry file has that id", conflictLog, StringComparison.Ordinal);
+        Assert.Equal(original, File.ReadAllText(database));
+
+        var (exit, log) = RunWithLog("merge", "--entries", entries, "--into", database, "--remove", "OLD-NAME", "--date", "2026-11-02");
+        Assert.Equal(ImportCommand.Ok, exit);
+        Assert.Contains("1 added, 0 replaced, 1 removed", log, StringComparison.Ordinal);
+        Assert.Equal(["keep", "new-name"], PsuDatabaseJson.Deserialize(File.ReadAllText(database)).Psus.Select(p => p.Id));
+    }
+
+    [Fact]
     public void MergeWritesNothingWhenTheResultIsInvalid()
     {
         var database = Path.Combine(_dir, "psu-database.json");

@@ -19,7 +19,9 @@ public static class ImportCommand
           CybeneticsImport [import] <report.pdf|page.html|report.txt> [more inputs...] [options]   import one entry
           CybeneticsImport import --html <saved evaluation page.html> [options]
           CybeneticsImport batch --catalog <csv> --reports <dir> --out <dir>    import every catalogue row
-          CybeneticsImport merge --entries <dir> --into <psu-database.json>     merge entries into the database
+          CybeneticsImport merge --entries <dir> --into <psu-database.json> [--remove <id>]...
+                                                                                merge entries into the database; each
+                                                                                --remove deletes that existing entry
           CybeneticsImport download --catalog <csv> --reports <dir>             fetch missing report PDFs (see README)
 
         Single import: builds one psu-database.json entry from Cybenetics report(s).
@@ -33,7 +35,7 @@ public static class ImportCommand
           --input115 <path>            input whose rows are all 115 V
 
         Metadata (required unless noted):
-          --id <id>  --brand <text>  --series <text>  --model <text>  [--revision <text>]
+          --id <id>  --brand <text>  --series <text>  --model <text>  [--revision <text>]  (--revision "" = none)
           --wattage <W>  --rating80plus <White|Bronze|Silver|Gold|Platinum|Titanium|None>
           [--ratingCybenetics <text>]  [--reportId <id>]  --url <report page URL>
           (--reportId may be omitted for older reports without one; the URL is always required)
@@ -79,7 +81,7 @@ public static class ImportCommand
                 case "batch":
                     return BatchCommand.Run(OptionSet.Parse(args[1..], ["catalog", "reports", "out", .. TuningNames], []), stderr, readLines);
                 case "merge":
-                    return MergeCommand.Run(OptionSet.Parse(args[1..], ["entries", "into", "date"], []), stderr, DateTime.Today);
+                    return MergeCommand.Run(OptionSet.Parse(args[1..], ["entries", "into", "date", "remove"], []), stderr, DateTime.Today);
                 case "download":
                     return DownloadCommand.Run(OptionSet.Parse(args[1..], ["catalog", "reports"], []), stderr);
                 case "import":
@@ -147,7 +149,14 @@ public static class ImportCommand
             throw new ArgumentException($"--html {html}: not an .html/.htm file or HTML page.");
         }
 
-        var metadata = EntryMetadata.FromValues(EntryImporter.WithPageMetadata(MetadataNames.ToDictionary(n => n, values.Get), inputs));
+        var withPage = EntryImporter.WithPageMetadata(MetadataNames.ToDictionary(n => n, values.Get), inputs);
+        if (values.Get("revision") is { } givenRevision && string.IsNullOrWhiteSpace(givenRevision))
+        {
+            // An explicit empty --revision means "no revision": the page's parenthesised suffix may only be an alias name.
+            withPage["revision"] = null;
+        }
+
+        var metadata = EntryMetadata.FromValues(withPage);
         _ = CreateParserOptions(values);
 
         var result = EntryImporter.Import(metadata, inputs, () => CreateParserOptions(values), readLines, stderr, values.Flag("dump-text"));

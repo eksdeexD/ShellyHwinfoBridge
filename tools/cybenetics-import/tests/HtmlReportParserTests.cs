@@ -57,6 +57,22 @@ public sealed class HtmlReportParserTests : IDisposable
     }
 
     [Fact]
+    public void AnExplicitEmptyRevisionIsNotFilledFromThePage()
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exit = ImportCommand.Run(
+            ["import", "--html", FixturePath, "--id", "examplebrand-fictional-fx-700", "--revision", "", "--series", "Fictional FX", "--rating80plus", "Titanium"],
+            stdout, stderr);
+
+        Assert.True(exit == ImportCommand.Ok, stderr.ToString());
+        var entry = JsonSerializer.Deserialize<PsuEntry>(stdout.ToString(), PsuDatabaseJson.Options)!;
+        Assert.Equal(("examplebrand-fictional-fx-700", "Fictional FX-700"), (entry.Id, entry.Model));
+        Assert.Null(entry.Revision);
+    }
+
+    [Fact]
     public void ImportOfASingleVoltagePageSucceedsWithAWarning()
     {
         var page = Path.Combine(AppContext.BaseDirectory, "Fixtures", "evaluation-page-230-only.html");

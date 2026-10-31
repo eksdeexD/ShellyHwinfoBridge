@@ -6,9 +6,9 @@ using ShellyHwinfoBridge.Core.Database;
 namespace CybeneticsImport;
 
 /// <summary>
-/// <c>merge --entries &lt;dir&gt; --into &lt;psu-database.json&gt;</c>: merges entry JSON files into the database, replacing
-/// entries with the same id, sorting by brand and model, setting <c>updated</c> to today and validating the result
-/// before it is written.
+/// <c>merge --entries &lt;dir&gt; --into &lt;psu-database.json&gt; [--remove &lt;id&gt;]...</c>: merges entry JSON files into the
+/// database, replacing entries with the same id, deleting the <c>--remove</c> ids, sorting by brand and model, setting
+/// <c>updated</c> to today and validating the result before it is written.
 /// </summary>
 public static class MergeCommand
 {
@@ -60,7 +60,13 @@ public static class MergeCommand
         var duplicates = entries.GroupBy(e => e.Entry.Id, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1);
         errors.AddRange(duplicates.Select(g => $"id {g.Key} appears in {string.Join(", ", g.Select(e => Path.GetFileName(e.File)))}."));
 
-        var (merged, added, replaced) = Merge(database, entries.Select(e => e.Entry), date);
+        var remove = options.All("remove");
+        var existingIds = new HashSet<string>((database.Psus ?? []).Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
+        errors.AddRange(remove.Where(id => !existingIds.Contains(id)).Select(id => $"--remove {id}: no such entry in {databasePath}."));
+        var entryIds = new HashSet<string>(entries.Select(e => e.Entry.Id), StringComparer.OrdinalIgnoreCase);
+        errors.AddRange(remove.Where(entryIds.Contains).Select(id => $"--remove {id}: an entry file has that id too."));
+
+        var (merged, added, replaced) = Merge(database, entries.Select(e => e.Entry), date, remove);
         errors.AddRange(PsuDatabaseValidator.Validate(merged).Select(e => e.ToString()));
         if (errors.Count > 0)
         {
@@ -74,7 +80,7 @@ public static class MergeCommand
         }
 
         File.WriteAllText(databasePath, Format(merged));
-        log.WriteLine($"Merged {entries.Count} entries ({added} added, {replaced} replaced) into {databasePath}; {merged.Psus.Count} entries in total, updated {merged.Updated}.");
+        log.WriteLine($"Merged {entries.Count} entries ({added} added, {replaced} replaced, {remove.Count} removed) into {databasePath}; {merged.Psus.Count} entries in total, updated {merged.Updated}.");
         return ImportCommand.Ok;
     }
 
@@ -82,7 +88,8 @@ public static class MergeCommand
     /// <param name="database">The current database.</param>
     /// <param name="entries">The entries to add or replace.</param>
     /// <param name="date">The new <c>updated</c> date.</param>
-    public static (PsuDatabase Database, int Added, int Replaced) Merge(PsuDatabase database, IEnumerable<PsuEntry> entries, DateTime date)
+    /// <param name="remove">Ids of existing entries to delete (case-insensitive), e.g. after a model rename changed the id.</param>
+    public static (PsuDatabase Database, int Added, int Replaced) Merge(PsuDatabase database, IEnumerable<PsuEntry> entries, DateTime date, IEnumerable<string>? remove = null)
     {
         ArgumentNullException.ThrowIfNull(database);
         ArgumentNullException.ThrowIfNull(entries);
@@ -90,6 +97,11 @@ public static class MergeCommand
         foreach (var existing in database.Psus ?? [])
         {
             byId[existing.Id] = existing;
+        }
+
+        foreach (var id in remove ?? [])
+        {
+            byId.Remove(id);
         }
 
         int added = 0, replaced = 0;
