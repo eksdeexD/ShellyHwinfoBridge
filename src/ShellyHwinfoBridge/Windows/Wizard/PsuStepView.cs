@@ -8,7 +8,7 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
-/// Step 3 (design/final/wizard-step3-psu.png), also hosted by the Settings "Change…" dialog: three mode cards; database
+/// Step 3 (design/final/wizard-step3-psu.png), also hosted by the Settings "Change" dialog: three mode cards; database
 /// filters (Brand, Wattage, Rating with "Any", search) and the model list with report links; the generic wattage and
 /// rating with the 20/50/100 % preview; the manual efficiency form or point grid with CSV import/export and validation;
 /// and the input voltage line with "Change" (Auto | 115 V | 230 V).
@@ -27,7 +27,7 @@ internal sealed class PsuStepView : WizardStepView
     private readonly ThemedDropDown _wattage = new() { Prefix = "Wattage" };
     private readonly ThemedDropDown _rating = new() { Prefix = "Rating" };
     private readonly ThemedTextBox _search = new() { Placeholder = "Search model…", AccessibleName = "Search model" };
-    private readonly SelectableList _list = new() { RowHeightDip = 71, AccessibleName = "Power supplies" };
+    private readonly SelectableList _list = new() { RowHeightDip = 50, AccessibleName = "Power supplies" };
 
     // Generic mode.
     private readonly CardPanel _genericCard = new() { Title = "Generic curve" };
@@ -60,12 +60,12 @@ internal sealed class PsuStepView : WizardStepView
         new() { Placeholder = "%", AccessibleName = "Efficiency at 100 % load" },
     ];
 
-    private readonly PillButton _generate = new() { Text = "Generate grid" };
+    private readonly TextLink _generate = new() { Text = "Generate grid", Semibold = true };
     private readonly InfoLine _formError = new() { Tone = InfoTone.Error };
     private readonly InfoLine _formHint = new() { Text = "Efficiency in % from the PSU's review or label. The grid can be edited afterwards." };
     private readonly DataGridView _grid = new() { AccessibleName = "Manual curve points" };
-    private readonly PillButton _import = new() { Text = "Import CSV…" };
-    private readonly PillButton _export = new() { Text = "Export CSV…" };
+    private readonly TextLink _import = new() { Text = "Import CSV", Semibold = true };
+    private readonly TextLink _export = new() { Text = "Export CSV", Semibold = true };
     private readonly TextLabel _gridHint = new() { Text = "One row per point: AC watts from the wall and the DC watts the PC gets at that load. At least 2 rows, AC increasing.", WordWrap = true, Tone = UiTone.Secondary };
     private readonly List<InfoLine> _manualErrors = [];
 
@@ -233,73 +233,87 @@ internal sealed class PsuStepView : WizardStepView
         base.OnLayout(levent);
         var w = WidthDip;
         var h = HeightDip;
-        const float gap = 16;
+        const float gap = Theme.Gap;
+        const float p = Theme.CardPadding;
+        const float cardHeight = 66;
+        const float filtersTop = cardHeight + gap;
+        const float listTop = filtersTop + Theme.FieldHeight + gap;
+        float PrefWidth(Control c) => c.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi;
+        float PrefHeight(Control c) => c.GetPreferredSize(Size.Empty).Height * 96f / DeviceDpi;
 
         var card = (w - (2 * gap)) / 3;
-        _database.Bounds = Dip(0, 0, card, 94);
-        _generic.Bounds = Dip(card + gap, 0, card, 94);
-        _manual.Bounds = Dip(2 * (card + gap), 0, w - (2 * (card + gap)), 94);
+        _database.Bounds = Dip(0, 0, card, cardHeight);
+        _generic.Bounds = Dip(card + gap, 0, card, cardHeight);
+        _manual.Bounds = Dip(2 * (card + gap), 0, w - (2 * (card + gap)), cardHeight);
 
         // Bottom: the voltage line (and the override segments next to it).
-        var voltageTop = h - 34;
-        var voltageWidth = Math.Min(_voltage.GetPreferredSize(Size.Empty).Width, Px(w - 300));
-        _voltage.Bounds = new Rectangle(Px(4), Px(voltageTop), voltageWidth, Px(28));
-        _voltageMode.Bounds = new Rectangle(_voltage.Right + Px(16), Px(voltageTop - 4), Px(270), Px(36));
-        var contentBottom = voltageTop - 18;
+        var voltageTop = h - Theme.ButtonHeight;
+        var voltageWidth = Math.Min(_voltage.GetPreferredSize(Size.Empty).Width, Px(w - 240));
+        _voltage.Bounds = new Rectangle(Px(2), Px(voltageTop + ((Theme.ButtonHeight - Theme.LineHeight) / 2)), voltageWidth, Px(Theme.LineHeight));
+        _voltageMode.Bounds = new Rectangle(_voltage.Right + Px(12), Px(voltageTop), Math.Max(Px(200), _voltageMode.GetPreferredSize(Size.Empty).Width), Px(Theme.ButtonHeight));
+        var contentBottom = voltageTop - gap;
 
         // Database: four equal columns, then the list.
         var column = (w - (3 * gap)) / 4;
-        _brand.Bounds = Dip(0, 112, column, 46);
-        _wattage.Bounds = Dip(column + gap, 112, column, 46);
-        _rating.Bounds = Dip(2 * (column + gap), 112, column, 46);
-        _search.Bounds = Dip(3 * (column + gap), 112, w - (3 * (column + gap)), 46);
-        _list.Bounds = Dip(0, 176, w, contentBottom - 176);
+        _brand.Bounds = Dip(0, filtersTop, column, Theme.FieldHeight);
+        _wattage.Bounds = Dip(column + gap, filtersTop, column, Theme.FieldHeight);
+        _rating.Bounds = Dip(2 * (column + gap), filtersTop, column, Theme.FieldHeight);
+        _search.Bounds = Dip(3 * (column + gap), filtersTop, w - (3 * (column + gap)), Theme.FieldHeight);
+        _list.Bounds = Dip(0, listTop, w, contentBottom - listTop);
 
-        // Generic: one card.
-        _genericCard.Bounds = Dip(0, 112, w, contentBottom - 112);
-        _genericWattageLabel.Bounds = Dip(20, 56, 220, 22);
-        _genericWattage.Bounds = Dip(20, 80, 220, 42);
-        _genericRatingLabel.Bounds = Dip(256, 56, 260, 22);
-        _genericRating.Bounds = Dip(256, 80, 260, 42);
-        var tileLeft = 548f;
+        // Generic: one card with the wattage and rating fields and the 20/50/100 % tiles beside them.
+        _genericCard.Bounds = Dip(0, filtersTop, w, contentBottom - filtersTop);
+        var t = _genericCard.ContentBounds.Top * 96f / DeviceDpi;
+        const float wattageWidth = 150;
+        const float ratingWidth = 180;
+        _genericWattageLabel.Bounds = Dip(p, t, wattageWidth, 18);
+        _genericWattage.Bounds = Dip(p, t + 20, wattageWidth, Theme.FieldHeight);
+        var ratingLeft = p + wattageWidth + 12;
+        _genericRatingLabel.Bounds = Dip(ratingLeft, t, ratingWidth, 18);
+        _genericRating.Bounds = Dip(ratingLeft, t + 20, ratingWidth, Theme.FieldHeight);
+        var tileLeft = ratingLeft + ratingWidth + 16;
+        var tileWidth = Math.Min(110, (w - p - tileLeft - 16) / 3);
         for (var i = 0; i < _genericTiles.Length; i++)
         {
-            _genericTiles[i].Bounds = Dip(tileLeft + (i * 162), 56, 150, 72);
+            _genericTiles[i].Bounds = Dip(tileLeft + (i * (tileWidth + 8)), t, tileWidth, 50);
         }
 
-        _genericWarning.Bounds = Dip(20, 146, w - 40, 28);
-        _genericError.Bounds = Dip(20, 182, w - 40, 28);
+        _genericWarning.Bounds = Dip(p, t + 62, w - (2 * p), Theme.LineHeight);
+        _genericError.Bounds = Dip(p, t + 62 + Theme.LineHeight + 4, w - (2 * p), Theme.LineHeight);
 
-        // Manual: entry switch, then the form card or the grid with its buttons and errors.
-        _manualEntry.Bounds = Dip(0, 112, 340, 40);
-        var manualTop = 168f;
+        // Manual: entry switch, then the form card or the grid with its commands and errors.
+        _manualEntry.Bounds = Dip(0, filtersTop, Math.Max(240, PrefWidth(_manualEntry)), Theme.ButtonHeight);
+        var manualTop = filtersTop + Theme.ButtonHeight + gap;
         var manualHeight = contentBottom - manualTop;
         _formCard.Bounds = Dip(0, manualTop, w, manualHeight);
-        var fieldWidth = 120f;
+        var ft = _formCard.ContentBounds.Top * 96f / DeviceDpi;
+        const float fieldWidth = 96;
         for (var i = 0; i < _formFields.Length; i++)
         {
-            var x = 20 + (i * (fieldWidth + 16));
-            _formLabels[i].Bounds = Dip(x, 56, fieldWidth, 22);
-            _formFields[i].Bounds = Dip(x, 80, fieldWidth, 42);
+            var x = p + (i * (fieldWidth + 10));
+            _formLabels[i].Bounds = Dip(x, ft, fieldWidth, 18);
+            _formFields[i].Bounds = Dip(x, ft + 20, fieldWidth, Theme.FieldHeight);
         }
 
-        _generate.Bounds = Dip(20 + (5 * (fieldWidth + 16)), 80, 170, 42);
-        _formError.Bounds = Dip(20, 138, w - 40, 28);
-        _formHint.Bounds = Dip(20, 138, w - 40, 28);
+        var generateHeight = PrefHeight(_generate);
+        _generate.Bounds = Dip(p + (5 * (fieldWidth + 10)) + 6, ft + 20 + ((Theme.FieldHeight - generateHeight) / 2), PrefWidth(_generate), generateHeight);
+        _formError.Bounds = Dip(p, ft + 20 + Theme.FieldHeight + 10, w - (2 * p), Theme.LineHeight);
+        _formHint.Bounds = Dip(p, ft + 20 + Theme.FieldHeight + 10, w - (2 * p), Theme.LineHeight);
 
-        var gridWidth = 516f;
+        const float gridWidth = 360;
         _grid.Bounds = Dip(0, manualTop, gridWidth, manualHeight);
         var right = gridWidth + gap;
-        _import.Bounds = Dip(right, manualTop, 160, 40);
-        _export.Bounds = Dip(right + 172, manualTop, 160, 40);
+        var importWidth = PrefWidth(_import);
+        _import.Bounds = Dip(right, manualTop, importWidth, PrefHeight(_import));
+        _export.Bounds = Dip(right + importWidth + 20, manualTop, PrefWidth(_export), PrefHeight(_export));
         var hintWidth = Px(w - right);
-        _gridHint.Bounds = new Rectangle(Px(right), Px(manualTop + 56), hintWidth, _gridHint.GetPreferredHeight(hintWidth));
-        var y = _gridHint.Bottom + Px(12);
+        _gridHint.Bounds = new Rectangle(Px(right), Px(manualTop + Theme.LineHeight + 6), hintWidth, _gridHint.GetPreferredHeight(hintWidth));
+        var y = _gridHint.Bottom + Px(8);
         foreach (var line in _manualErrors.Where(l => l.Visible))
         {
             var height = line.GetPreferredHeight(hintWidth);
             line.Bounds = new Rectangle(Px(right), y, hintWidth, height);
-            y += height + Px(6);
+            y += height + Px(4);
         }
     }
 

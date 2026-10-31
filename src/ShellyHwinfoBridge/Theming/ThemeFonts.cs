@@ -121,14 +121,26 @@ internal static class ThemeFonts
     public static ThemeFontSet For(Control control) => For(control.DeviceDpi);
 
     /// <summary>The application default font (Body, in points so WinForms scales it per monitor).</summary>
-    public static Font CreateApplicationDefault() => new(RegularFamily, 11f, FontStyle.Regular, GraphicsUnit.Point);
+    public static Font CreateApplicationDefault() => new(RegularFamily, Spec(FontRole.Body).Points, FontStyle.Regular, GraphicsUnit.Point);
+
+    /// <summary>
+    /// The compact type scale: every role is drawn at 80 % of the size measured from the design images, except
+    /// <see cref="FontRole.Tiny"/> (the version text), which keeps its size.
+    /// </summary>
+    internal const float CompactScale = 0.8f;
 
     /// <remarks>
-    /// Sizes were measured from the accepted design images (text widths at the 1100 × 740 DIP client size). The
-    /// "semibold" roles render Bold: GDI (TextRenderer) maps System.Drawing fonts to weight 400 or 700 only, and the
-    /// Segoe UI Variable "Semibold" named instances render at 400 through GDI.
+    /// The base sizes were measured from the accepted design images (text widths at the 1100 × 740 DIP client size) and
+    /// are scaled by <see cref="CompactScale"/>. The "semibold" roles render Bold: GDI (TextRenderer) maps System.Drawing
+    /// fonts to weight 400 or 700 only, and the Segoe UI Variable "Semibold" named instances render at 400 through GDI.
     /// </remarks>
-    internal static (string Family, float Points, FontStyle Style) Spec(FontRole role) => role switch
+    internal static (string Family, float Points, FontStyle Style) Spec(FontRole role)
+    {
+        var (family, points, style) = BaseSpec(role);
+        return role == FontRole.Tiny ? (family, points, style) : (family, points * CompactScale, style);
+    }
+
+    private static (string Family, float Points, FontStyle Style) BaseSpec(FontRole role) => role switch
     {
         FontRole.AppTitle => (DisplayFamily, 21f, FontStyle.Bold),
         FontRole.PageTitle => (DisplayFamily, 25f, FontStyle.Bold),

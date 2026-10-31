@@ -72,22 +72,25 @@ internal sealed class HwinfoStepView : WizardStepView
     {
         base.OnLayout(levent);
         var w = WidthDip;
-        const float left = 400;
-        const float gap = 16;
+        const float left = 280;
+        const float gap = Theme.Gap;
+        var p = Px(Theme.CardPadding);
+        var contentTop = _status.ContentBounds.Top;
 
         // Left column: status card, then the notes.
         var statusWidth = Px(left);
-        var lineWidth = statusWidth - Px(40);
-        var y = Px(60);
+        var lineWidth = statusWidth - (2 * p);
+        var y = contentTop;
         foreach (var line in _lines.Where(l => l.Visible))
         {
-            var height = Math.Max(Px(28), line.GetPreferredHeight(lineWidth));
-            line.Bounds = new Rectangle(Px(20), y, lineWidth, height);
-            y += height + Px(8);
+            var height = Math.Max(Px(Theme.LineHeight), line.GetPreferredHeight(lineWidth));
+            line.Bounds = new Rectangle(p, y, lineWidth, height);
+            y += height + Px(4);
         }
 
-        _checkAgain.Bounds = new Rectangle(Px(20), y + Px(8), Px(150), Px(40));
-        _status.Bounds = new Rectangle(0, 0, statusWidth, _checkAgain.Bottom + Px(20));
+        var checkSize = _checkAgain.GetPreferredSize(Size.Empty);
+        _checkAgain.Bounds = new Rectangle(p, y + Px(4), checkSize.Width, checkSize.Height);
+        _status.Bounds = new Rectangle(0, 0, statusWidth, _checkAgain.Bottom + p);
 
         var noteTop = _status.Bottom + Px(gap);
         var noteWidth = _status.Width;
@@ -95,26 +98,26 @@ internal sealed class HwinfoStepView : WizardStepView
         {
             var height = note.GetPreferredHeight(noteWidth);
             note.Bounds = new Rectangle(0, noteTop, noteWidth, height);
-            noteTop += height + Px(10);
+            noteTop += height + Px(6);
         }
 
         // Right column: the numbered steps (hanging indent), then the screenshot fitted to the remaining space.
         _howTo.Bounds = Dip(left + gap, 0, w - left - gap, HeightDip);
-        var inner = _howTo.Width - Px(40);
-        var numberWidth = Px(22);
+        var inner = _howTo.Width - (2 * p);
+        var numberWidth = Px(16);
         var textWidth = inner - numberWidth;
-        var stepTop = Px(58);
+        var stepTop = _howTo.ContentBounds.Top;
         foreach (var (number, text) in _steps)
         {
             var height = text.GetPreferredHeight(textWidth);
-            number.Bounds = new Rectangle(Px(20), stepTop, numberWidth, height);
-            text.Bounds = new Rectangle(Px(20) + numberWidth, stepTop, textWidth, height);
-            stepTop += height + Px(4);
+            number.Bounds = new Rectangle(p, stepTop, numberWidth, height);
+            text.Bounds = new Rectangle(p + numberWidth, stepTop, textWidth, height);
+            stepTop += height + Px(2);
         }
 
-        var slotTop = stepTop + Px(12);
-        var slot = _screenshot.FitInto(new Size(inner, Math.Max(Px(80), _howTo.Height - slotTop - Px(20))));
-        _screenshot.Bounds = new Rectangle(new Point(Px(20), slotTop), slot);
+        var slotTop = stepTop + Px(6);
+        var slot = _screenshot.FitInto(new Size(inner, Math.Max(Px(80), _howTo.Height - slotTop - p)));
+        _screenshot.Bounds = new Rectangle(new Point(p, slotTop), slot);
     }
 
     internal static InfoTone ToInfoTone(Tone tone) => tone switch

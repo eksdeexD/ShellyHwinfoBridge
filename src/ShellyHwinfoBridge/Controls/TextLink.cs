@@ -5,17 +5,21 @@ namespace ShellyHwinfoBridge.Controls;
 /// <summary>Colour of a <see cref="TextLink"/>.</summary>
 internal enum LinkTone
 {
-    /// <summary>Accent orange ("Change…", "Edit…", "Advanced: edit formula").</summary>
+    /// <summary>Accent orange ("Change", "Edit", "Advanced: edit formula").</summary>
     Accent,
 
-    /// <summary>Ink ("Cancel").</summary>
+    /// <summary>Ink (plain text links).</summary>
     Ink,
 
     /// <summary>Error red ("Remove HWiNFO sensors", "Exit ShellyHwinfoBridge").</summary>
     Danger,
 }
 
-/// <summary>A clickable text link. Sizes itself to its text (<see cref="Control.AutoSize"/> is on).</summary>
+/// <summary>
+/// A clickable text link. With <see cref="Semibold"/> it is the app's "text" command idiom (bold accent text, no border or
+/// background), used for every command that is not a <see cref="PillButton"/>. Sizes itself to its text
+/// (<see cref="Control.AutoSize"/> is on).
+/// </summary>
 internal sealed class TextLink : ThemedControl
 {
     private LinkTone _tone = LinkTone.Accent;
@@ -52,7 +56,7 @@ internal sealed class TextLink : ThemedControl
         }
     }
 
-    /// <summary>Gets or sets whether the text is semibold (as "Change…" in Settings).</summary>
+    /// <summary>Gets or sets whether the text is semibold (the "text" command idiom, as "Change" in Settings).</summary>
     public bool Semibold
     {
         get => _semibold;

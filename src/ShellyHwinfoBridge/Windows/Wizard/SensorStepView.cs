@@ -7,15 +7,15 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
-/// Step 4 (design/final/wizard-step4-sensors.png), also hosted by the Settings "Edit…" dialog: a scrollable card of
+/// Step 4 (design/final/wizard-step4-sensors.png), also hosted by the Settings "Edit" dialog: a scrollable card of
 /// HWiNFO device groups with a checkbox, value and category per power sensor; the warnings; and the formula preview
 /// with "Advanced: edit formula". Without shared memory: a notice with "Check again" and typed rows with "Add sensor".
 /// </summary>
 internal sealed class SensorStepView : WizardStepView
 {
-    private const float RowHeight = 36;
-    private const float HeaderHeight = 30;
-    private const float CategoryWidth = 155;
+    private const float RowHeight = 28;
+    private const float HeaderHeight = 24;
+    private const float CategoryWidth = 130;
 
     private static readonly IReadOnlyList<WizardOption<SensorCategory?>> ManualCategories =
         SensorStepModel.CategoryOptions.Where(o => o.Value is not null).ToList();
@@ -29,13 +29,13 @@ internal sealed class SensorStepView : WizardStepView
     private readonly CardPanel _formulaCard = new() { AccessibleName = "Formula preview" };
     private readonly TextLabel _formulaCaption = new() { Text = "Formula preview", Caption = true, Tone = UiTone.Secondary };
     private readonly TextLabel _formula = new() { Role = FontRole.Mono, AccessibleName = "Formula" };
-    private readonly TextLink _advanced = new() { Text = "Advanced: edit formula" };
+    private readonly TextLink _advanced = new() { Text = "Advanced: edit formula", Semibold = true };
     private readonly ThemedTextBox _editor = new() { Multiline = true, Monospace = true, AccessibleName = "Formula" };
-    private readonly TextLink _reset = new() { Text = "Reset to generated" };
+    private readonly TextLink _reset = new() { Text = "Reset to generated", Semibold = true };
     private readonly List<(Control Control, float X, float Y, float Width, float Height)> _placed = [];
     private readonly Dictionary<int, (ThemedCheckBox Box, TextLabel Value, ThemedDropDown Category)> _sensorControls = [];
     private readonly Dictionary<int, (ThemedTextBox Name, ThemedDropDown Category)> _manualControls = [];
-    private PillButton? _addSensor;
+    private TextLink? _addSensor;
     private string? _structure;
     private float _contentHeight;
     private bool _editorOpen;
@@ -133,18 +133,19 @@ internal sealed class SensorStepView : WizardStepView
         base.OnLayout(levent);
         var w = WidthDip;
         var h = HeightDip;
-        const float gap = 16;
+        const float gap = Theme.Gap;
+        const float p = Theme.CardPadding;
 
-        var formulaHeight = _editorOpen ? 150f : 84f;
+        var formulaHeight = _editorOpen ? 120f : 62f;
         var formulaTop = h - formulaHeight;
         _formulaCard.Bounds = Dip(0, formulaTop, w, formulaHeight);
-        _formulaCaption.Bounds = Dip(30, 16, 300, 22);
+        _formulaCaption.Bounds = Dip(p, 10, 300, 18);
         var linkSize = _advanced.GetPreferredSize(Size.Empty);
-        _advanced.Bounds = new Rectangle(_formulaCard.Width - Px(30) - linkSize.Width, Px(14), linkSize.Width, linkSize.Height);
-        _formula.Bounds = Dip(30, 44, w - 60, 28);
-        _editor.Bounds = Dip(30, 46, w - 60, formulaHeight - 46 - 20);
+        _advanced.Bounds = new Rectangle(_formulaCard.Width - Px(p) - linkSize.Width, Px(9), linkSize.Width, linkSize.Height);
+        _formula.Bounds = Dip(p, 32, w - (2 * p), 20);
+        _editor.Bounds = Dip(p, 32, w - (2 * p), formulaHeight - 32 - 12);
         var resetSize = _reset.GetPreferredSize(Size.Empty);
-        _reset.Bounds = new Rectangle(_advanced.Left - Px(24) - resetSize.Width, Px(14), resetSize.Width, resetSize.Height);
+        _reset.Bounds = new Rectangle(_advanced.Left - Px(20) - resetSize.Width, Px(9), resetSize.Width, resetSize.Height);
 
         var widthPx = Px(w);
         var bottom = _formulaCard.Top - Px(gap);
@@ -152,14 +153,14 @@ internal sealed class SensorStepView : WizardStepView
         for (var i = visibleWarnings.Count - 1; i >= 0; i--)
         {
             var line = visibleWarnings[i];
-            var height = Math.Max(Px(28), line.GetPreferredHeight(widthPx - Px(8)));
-            line.Bounds = new Rectangle(Px(8), bottom - height, widthPx - Px(8), height);
-            bottom -= height + Px(6);
+            var height = Math.Max(Px(Theme.LineHeight), line.GetPreferredHeight(widthPx - Px(4)));
+            line.Bounds = new Rectangle(Px(4), bottom - height, widthPx - Px(4), height);
+            bottom -= height + Px(4);
         }
 
         if (visibleWarnings.Count > 0)
         {
-            bottom -= Px(gap - 6);
+            bottom -= Px(gap - 4);
         }
 
         var top = 0;
@@ -167,12 +168,12 @@ internal sealed class SensorStepView : WizardStepView
         {
             var height = _notice.GetPreferredHeight(widthPx);
             _notice.Bounds = new Rectangle(0, 0, widthPx, height);
-            top = height + Px(12);
+            top = height + Px(8);
         }
 
         _card.Bounds = new Rectangle(0, top, widthPx, Math.Max(Px(80), bottom - top));
         var inset = Px(2);
-        _rows.Bounds = new Rectangle(inset, Px(10), _card.Width - (2 * inset), _card.Height - Px(20));
+        _rows.Bounds = new Rectangle(inset, Px(6), _card.Width - (2 * inset), _card.Height - Px(12));
         LayoutRows();
     }
 
@@ -219,8 +220,8 @@ internal sealed class SensorStepView : WizardStepView
         _sensorControls.Clear();
         _manualControls.Clear();
         _addSensor = null;
-        var y = 10f;
-        const float left = 22;
+        var y = 6f;
+        const float left = 14;
 
         if (_model.IsManual)
         {
@@ -248,17 +249,17 @@ internal sealed class SensorStepView : WizardStepView
                 var remove = new TextLink { Text = "×", Tone = LinkTone.Ink, AccessibleName = "Remove sensor" };
                 remove.Click += (_, _) => BeginInvoke(() => _model.RemoveManual(id));
 
-                Place(name, left, y, -1, 40);
-                Place(category, -CategoryWidth - 56, y + 2, CategoryWidth, 36);
-                Place(remove, -40, y + 6, 20, 28);
+                Place(name, left, y, -1, Theme.FieldHeight);
+                Place(category, -CategoryWidth - 44, y + 1, CategoryWidth, 28);
+                Place(remove, -32, y + 4, 18, 22);
                 _manualControls[id] = (name, category);
-                y += 52;
+                y += 38;
             }
 
-            _addSensor = new PillButton { Text = "Add sensor" };
+            _addSensor = new TextLink { Text = "Add sensor", Semibold = true };
             _addSensor.Click += (_, _) => BeginInvoke(() => _model.AddManual());
-            Place(_addSensor, left, y + 4, 150, 40);
-            y += 56;
+            Place(_addSensor, left, y + 2, _addSensor.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi, 20);
+            y += 30;
         }
         else
         {
@@ -267,11 +268,11 @@ internal sealed class SensorStepView : WizardStepView
                 var group = _model.Groups[g];
                 if (g > 0)
                 {
-                    Place(new Panel { BackColor = Theme.Border }, left + 8, y + 4, -2, 1);
-                    y += 18;
+                    Place(new Panel { BackColor = Theme.Border }, left + 4, y + 3, -2, 1);
+                    y += 12;
                 }
 
-                Place(new TextLabel { Text = group.Device, Caption = true, Tone = UiTone.Secondary }, left + 8, y, -1, 24);
+                Place(new TextLabel { Text = group.Device, Caption = true, Tone = UiTone.Secondary }, left + 4, y, -1, 20);
                 y += HeaderHeight;
                 foreach (var row in group.Rows)
                 {
@@ -295,9 +296,9 @@ internal sealed class SensorStepView : WizardStepView
                         }
                     };
 
-                    Place(box, left, y, 520, RowHeight);
-                    Place(value, float.NaN, y, 140, RowHeight);
-                    Place(category, -CategoryWidth - 26, y + 3, CategoryWidth, 30);
+                    Place(box, left, y, 420, RowHeight);
+                    Place(value, float.NaN, y, 110, RowHeight);
+                    Place(category, -CategoryWidth - 18, y + 2, CategoryWidth, RowHeight - 4);
                     _sensorControls[id] = (box, value, category);
                     y += RowHeight + 2;
                 }
@@ -334,18 +335,18 @@ internal sealed class SensorStepView : WizardStepView
             int left;
             if (float.IsNaN(x))
             {
-                left = (int)(width * 0.58f) - Px(22);
+                left = (int)(width * 0.58f) - Px(14);
             }
             else
             {
                 left = x < 0 ? width + Px(x) : Px(x);
             }
 
-            var right = w == -2 ? width - Px(26) : width - Px(CategoryWidth + 56 + 12);
+            var right = w == -2 ? width - Px(18) : width - Px(CategoryWidth + 44 + 10);
             var controlWidth = w < 0 ? Math.Max(Px(40), right - left) : Px(w);
             if (!float.IsNaN(x) && x >= 0 && w > 0 && control is ThemedCheckBox)
             {
-                controlWidth = Math.Min(controlWidth, (int)(width * 0.58f) - Px(22) - left - Px(12));
+                controlWidth = Math.Min(controlWidth, (int)(width * 0.58f) - Px(14) - left - Px(10));
             }
 
             control.Bounds = new Rectangle(left, Px(y) + scroll, controlWidth, Math.Max(1, Px(h)));

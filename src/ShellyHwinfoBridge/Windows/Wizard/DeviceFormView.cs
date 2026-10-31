@@ -22,7 +22,7 @@ internal sealed class DeviceFormView : WizardStepView
     private readonly bool _inline;
 
     private readonly CardPanel _found = new() { Title = "Found on your network" };
-    private readonly SelectableList _list = new() { RowHeightDip = 56, AccessibleName = "Shelly plugs found" };
+    private readonly SelectableList _list = new() { RowHeightDip = 44, AccessibleName = "Shelly plugs found" };
     private readonly TextLabel _discoveryStatus = new() { Tone = UiTone.Secondary };
     private readonly PillButton _searchAgain = new() { Text = "Search again" };
 
@@ -40,7 +40,7 @@ internal sealed class DeviceFormView : WizardStepView
     private readonly ValueTile _voltage = new() { Caption = "Voltage" };
     private readonly ValueTile _current = new() { Caption = "Current" };
     private readonly InfoLine _message = new();
-    private readonly PillButton _showHow = new() { Text = HwinfoRenameHelp.ShowMeHowText, Visible = false, AccessibleName = "Show me how to update the names in HWiNFO" };
+    private readonly TextLink _showHow = new() { Text = HwinfoRenameHelp.ShowMeHowText, Semibold = true, Visible = false, AccessibleName = "Show me how to update the names in HWiNFO" };
     private readonly PillButton _save = new() { Variant = PillVariant.Primary };
     private readonly PillButton _cancel = new() { Text = "Cancel" };
     private IReadOnlyList<DiscoveredShelly>? _shownDevices;
@@ -221,59 +221,80 @@ internal sealed class DeviceFormView : WizardStepView
         _save.Enabled = _form.IsValid;
     }
 
+    /// <summary>The device card's fields, tiles and the longest message (the rename warning with "Show me how").</summary>
+    public override float PreferredHeightDip(float widthDip)
+    {
+        const float p = Theme.CardPadding;
+        var title = Gfx.Measure("Ag", Fonts.CardTitle).Height * 96f / DeviceDpi;
+        var t = p + title + Theme.TitleGap;
+        var cw = ((widthDip - Theme.Gap) / 2) - (2 * p);
+        // The warning line as InfoLine wraps it (text right of its icon).
+        var message = (Gfx.MeasureWrapped(DeviceFormModel.RenameWarningText, Fonts.Body, Px(cw - 23)).Height * 96f / DeviceDpi) + 2;
+        var showHow = _showHow.GetPreferredSize(Size.Empty).Height * 96f / DeviceDpi;
+        var buttons = _inline ? Theme.ButtonHeight + 6 : 0;
+        return t + (20 + Theme.FieldHeight + 8) + (20 + Theme.FieldHeight + 10) + (Theme.ButtonHeight + 10) + (46 + 8) + message + 4 + showHow + buttons + p;
+    }
+
     protected override void OnLayout(LayoutEventArgs levent)
     {
         base.OnLayout(levent);
         var w = WidthDip;
         var h = HeightDip;
-        const float gap = 16;
+        const float gap = Theme.Gap;
+        const float p = Theme.CardPadding;
         var half = (w - gap) / 2;
+        var t = _found.ContentBounds.Top * 96f / DeviceDpi;
 
         // Left: the discovery list, as in step 2.
         _found.Bounds = Dip(0, 0, half, h);
-        var inner = _found.Width - Px(40);
-        _list.Bounds = new Rectangle(Px(20), Px(60), inner, Math.Max(Px(56), _found.Height - Px(60 + 20 + 40 + 16)));
-        _searchAgain.Bounds = new Rectangle(_found.Width - Px(20 + 150), _found.Height - Px(20 + 40), Px(150), Px(40));
-        _discoveryStatus.Bounds = new Rectangle(Px(20), _searchAgain.Top, Math.Max(0, _searchAgain.Left - Px(36)), Px(40));
+        var inner = _found.Width - Px(2 * p);
+        var search = _searchAgain.GetPreferredSize(Size.Empty);
+        _searchAgain.Bounds = new Rectangle(_found.Width - Px(p) - search.Width, _found.Height - Px(p) - search.Height, search.Width, search.Height);
+        _list.Bounds = new Rectangle(Px(p), Px(t), inner, Math.Max(Px(44), _searchAgain.Top - Px(8) - Px(t)));
+        _discoveryStatus.Bounds = new Rectangle(Px(p), _searchAgain.Top, Math.Max(0, _searchAgain.Left - Px(p + 12)), search.Height);
 
         // Right: label and include, host and password, test and result, tiles, message (and the inline buttons).
         _device.Bounds = Dip(half + gap, 0, w - half - gap, h);
-        var cw = _device.Width - Px(40);
-        var fieldWidth = (cw - Px(16)) / 2;
-        var rightLeft = Px(20) + fieldWidth + Px(16);
-        _labelCaption.Bounds = new Rectangle(Px(20), Px(52), fieldWidth, Px(22));
-        _label.Bounds = new Rectangle(Px(20), Px(76), fieldWidth, Px(40));
-        _include.Bounds = new Rectangle(rightLeft, Px(82), Math.Min(fieldWidth, _include.GetPreferredSize(Size.Empty).Width), Px(28));
-        _hostLabel.Bounds = new Rectangle(Px(20), Px(124), fieldWidth, Px(22));
-        _passwordLabel.Bounds = new Rectangle(rightLeft, Px(124), fieldWidth, Px(22));
-        _host.Bounds = new Rectangle(Px(20), Px(148), fieldWidth, Px(40));
-        _password.Bounds = new Rectangle(rightLeft, Px(148), fieldWidth, Px(40));
-        _test.Bounds = new Rectangle(Px(20), Px(200), Px(170), Px(40));
-        var resultLeft = _test.Right + Px(16);
-        var resultWidth = Math.Max(0, Px(20) + cw - resultLeft);
-        var resultHeight = Math.Min(Px(48), Math.Max(Px(28), _result.GetPreferredHeight(resultWidth)));
+        var cw = (w - half - gap) - (2 * p);
+        var fieldWidth = (cw - 10) / 2;
+        var right = p + fieldWidth + 10;
+        _labelCaption.Bounds = Dip(p, t, fieldWidth, 18);
+        _label.Bounds = Dip(p, t + 20, fieldWidth, Theme.FieldHeight);
+        var includeWidth = Math.Min(fieldWidth, _include.GetPreferredSize(Size.Empty).Width * 96f / DeviceDpi);
+        _include.Bounds = Dip(right, t + 20 + ((Theme.FieldHeight - Theme.LineHeight) / 2), includeWidth, Theme.LineHeight);
+        var hostTop = t + 20 + Theme.FieldHeight + 8;
+        _hostLabel.Bounds = Dip(p, hostTop, fieldWidth, 18);
+        _passwordLabel.Bounds = Dip(right, hostTop, fieldWidth, 18);
+        _host.Bounds = Dip(p, hostTop + 20, fieldWidth, Theme.FieldHeight);
+        _password.Bounds = Dip(right, hostTop + 20, fieldWidth, Theme.FieldHeight);
+        var testTop = hostTop + 20 + Theme.FieldHeight + 10;
+        var test = _test.GetPreferredSize(Size.Empty);
+        _test.Bounds = new Rectangle(Px(p), Px(testTop), test.Width, test.Height);
+        var resultLeft = _test.Right + Px(10);
+        var resultWidth = Math.Max(0, Px(p + cw) - resultLeft);
+        var resultHeight = Math.Min(Px(40), Math.Max(Px(Theme.LineHeight), _result.GetPreferredHeight(resultWidth)));
         _result.Bounds = new Rectangle(resultLeft, _test.Top + ((_test.Height - resultHeight) / 2), resultWidth, resultHeight);
 
-        var tileWidth = (cw - Px(24)) / 3;
-        var x = Px(20);
-        foreach (var tile in new[] { _power, _voltage, _current })
+        var tilesTop = testTop + Theme.ButtonHeight + 10;
+        var tileWidth = (cw - 16) / 3;
+        for (var i = 0; i < 3; i++)
         {
-            tile.Bounds = new Rectangle(x, Px(252), tileWidth, Px(56));
-            x += tileWidth + Px(12);
+            new[] { _power, _voltage, _current }[i].Bounds = Dip(p + (i * (tileWidth + 8)), tilesTop, tileWidth, 46);
         }
 
-        var buttonsTop = _device.Height - Px(20 + 40);
-        var messageTop = Px(318);
-        var messageBottom = _inline ? buttonsTop - Px(8) : _device.Height - Px(16);
-        var showHowHeight = _showHowShown ? Px(36 + 8) : 0;
-        _message.Bounds = new Rectangle(Px(20), messageTop, cw, Math.Max(Px(28), Math.Min(messageBottom - messageTop - showHowHeight, _message.GetPreferredHeight(cw))));
-        var showHowWidth = Math.Max(Px(130), _showHow.GetPreferredSize(Size.Empty).Width);
-        _showHow.Bounds = new Rectangle(Px(20 + 32), _message.Bottom + Px(8), showHowWidth, Px(36));
+        var buttonsTop = _device.Height - Px(p) - Px(Theme.ButtonHeight);
+        var messageTop = Px(tilesTop + 46 + 8);
+        var messageBottom = _inline ? buttonsTop - Px(6) : _device.Height - Px(10);
+        var showHow = _showHow.GetPreferredSize(Size.Empty);
+        var showHowHeight = _showHowShown ? showHow.Height + Px(4) : 0;
+        var messageWidth = Px(cw);
+        _message.Bounds = new Rectangle(Px(p), messageTop, messageWidth, Math.Max(Px(Theme.LineHeight), Math.Min(messageBottom - messageTop - showHowHeight, _message.GetPreferredHeight(messageWidth))));
+        _showHow.Bounds = new Rectangle(Px(p + 23), _message.Bottom + Px(4), showHow.Width, showHow.Height);
 
-        var saveWidth = Math.Max(Px(130), _save.GetPreferredSize(Size.Empty).Width);
-        var cancelWidth = Math.Max(Px(108), _cancel.GetPreferredSize(Size.Empty).Width);
-        _save.Bounds = new Rectangle(Px(20) + cw - saveWidth, buttonsTop, saveWidth, Px(40));
-        _cancel.Bounds = new Rectangle(_save.Left - Px(12) - cancelWidth, buttonsTop, cancelWidth, Px(40));
+        var saveWidth = Math.Max(Px(84), _save.GetPreferredSize(Size.Empty).Width);
+        var cancelWidth = Math.Max(Px(84), _cancel.GetPreferredSize(Size.Empty).Width);
+        _save.Bounds = new Rectangle(Px(p) + Px(cw) - saveWidth, buttonsTop, saveWidth, Px(Theme.ButtonHeight));
+        _cancel.Bounds = new Rectangle(_save.Left - Px(8) - cancelWidth, buttonsTop, cancelWidth, Px(Theme.ButtonHeight));
     }
 
     protected override void Dispose(bool disposing)

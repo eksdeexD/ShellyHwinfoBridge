@@ -150,17 +150,50 @@ internal static class ScreenRenderer
             presenter.SetPrice("abc");
             return form;
         }),
-        ("main-settings-short", () =>
+        ("main-settings-results-bottom", () =>
         {
-            var form = Settings();
-            form.SetClientSizeDip(new Size(980, 600), new Size(980, 600));
+            var form = Settings(out var presenter);
+            presenter.TestConnectionAsync("192.168.1.42", null).GetAwaiter().GetResult();
+            presenter.CheckDatabaseUpdateAsync().GetAwaiter().GetResult();
+            presenter.SetPrice("abc");
+            form.Tag = new Action(() => form.SettingsPage?.PreviewScrollToEnd());
             return form;
         }),
-        ("main-settings-short-scrolled", () =>
+        ("main-settings-bottom", () =>
         {
             var form = Settings();
-            form.SetClientSizeDip(new Size(980, 600), new Size(980, 600));
             form.Tag = new Action(() => form.SettingsPage?.PreviewScrollToEnd());
+            return form;
+        }),
+        ("main-settings-bottom-after-refresh", () =>
+        {
+            // The scroll-jump check: Manage Shellys has the focus (as when the page opens), the page is scrolled to the
+            // end, then the main window gets the 1 Hz refreshes (the status text changes with the voltage) and a full
+            // layout pass. The page must stay at the bottom; a jump fails the render (render-errors.txt).
+            var form = Settings();
+            form.Tag = new Action(() =>
+            {
+                var page = form.SettingsPage!;
+                page.FocusFirstField();
+                page.PreviewScrollToEnd();
+                Application.DoEvents();
+                var before = page.AutoScrollPosition;
+                for (var i = 1; i <= 5; i++)
+                {
+                    var reading = new PowerReadingEventArgs(
+                        new Core.Shelly.ShellyReading(312.4 + i, 226.9 + (i * 0.1), 1.38, 123456 + i),
+                        new Core.Curves.PowerReading(312.4 + i, 312.4 + i, 294.8 + i, 17.6, Core.Curves.InputVoltage.V230));
+                    form.Apply(MainWindowPresenter.Build(reading, RuntimeState.Running, OnlineState.Online, SampleData.Hwinfo(), SampleData.Totals(), SampleData.Settings(), PsuDatabaseLoader.LoadEmbedded(), SampleData.Culture, SampleData.Other()));
+                    Application.DoEvents();
+                }
+
+                form.PerformLayout();
+                Application.DoEvents();
+                if (page.AutoScrollPosition != before)
+                {
+                    throw new InvalidOperationException($"The settings page jumped from {before} to {page.AutoScrollPosition} while idle.");
+                }
+            });
             return form;
         }),
         ("step-dialog-psu", () =>
@@ -192,12 +225,6 @@ internal static class ScreenRenderer
             return form;
         }),
         ("m4-main-2-devices-per-device-days", () => TwoDeviceWindow(EnergyChartMode.PerDevice, EnergyPeriod.Days)),
-        ("m4-main-2-devices-min-size", () =>
-        {
-            var form = TwoDeviceWindow(EnergyChartMode.PerDevice);
-            form.SetClientSizeDip(new Size(980, 680), new Size(980, 680));
-            return form;
-        }),
         ("m4-main-other-needs-gadget", () => MainWindow(SampleData.MainView(hwinfo: SampleData.HwinfoWithoutComponents(), other: OtherComponentsState.Unknown), EnergyPeriod.Hours)),
         ("m4-main-other-needs-gadget-2-devices", () =>
         {
@@ -237,6 +264,12 @@ internal static class ScreenRenderer
             var settings = ThreeDeviceSettings();
             settings.AdditionalDevices.Add(new AdditionalDeviceSettings { Id = "9d8c7b6a-5f4e-4d3c-b2a1-0f9e8d7c6b5a", Label = "Lamp", Host = "192.168.1.59", IncludeInTotals = true });
             return ManageShellys(settings);
+        }),
+        ("m4-manage-shellys-hex-error", () =>
+        {
+            var form = ManageShellys(ThreeDeviceSettings(ColourMode.Custom));
+            form.ManageShellysPage!.PreviewTypeColour(1, "#3FA7D");
+            return form;
         }),
         ("m4-device-form-add", () => DeviceForm(m => m.BeginAdd(), f =>
         {

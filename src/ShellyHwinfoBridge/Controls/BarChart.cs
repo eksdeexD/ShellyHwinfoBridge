@@ -54,8 +54,8 @@ internal sealed class BarChart : ThemedControl
     /// <summary>Gets the hovered bar's tooltip on one line ("Thu 18:00 · 0.34 kWh"), or null.</summary>
     public string? HoveredTooltip => ItemAt(_hovered) is { } bar ? string.Join(" · ", bar.TooltipLines) : null;
 
-    /// <summary>Gets or sets the height reserved for X labels in DIP (default 28).</summary>
-    public int XLabelHeightDip { get; set; } = 28;
+    /// <summary>Gets or sets the height reserved for X labels in DIP (default 20).</summary>
+    public int XLabelHeightDip { get; set; } = 20;
 
     private int ItemCount => IsGrouped ? _flat.Count : _bars.Count;
 
@@ -163,7 +163,7 @@ internal sealed class BarChart : ThemedControl
                 var size = Gfx.Measure(label, labelFont);
                 var cx = plot.Left + (s * slot) + (slot / 2f);
                 var left = Math.Min((int)Math.Round(cx - (size.Width / 2f)), Width - size.Width - this.Px(2));
-                var rect = new Rectangle(left, plot.Bottom + this.Px(10), size.Width + this.Px(2), size.Height);
+                var rect = new Rectangle(left, plot.Bottom + this.Px(5), size.Width + this.Px(2), size.Height);
                 Gfx.Text(g, label, labelFont, rect, Theme.InkSecondary, Gfx.SingleLine);
             }
         }
@@ -223,7 +223,7 @@ internal sealed class BarChart : ThemedControl
         }
 
         var font = Fonts.Body;
-        var pad = this.Px(8);
+        var pad = this.Px(6);
         var lineGap = this.Px(2);
         var sizes = lines.Select(l => Gfx.Measure(l, font)).ToList();
         var width = sizes.Max(s => s.Width) + (2 * pad) + this.Px(2);
@@ -265,7 +265,7 @@ internal sealed class BarChart : ThemedControl
     private Rectangle PlotBounds()
     {
         var labelWidth = _yLabels.Count == 0 ? 0 : _yLabels.Max(l => Gfx.Measure(l, Fonts.Body).Width);
-        var left = labelWidth + this.Px(16);
+        var left = labelWidth + this.Px(10);
         var top = Gfx.Measure("Ag", Fonts.Body).Height / 2;
         var bottom = Height - this.Px(XLabelHeightDip);
         return new Rectangle(left, top, Math.Max(1, Width - left), Math.Max(1, bottom - top));

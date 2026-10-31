@@ -3,13 +3,13 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Controls;
 
 /// <summary>
-/// Wizard progress: numbered 30 DIP circles joined by a 2 DIP line, labels underneath. Completed = Success with a
+/// Wizard progress: numbered 22 DIP circles joined by a 2 DIP line, labels underneath. Completed = Success with a
 /// white tick, current = Accent with a white number, pending = 1.5 px ring. The line after a completed step is Success.
 /// </summary>
 internal sealed class StepIndicator : ThemedControl
 {
     /// <summary>Distance between circle centres in DIP.</summary>
-    public const int StepSpacingDip = 82;
+    public const int StepSpacingDip = 64;
 
     private readonly List<string> _steps = [];
     private readonly HashSet<int> _completed = [];
@@ -49,7 +49,7 @@ internal sealed class StepIndicator : ThemedControl
 
     /// <summary>Preferred size: one spacing per step, circle plus label height.</summary>
     public override Size GetPreferredSize(Size proposedSize) =>
-        new(this.Px(StepSpacingDip) * Math.Max(1, _steps.Count), this.Px(30 + 10) + Gfx.Measure("Ag", Fonts.Body).Height);
+        new(this.Px(StepSpacingDip) * Math.Max(1, _steps.Count), this.Px(22 + 6) + Gfx.Measure("Ag", Fonts.Body).Height);
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -60,7 +60,7 @@ internal sealed class StepIndicator : ThemedControl
         }
 
         var spacing = this.PxF(StepSpacingDip);
-        var circle = this.PxF(30);
+        var circle = this.PxF(22);
         var cy = circle / 2f + this.PxF(1);
         var line = Math.Max(1f, this.PxF(2));
         float Center(int i) => (spacing / 2f) + (i * spacing);
@@ -94,7 +94,7 @@ internal sealed class StepIndicator : ThemedControl
                 Gfx.Text(g, number, Fonts.Body, bounds, Theme.Ink, Gfx.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             }
 
-            var label = new Rectangle((int)(Center(i) - (spacing / 2f)), (int)(r.Bottom + this.PxF(8)), (int)spacing, labelHeight);
+            var label = new Rectangle((int)(Center(i) - (spacing / 2f)), (int)(r.Bottom + this.PxF(4)), (int)spacing, labelHeight);
             Gfx.Text(g, _steps[i], Fonts.Body, label, i == _current ? Theme.Ink : Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.HorizontalCenter);
         }
     }

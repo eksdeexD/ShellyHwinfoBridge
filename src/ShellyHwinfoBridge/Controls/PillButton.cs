@@ -12,7 +12,10 @@ internal enum PillVariant
     Secondary,
 }
 
-/// <summary>A pill-shaped button (radius = height / 2). Space/Enter click; usable as AcceptButton/CancelButton.</summary>
+/// <summary>
+/// The app's one button style: a rectangle without corner radius (Primary: accent fill; Secondary: 1 px border).
+/// Space/Enter click; usable as AcceptButton/CancelButton. Commands that are not buttons use a semibold <see cref="TextLink"/>.
+/// </summary>
 internal sealed class PillButton : ThemedControl, IButtonControl
 {
     private PillVariant _variant = PillVariant.Secondary;
@@ -55,11 +58,11 @@ internal sealed class PillButton : ThemedControl, IButtonControl
         }
     }
 
-    /// <summary>Preferred size: text plus 28 DIP side padding, 40 DIP high.</summary>
+    /// <summary>Preferred size: text plus 16 DIP side padding (at least 72 DIP), <see cref="Theme.ButtonHeight"/> high.</summary>
     public override Size GetPreferredSize(Size proposedSize)
     {
         var text = Gfx.Measure(Text, ButtonFont());
-        return new Size(text.Width + this.Px(56), this.Px(40));
+        return new Size(Math.Max(this.Px(72), text.Width + this.Px(32)), this.Px(Theme.ButtonHeight));
     }
 
     protected override void OnClick(EventArgs e)
@@ -98,7 +101,7 @@ internal sealed class PillButton : ThemedControl, IButtonControl
     {
         var g = e.Graphics;
         var r = new RectangleF(0, 0, Width, Height);
-        var radius = Height / 2f;
+        const float radius = 0f;
         var border = Math.Max(1f, this.PxF(1));
         Color text;
         if (Variant == PillVariant.Primary)
@@ -108,7 +111,7 @@ internal sealed class PillButton : ThemedControl, IButtonControl
             text = Enabled ? Theme.OnAccent : Theme.BgBottom;
             if (ShowFocus)
             {
-                Gfx.DrawRounded(g, Theme.Ink, border, RectangleF.Inflate(r, -this.PxF(2), -this.PxF(2)), radius - this.PxF(2));
+                Gfx.DrawRounded(g, Theme.Ink, border, RectangleF.Inflate(r, -this.PxF(2), -this.PxF(2)), radius);
             }
         }
         else

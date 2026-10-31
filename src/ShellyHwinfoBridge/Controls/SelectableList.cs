@@ -37,7 +37,7 @@ internal sealed class SelectableList : ThemedControl
     public event EventHandler<int>? LinkClicked;
 
     /// <summary>Gets or sets the row height in DIP (default 70).</summary>
-    public int RowHeightDip { get; set; } = 70;
+    public int RowHeightDip { get; set; } = 48;
 
     /// <summary>Gets or sets the text shown when there are no rows ("Searching…", "No match").</summary>
     public string EmptyText { get; set; } = string.Empty;
@@ -247,7 +247,7 @@ internal sealed class SelectableList : ThemedControl
     private void PaintRows(Graphics g)
     {
         var rowHeight = RowHeight;
-        var pad = this.Px(32);
+        var pad = this.Px(16);
         var titleFont = Fonts.ItemTitle;
         var line = Math.Max(1, this.Px(1));
         using var separator = new SolidBrush(Theme.Border);
@@ -269,7 +269,7 @@ internal sealed class SelectableList : ThemedControl
             if (i == _selectedIndex)
             {
                 using var bar = new SolidBrush(Theme.Accent);
-                g.FillRectangle(bar, 0, top, this.Px(4), rowHeight);
+                g.FillRectangle(bar, 0, top, this.Px(3), rowHeight);
             }
 
             if (i > 0)
@@ -279,7 +279,7 @@ internal sealed class SelectableList : ThemedControl
 
             var titleHeight = Gfx.Measure(row.Title, titleFont).Height;
             var subHeight = string.IsNullOrEmpty(row.Subtitle) && string.IsNullOrEmpty(row.LinkText) ? 0 : Gfx.Measure("Ag", Fonts.Body).Height;
-            var gap = subHeight > 0 ? this.Px(4) : 0;
+            var gap = subHeight > 0 ? this.Px(2) : 0;
             var y = top + ((rowHeight - titleHeight - gap - subHeight) / 2);
             Gfx.Text(g, row.Title, titleFont, new Rectangle(pad, y, Width - pad - this.Px(20), titleHeight), Theme.Ink);
             if (subHeight > 0)
@@ -314,10 +314,10 @@ internal sealed class SelectableList : ThemedControl
         var rowHeight = RowHeight;
         var titleHeight = Gfx.Measure(row.Title, Fonts.ItemTitle).Height;
         var subHeight = Gfx.Measure("Ag", Fonts.Body).Height;
-        var gap = this.Px(4);
+        var gap = this.Px(2);
         var top = (index * rowHeight) - _scroll;
         var y = top + ((rowHeight - titleHeight - gap - subHeight) / 2) + titleHeight + gap;
-        var pad = this.Px(32);
+        var pad = this.Px(16);
         var subWidth = string.IsNullOrEmpty(row.Subtitle) ? 0 : Gfx.Measure(row.Subtitle, Fonts.Body).Width + this.Px(18);
         var width = Gfx.Measure(row.LinkText, Fonts.Body).Width + this.Px(2);
         return new Rectangle(pad + subWidth, y, width, subHeight);

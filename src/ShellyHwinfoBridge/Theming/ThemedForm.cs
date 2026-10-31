@@ -10,6 +10,7 @@ internal class ThemedForm : Form, IThemedSurface
 {
     private Size _clientSizeDip;
     private Size _minimumClientSizeDip;
+    private bool _fixedSize;
 
     public ThemedForm()
     {
@@ -44,6 +45,25 @@ internal class ThemedForm : Form, IThemedSurface
         ApplySizeForDpi(resizeClient: true);
     }
 
+    /// <summary>
+    /// Makes the window fixed-size (not resizable, no maximize) with a client area of <paramref name="clientDip"/> DIP,
+    /// kept in DIP when the window moves to a monitor with another DPI.
+    /// </summary>
+    public void SetFixedClientSizeDip(Size clientDip)
+    {
+        _fixedSize = true;
+        MaximizeBox = false;
+        if (FormBorderStyle is FormBorderStyle.Sizable or FormBorderStyle.SizableToolWindow)
+        {
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+        }
+
+        _clientSizeDip = clientDip;
+        _minimumClientSizeDip = Size.Empty;
+        MinimumSize = Size.Empty;
+        ApplySizeForDpi(resizeClient: true);
+    }
+
     /// <summary>Paints the gradient slice behind a child (<paramref name="area"/> in client coordinates).</summary>
     public void PaintSurface(Graphics g, Rectangle area) => PaintGradient(g, area);
 
@@ -66,7 +86,7 @@ internal class ThemedForm : Form, IThemedSurface
     protected override void OnDpiChanged(DpiChangedEventArgs e)
     {
         base.OnDpiChanged(e);
-        ApplySizeForDpi(resizeClient: false);
+        ApplySizeForDpi(resizeClient: _fixedSize);
         OnThemeDpiChanged();
     }
 

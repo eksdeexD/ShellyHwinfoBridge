@@ -30,12 +30,39 @@ internal static class Theme
     public static readonly Color FocusBorder = Accent;
     public static readonly Color HoverBorder = InkDisabled;
 
-    // Metrics in DIP.
-    public const int CardRadius = 12;
-    public const int ChipRadius = 8;
-    public const int WindowPadding = 24;
-    public const int Gap = 16;
-    public const int CardPadding = 20;
+    // Metrics in DIP (the compact scale: every window, page and card uses these instead of its own numbers).
+    public const int CardRadius = 10;
+    public const int ChipRadius = 6;
+
+    /// <summary>Space between a window's edge and its content.</summary>
+    public const int WindowPadding = 16;
+
+    /// <summary>Space between cards (and between columns).</summary>
+    public const int Gap = 10;
+
+    /// <summary>Space between stacked rows inside a card.</summary>
+    public const int RowGap = 8;
+
+    /// <summary>Inset of a card's content from its border.</summary>
+    public const int CardPadding = 14;
+
+    /// <summary>Space between a card's title line and its content.</summary>
+    public const int TitleGap = 8;
+
+    /// <summary>Height of a button and of a segmented control.</summary>
+    public const int ButtonHeight = 28;
+
+    /// <summary>Height of a single-line text field or drop-down.</summary>
+    public const int FieldHeight = 30;
+
+    /// <summary>Height of one line of controls (labels, links, switches, check boxes, sliders).</summary>
+    public const int LineHeight = 22;
+
+    /// <summary>Width of the main window's client area (fixed).</summary>
+    public const int MainWindowWidth = 720;
+
+    /// <summary>Height of the main window's client area (fixed).</summary>
+    public const int MainWindowHeight = 520;
 
     /// <summary>Letter spacing of uppercase captions, in DIP per character.</summary>
     public const float CaptionTracking = 1.5f;

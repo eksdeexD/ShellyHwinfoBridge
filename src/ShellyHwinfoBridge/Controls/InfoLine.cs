@@ -71,7 +71,7 @@ internal sealed class InfoLine : ThemedControl
     {
         var textWidth = Math.Max(1, width - TextLeft() - LinkWidth());
         var lines = IsRich ? RichText.Measure(Text, Fonts.Body, Fonts.BodySemibold, textWidth).Height : Gfx.MeasureWrapped(Text, Fonts.Body, textWidth).Height;
-        return Math.Max(lines, this.Px(24)) + this.Px(4);
+        return Math.Max(lines, this.Px(20)) + this.Px(2);
     }
 
     public override Size GetPreferredSize(Size proposedSize)
@@ -139,10 +139,10 @@ internal sealed class InfoLine : ThemedControl
     {
         var g = e.Graphics;
         var f = Fonts.Body;
-        var iconSize = this.Px(20);
+        var iconSize = this.Px(15);
         var lineHeight = Gfx.Measure("Ag", f).Height;
         var firstLineCenter = Math.Min(Height / 2, (lineHeight / 2) + this.Px(2));
-        var wraps = Height > lineHeight + this.Px(12);
+        var wraps = Height > lineHeight + this.Px(10);
         var iconTop = wraps ? firstLineCenter - (iconSize / 2) : (Height - iconSize) / 2;
         if (HasIcon)
         {
@@ -176,11 +176,13 @@ internal sealed class InfoLine : ThemedControl
         if (_linkText is not null)
         {
             var textWidth = Math.Min(textBounds.Width, Gfx.Measure(Text, f).Width);
-            var linkSize = Gfx.Measure(_linkText, f);
-            var x = left + textWidth + this.Px(16);
+            var linkFont = Fonts.BodySemibold;
+            var linkSize = Gfx.Measure(_linkText, linkFont);
+            var x = left + textWidth + this.Px(12);
             _linkBounds = new Rectangle(x, (Height - linkSize.Height) / 2 - this.Px(2), linkSize.Width + this.Px(2), linkSize.Height + this.Px(4));
-            using var underline = new Font(f, FontStyle.Underline);
-            Gfx.Text(g, _linkText, underline, _linkBounds, _linkHover ? Theme.AccentHover : Theme.Accent, Gfx.SingleLine | TextFormatFlags.VerticalCenter);
+            // The "text" command idiom: bold accent text, underlined on hover.
+            using var underline = new Font(linkFont, linkFont.Style | FontStyle.Underline);
+            Gfx.Text(g, _linkText, _linkHover ? underline : linkFont, _linkBounds, _linkHover ? Theme.AccentHover : Theme.Accent, Gfx.SingleLine | TextFormatFlags.VerticalCenter);
             if (ShowFocus)
             {
                 using var pen = new Pen(Theme.FocusBorder);
@@ -193,9 +195,9 @@ internal sealed class InfoLine : ThemedControl
 
     private bool IsRich => _linkText is null && RichText.HasMarkup(Text);
 
-    private int TextLeft() => HasIcon ? this.Px(20 + 12) : 0;
+    private int TextLeft() => HasIcon ? this.Px(15 + 8) : 0;
 
-    private int LinkWidth() => _linkText is null ? 0 : Gfx.Measure(_linkText, Fonts.Body).Width + this.Px(20);
+    private int LinkWidth() => _linkText is null ? 0 : Gfx.Measure(_linkText, Fonts.BodySemibold).Width + this.Px(16);
 
     private void DrawIcon(Graphics g, RectangleF r)
     {

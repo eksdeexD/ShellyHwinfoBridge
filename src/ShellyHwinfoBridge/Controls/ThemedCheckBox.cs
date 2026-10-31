@@ -49,8 +49,8 @@ internal sealed class ThemedCheckBox : ThemedControl
 
     public override Size GetPreferredSize(Size proposedSize)
     {
-        var text = string.IsNullOrEmpty(Text) ? 0 : Gfx.Measure(Text, Fonts.Body).Width + this.Px(14);
-        return new Size(this.Px(22) + text + this.Px(2), Math.Max(this.Px(28), Gfx.Measure(Text, Fonts.Body).Height));
+        var text = string.IsNullOrEmpty(Text) ? 0 : Gfx.Measure(Text, Fonts.Body).Width + this.Px(8);
+        return new Size(this.Px(16) + text + this.Px(2), Math.Max(this.Px(Theme.LineHeight), Gfx.Measure(Text, Fonts.Body).Height));
     }
 
     protected override void OnTextChanged(EventArgs e)
@@ -81,13 +81,13 @@ internal sealed class ThemedCheckBox : ThemedControl
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        var size = this.PxF(22);
+        var size = this.PxF(16);
         var box = new RectangleF(this.PxF(1), (Height - size) / 2f, size, size);
-        var radius = this.PxF(5);
+        var radius = this.PxF(3);
         if (Checked)
         {
             Gfx.FillRounded(g, !Enabled ? Theme.InkDisabled : Hovered ? Theme.AccentHover : Theme.Accent, box, radius);
-            Gfx.DrawCheck(g, Theme.OnAccent, RectangleF.Inflate(box, -size * 0.08f, -size * 0.08f), Math.Max(1.5f, this.PxF(2.2f)));
+            Gfx.DrawCheck(g, Theme.OnAccent, RectangleF.Inflate(box, -size * 0.08f, -size * 0.08f), Math.Max(1.5f, this.PxF(1.8f)));
             if (ShowFocus)
             {
                 Gfx.DrawRounded(g, Theme.Ink, Math.Max(1f, this.PxF(1)), RectangleF.Inflate(box, this.PxF(2), this.PxF(2)), radius + this.PxF(2));
@@ -101,7 +101,7 @@ internal sealed class ThemedCheckBox : ThemedControl
 
         if (!string.IsNullOrEmpty(Text))
         {
-            var left = (int)Math.Ceiling(box.Right) + this.Px(14);
+            var left = (int)Math.Ceiling(box.Right) + this.Px(8);
             Gfx.Text(g, Text, Fonts.Body, new Rectangle(left, 0, Width - left, Height), Enabled ? Theme.Ink : Theme.InkDisabled);
         }
     }

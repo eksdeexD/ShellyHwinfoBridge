@@ -29,11 +29,11 @@ internal sealed class StatusPill : ThemedControl
         Invalidate();
     }
 
-    /// <summary>Preferred size: dot, text and padding; 42 DIP high.</summary>
+    /// <summary>Preferred size: dot, text and padding; 28 DIP high.</summary>
     public override Size GetPreferredSize(Size proposedSize)
     {
         var text = Gfx.Measure(Text, Fonts.Body);
-        return new Size(this.Px(18 + 12 + 12 + 22) + text.Width, this.Px(42));
+        return new Size(this.Px(12 + 8 + 8 + 14) + text.Width, this.Px(28));
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -41,15 +41,15 @@ internal sealed class StatusPill : ThemedControl
         var g = e.Graphics;
         var r = new RectangleF(0, 0, Width, Height);
         Gfx.DrawRounded(g, Theme.Border, Math.Max(1f, this.PxF(1)), r, Height / 2f);
-        var dot = this.PxF(12);
-        var x = this.PxF(18);
+        var dot = this.PxF(8);
+        var x = this.PxF(12);
         Gfx.Smooth(g);
         using (var brush = new SolidBrush(Theme.ToneColor(_dot)))
         {
             g.FillEllipse(brush, x, (Height - dot) / 2f, dot, dot);
         }
 
-        var textLeft = (int)(x + dot + this.PxF(12));
-        Gfx.Text(g, Text, Fonts.Body, new Rectangle(textLeft, 0, Width - textLeft - this.Px(16), Height), Theme.Ink);
+        var textLeft = (int)(x + dot + this.PxF(8));
+        Gfx.Text(g, Text, Fonts.Body, new Rectangle(textLeft, 0, Width - textLeft - this.Px(10), Height), Theme.Ink);
     }
 }

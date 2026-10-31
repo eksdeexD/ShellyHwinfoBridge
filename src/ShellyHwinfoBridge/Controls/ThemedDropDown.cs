@@ -108,7 +108,7 @@ internal sealed class ThemedDropDown : ThemedControl
             var item = new ToolStripMenuItem(_items[i].Text)
             {
                 Checked = i == _selectedIndex,
-                Padding = new Padding(this.Px(4), this.Px(5), this.Px(4), this.Px(5)),
+                Padding = new Padding(this.Px(4), this.Px(3), this.Px(4), this.Px(3)),
             };
             item.Click += (_, _) => SelectedIndex = index;
             _menu.Items.Add(item);
@@ -124,9 +124,9 @@ internal sealed class ThemedDropDown : ThemedControl
 
     public override Size GetPreferredSize(Size proposedSize)
     {
-        var prefix = string.IsNullOrEmpty(_prefix) ? 0 : Gfx.Measure(_prefix, Fonts.Body).Width + this.Px(14);
+        var prefix = string.IsNullOrEmpty(_prefix) ? 0 : Gfx.Measure(_prefix, Fonts.Body).Width + this.Px(8);
         var widest = _items.Count == 0 ? Gfx.Measure(Placeholder, Fonts.Body).Width : _items.Max(i => Gfx.Measure(i.Text, Fonts.Body).Width);
-        return new Size(this.Px(20) + prefix + widest + this.Px(48), this.Px(44));
+        return new Size(this.Px(10) + prefix + widest + this.Px(30), this.Px(Theme.FieldHeight));
     }
 
     protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
@@ -189,16 +189,16 @@ internal sealed class ThemedDropDown : ThemedControl
         var border = !Enabled ? Theme.Border : Focused || open ? Theme.FocusBorder : Hovered ? Theme.HoverBorder : Theme.Border;
         Gfx.FillAndBorder(g, Theme.Field, border, Math.Max(1f, this.PxF(1)), r, radius);
 
-        var x = this.Px(20);
+        var x = this.Px(10);
         if (!string.IsNullOrEmpty(_prefix))
         {
             var prefixWidth = Gfx.Measure(_prefix, Fonts.Body).Width;
             Gfx.Text(g, _prefix, Fonts.Body, new Rectangle(x, 0, prefixWidth + this.Px(2), Height), Theme.InkSecondary);
-            x += prefixWidth + this.Px(14);
+            x += prefixWidth + this.Px(8);
         }
 
-        var chevron = this.PxF(12);
-        var chevronLeft = Width - this.PxF(20) - chevron;
+        var chevron = this.PxF(10);
+        var chevronLeft = Width - this.PxF(10) - chevron;
         var text = SelectedItem?.Text;
         var color = !Enabled ? Theme.InkDisabled : text is null ? Theme.InkDisabled : Theme.Ink;
         Gfx.Text(g, text ?? Placeholder, Fonts.Body, new Rectangle(x, 0, Math.Max(0, (int)chevronLeft - x - this.Px(8)), Height), color);

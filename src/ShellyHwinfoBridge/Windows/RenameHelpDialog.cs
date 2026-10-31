@@ -8,15 +8,18 @@ namespace ShellyHwinfoBridge.Windows;
 /// The "Update the names in HWiNFO" help (<see cref="HwinfoRenameHelp"/>), opened by "Show me how" next to a rename
 /// warning: the intro, the renamed sensors (old → new, one row each; the dialog grows with them), fix 1 (Rename in HWiNFO), fix 2
 /// (Reset Preferences) and the closing note on the left, the embedded <c>hwinfo-reset-preferences.png</c> screenshot on
-/// the right, and OK. Modelled on <see cref="GadgetHelpDialog"/>. Esc or Enter closes it.
+/// the right, and OK. Modelled on <see cref="GadgetHelpDialog"/>; fixed-size, sized to its content. Esc or Enter closes it.
 /// </summary>
 internal sealed class RenameHelpDialog : ThemedForm
 {
-    private const int Pad = 24;
-    private const int TextWidth = 440;
-    private const int TitleTop = 20;
-    private const int ContentTop = 72;
-    private const int RenameRowHeight = 24;
+    private const int Pad = Theme.WindowPadding;
+    private const int WidthDip = 760;
+    private const int TextWidth = 340;
+    private const int TitleTop = 12;
+    private const int TitleHeight = 28;
+    private const int ContentTop = 48;
+    private const int RenameRowHeight = 19;
+    private const int MaxImageHeight = 400;
 
     // Created in field initializers: the base constructor already lays out.
     private readonly PillButton _ok = new() { Text = "OK", Variant = PillVariant.Primary, DialogResult = DialogResult.OK };
@@ -61,9 +64,8 @@ internal sealed class RenameHelpDialog : ThemedForm
         AcceptButton = _ok;
         CancelButton = _ok;
 
-        // Taller with more renamed sensors (one row each), so nothing is cut off.
-        var height = 600 + (_renames.Count * RenameRowHeight);
-        SetClientSizeDip(new Size(1000, height), new Size(1000, height));
+        // The height follows the content (taller with more renamed sensors): see OnThemeDpiChanged.
+        SetFixedClientSizeDip(new Size(WidthDip, 520));
     }
 
     /// <summary>Shows the dialog modally over <paramref name="owner"/>.</summary>
@@ -79,6 +81,16 @@ internal sealed class RenameHelpDialog : ThemedForm
         _ok.Focus();
     }
 
+    protected override void OnThemeDpiChanged()
+    {
+        base.OnThemeDpiChanged();
+
+        // As tall as the text column or the screenshot (at the width left for it), plus the OK row.
+        var image = _screenshot.FitInto(new Size(ImageWidth(), this.Px(MaxImageHeight)));
+        var content = Math.Max(LayoutText(apply: false) - this.Px(ContentTop), image.Height);
+        ClientSize = new Size(this.Px(WidthDip), this.Px(ContentTop) + content + this.Px(Theme.Gap + Theme.ButtonHeight + Pad));
+    }
+
     protected override void OnLayout(LayoutEventArgs levent)
     {
         base.OnLayout(levent);
@@ -90,50 +102,64 @@ internal sealed class RenameHelpDialog : ThemedForm
         }
 
         var pad = this.Px(Pad);
-        var buttonHeight = this.Px(40);
+        var buttonHeight = this.Px(Theme.ButtonHeight);
         var buttonTop = h - pad - buttonHeight;
-        var okWidth = Math.Max(this.Px(108), _ok.GetPreferredSize(Size.Empty).Width);
+        var okWidth = Math.Max(this.Px(84), _ok.GetPreferredSize(Size.Empty).Width);
         _ok.Bounds = new Rectangle(w - pad - okWidth, buttonTop, okWidth, buttonHeight);
-
-        var left = pad + this.Px(4);
-        var width = this.Px(TextWidth);
-        var y = this.Px(ContentTop);
-        y = Place(_intro, left, y, width) + this.Px(8);
-
-        // The renamed sensors, one row each.
-        var rowHeight = this.Px(RenameRowHeight);
-        foreach (var rename in _renames)
-        {
-            rename.Bounds = new Rectangle(left + this.Px(12), y, width - this.Px(12), rowHeight);
-            y += rowHeight;
-        }
-
-        y += this.Px(16);
-        y = Place(_fix1Title, left, y, width) + this.Px(4);
-        y = Place(_fix1, left, y, width) + this.Px(16);
-        y = Place(_fix2Title, left, y, width) + this.Px(4);
-        y = Place(_fix2, left, y, width) + this.Px(16);
-        _followUp.Bounds = new Rectangle(left, y, width, Math.Max(0, Math.Min(buttonTop - this.Px(8) - y, _followUp.GetPreferredHeight(width))));
+        LayoutText(apply: true);
 
         var top = this.Px(ContentTop);
-        var imageLeft = left + width + this.Px(24);
-        var available = new Size(Math.Max(0, w - pad - imageLeft), Math.Max(0, buttonTop - this.Px(16) - top));
-        var size = _screenshot.FitInto(available);
+        var size = _screenshot.FitInto(new Size(ImageWidth(), Math.Max(0, buttonTop - this.Px(Theme.Gap) - top)));
         _screenshot.Visible = _screenshot.HasImage;
-        _screenshot.Bounds = new Rectangle(new Point(imageLeft, top), size);
+        _screenshot.Bounds = new Rectangle(new Point(this.Px(WidthDip - Pad) - size.Width, top), size);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
         var width = ClientSize.Width - this.Px(2 * Pad);
-        Gfx.Text(e.Graphics, HwinfoRenameHelp.Title, Fonts.CardTitle, new Rectangle(this.Px(Pad + 4), this.Px(TitleTop), width, this.Px(36)), Theme.Ink);
+        Gfx.Text(e.Graphics, HwinfoRenameHelp.Title, Fonts.CardTitle, new Rectangle(this.Px(Pad + 2), this.Px(TitleTop), width, this.Px(TitleHeight)), Theme.Ink);
     }
 
-    /// <summary>Places a label at its preferred height for <paramref name="width"/>; returns its bottom.</summary>
-    private static int Place(TextLabel label, int left, int top, int width)
+    /// <summary>The width left for the screenshot right of the text, in device pixels.</summary>
+    private int ImageWidth() => this.Px(WidthDip - Pad - 2 - TextWidth - 20 - Pad);
+
+    /// <summary>Stacks the text column (intro, renamed sensors, the two fixes, the note); returns its bottom in pixels.</summary>
+    private int LayoutText(bool apply)
     {
-        label.Bounds = new Rectangle(left, top, width, label.GetPreferredHeight(width));
-        return label.Bottom;
+        var left = this.Px(Pad + 2);
+        var width = this.Px(TextWidth);
+        var y = this.Px(ContentTop);
+        int Place(TextLabel label, int top, int indent = 0)
+        {
+            var height = label.GetPreferredHeight(width - indent);
+            if (apply)
+            {
+                label.Bounds = new Rectangle(left + indent, top, width - indent, height);
+            }
+
+            return top + height;
+        }
+
+        y = Place(_intro, y) + this.Px(6);
+
+        // The renamed sensors, one row each.
+        var rowHeight = this.Px(RenameRowHeight);
+        foreach (var rename in _renames)
+        {
+            if (apply)
+            {
+                rename.Bounds = new Rectangle(left + this.Px(10), y, width - this.Px(10), rowHeight);
+            }
+
+            y += rowHeight;
+        }
+
+        y += this.Px(10);
+        y = Place(_fix1Title, y) + this.Px(2);
+        y = Place(_fix1, y) + this.Px(10);
+        y = Place(_fix2Title, y) + this.Px(2);
+        y = Place(_fix2, y) + this.Px(10);
+        return Place(_followUp, y);
     }
 }

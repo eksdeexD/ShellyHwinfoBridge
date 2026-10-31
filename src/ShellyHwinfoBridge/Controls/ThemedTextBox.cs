@@ -157,7 +157,7 @@ internal sealed class ThemedTextBox : UserControl, IThemedSurface
     }
 
     public override Size GetPreferredSize(Size proposedSize) =>
-        new(Math.Max(this.Px(120), proposedSize.Width), Multiline ? this.Px(120) : this.Px(44));
+        new(Math.Max(this.Px(100), proposedSize.Width), Multiline ? this.Px(90) : this.Px(Theme.FieldHeight));
 
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -211,10 +211,10 @@ internal sealed class ThemedTextBox : UserControl, IThemedSurface
     protected override void OnLayout(LayoutEventArgs e)
     {
         base.OnLayout(e);
-        var padX = this.Px(14);
+        var padX = this.Px(8);
         if (Multiline)
         {
-            var padY = this.Px(10);
+            var padY = this.Px(6);
             _inner.Bounds = new Rectangle(padX, padY, Math.Max(1, Width - padX - this.Px(4)), Math.Max(1, Height - (2 * padY)));
         }
         else

@@ -26,7 +26,7 @@ internal static class GridStyler
         grid.DefaultCellStyle.SelectionBackColor = Theme.SurfaceElevated;
         grid.DefaultCellStyle.SelectionForeColor = Theme.Ink;
         grid.DefaultCellStyle.Font = fonts.Body;
-        grid.DefaultCellStyle.Padding = new Padding(Theme.Scale(8, grid.DeviceDpi), 0, Theme.Scale(8, grid.DeviceDpi), 0);
+        grid.DefaultCellStyle.Padding = new Padding(Theme.Scale(6, grid.DeviceDpi), 0, Theme.Scale(6, grid.DeviceDpi), 0);
         grid.AlternatingRowsDefaultCellStyle.BackColor = Theme.Surface;
 
         grid.ColumnHeadersDefaultCellStyle.BackColor = Theme.Surface;
@@ -36,8 +36,8 @@ internal static class GridStyler
         grid.ColumnHeadersDefaultCellStyle.Font = fonts.Body;
         grid.ColumnHeadersDefaultCellStyle.Padding = grid.DefaultCellStyle.Padding;
         grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
-        grid.ColumnHeadersHeight = Theme.Scale(36, grid.DeviceDpi);
-        grid.RowTemplate.Height = Theme.Scale(34, grid.DeviceDpi);
+        grid.ColumnHeadersHeight = Theme.Scale(28, grid.DeviceDpi);
+        grid.RowTemplate.Height = Theme.Scale(26, grid.DeviceDpi);
         foreach (DataGridViewRow row in grid.Rows)
         {
             row.Height = grid.RowTemplate.Height;

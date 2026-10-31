@@ -4,13 +4,15 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// A small themed message box: title, wrapped message and one or two pill buttons (Primary OK, Secondary Cancel).
+/// A small themed message box: title, wrapped message and one or two buttons (Primary OK, Secondary Cancel).
 /// Use instead of <see cref="MessageBox"/> for confirmations and notices.
 /// </summary>
 internal sealed class ThemedDialog : ThemedForm
 {
-    private const int WidthDip = 460;
-    private const int PaddingDip = 24;
+    private const int WidthDip = 400;
+    private const int PaddingDip = Theme.WindowPadding;
+    private const int TitleGapDip = 8;
+    private const int ButtonsGapDip = 16;
 
     // Created in field initializers: the base constructor already lays out.
     private readonly PillButton _ok = new() { Variant = PillVariant.Primary, DialogResult = DialogResult.OK };
@@ -74,7 +76,7 @@ internal sealed class ThemedDialog : ThemedForm
     protected override void OnThemeDpiChanged()
     {
         base.OnThemeDpiChanged();
-        var height = PaddingDip + TitleHeightDip() + 12 + MessageHeightDip() + 24 + 40 + PaddingDip;
+        var height = PaddingDip + TitleHeightDip() + TitleGapDip + MessageHeightDip() + ButtonsGapDip + Theme.ButtonHeight + PaddingDip;
         ClientSize = new Size(this.Px(WidthDip), this.Px(height));
     }
 
@@ -82,14 +84,14 @@ internal sealed class ThemedDialog : ThemedForm
     {
         base.OnLayout(levent);
         var p = this.Px(PaddingDip);
-        var buttonHeight = this.Px(40);
+        var buttonHeight = this.Px(Theme.ButtonHeight);
         var y = ClientSize.Height - p - buttonHeight;
-        var okWidth = Math.Max(this.Px(96), _ok.GetPreferredSize(Size.Empty).Width);
+        var okWidth = Math.Max(this.Px(84), _ok.GetPreferredSize(Size.Empty).Width);
         _ok.Bounds = new Rectangle(ClientSize.Width - p - okWidth, y, okWidth, buttonHeight);
         if (_cancel is not null)
         {
-            var cancelWidth = Math.Max(this.Px(96), _cancel.GetPreferredSize(Size.Empty).Width);
-            _cancel.Bounds = new Rectangle(_ok.Left - this.Px(12) - cancelWidth, y, cancelWidth, buttonHeight);
+            var cancelWidth = Math.Max(this.Px(84), _cancel.GetPreferredSize(Size.Empty).Width);
+            _cancel.Bounds = new Rectangle(_ok.Left - this.Px(8) - cancelWidth, y, cancelWidth, buttonHeight);
         }
     }
 
@@ -100,7 +102,7 @@ internal sealed class ThemedDialog : ThemedForm
         var width = ClientSize.Width - (2 * p);
         var titleHeight = this.Px(TitleHeightDip());
         Gfx.Text(e.Graphics, _title, Fonts.CardTitle, new Rectangle(p, p, width, titleHeight), Theme.Ink);
-        var top = p + titleHeight + this.Px(12);
+        var top = p + titleHeight + this.Px(TitleGapDip);
         TextRenderer.DrawText(
             e.Graphics,
             _message,

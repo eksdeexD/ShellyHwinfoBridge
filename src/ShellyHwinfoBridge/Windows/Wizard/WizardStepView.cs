@@ -5,7 +5,7 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
 /// Base of the wizard step views (also hosted by the Settings step dialog): a transparent panel the size of the step
-/// host (about 1052 × 444 DIP) that lays its children out in DIP and re-reads its model in <see cref="RefreshView"/>.
+/// host (<see cref="StepHeightDip"/> DIP high) that lays its children out in DIP and re-reads its model in <see cref="RefreshView"/>.
 /// Views are thin: every decision lives in the Core step model.
 /// </summary>
 internal abstract class WizardStepView : ThemedPanel
@@ -44,6 +44,12 @@ internal abstract class WizardStepView : ThemedPanel
         PerformLayout();
         Invalidate(true);
     }
+
+    /// <summary>The height of the wizard's step host in DIP (the wizard window is sized for it).</summary>
+    public const float StepHeightDip = 366;
+
+    /// <summary>Returns the height in DIP the view needs at <paramref name="widthDip"/> (a step dialog sizes itself to it).</summary>
+    public virtual float PreferredHeightDip(float widthDip) => StepHeightDip;
 
     /// <summary>Called when the step becomes visible.</summary>
     public virtual void OnStepShown()

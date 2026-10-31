@@ -413,7 +413,7 @@ public sealed class SettingsPresenter
                 var entry = s.Psu.DatabaseId is { } id ? new PsuDatabaseQuery(db).FindById(id) : null;
                 if (entry is null)
                 {
-                    return ("No PSU selected", s.Psu.DatabaseId is null ? "Choose one with Change…" : "The selected PSU is not in the database");
+                    return ("No PSU selected", s.Psu.DatabaseId is null ? "Choose one with Change" : "The selected PSU is not in the database");
                 }
 
                 var parts = new List<string> { entry.Wattage.ToString(_culture) + " W" };

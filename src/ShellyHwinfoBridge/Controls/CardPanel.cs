@@ -3,7 +3,7 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Controls;
 
 /// <summary>
-/// A rounded card: Surface fill, 1 px Border (1.5 px Accent when <see cref="Selected"/>), radius 12, padding 20 DIP,
+/// A rounded card: Surface fill, 1 px Border (1.5 px Accent when <see cref="Selected"/>), radius <see cref="Theme.CardRadius"/>, padding <see cref="Theme.CardPadding"/>,
 /// optional title in CardTitle. Children are placed by the owner; <see cref="ContentBounds"/> gives the area under the title.
 /// </summary>
 internal class CardPanel : Panel, IThemedSurface
@@ -47,7 +47,7 @@ internal class CardPanel : Panel, IThemedSurface
         }
     }
 
-    /// <summary>Gets or sets the card padding in DIP (default 20).</summary>
+    /// <summary>Gets or sets the card padding in DIP (default <see cref="Theme.CardPadding"/>).</summary>
     public int PaddingDip { get; set; } = Theme.CardPadding;
 
     /// <summary>Gets the fonts for the current DPI.</summary>
@@ -59,13 +59,13 @@ internal class CardPanel : Panel, IThemedSurface
     /// <summary>Gets the height of the title line in device pixels (0 without a title).</summary>
     public int TitleHeight => string.IsNullOrEmpty(Title) ? 0 : Gfx.Measure(Title, Fonts.CardTitle).Height;
 
-    /// <summary>Gets the area for children: inside the padding and below the title (plus a 12 DIP gap).</summary>
+    /// <summary>Gets the area for children: inside the padding and below the title (plus <see cref="Theme.TitleGap"/>).</summary>
     public Rectangle ContentBounds
     {
         get
         {
             var p = PaddingPx;
-            var top = p + (TitleHeight > 0 ? TitleHeight + this.Px(12) : 0);
+            var top = p + (TitleHeight > 0 ? TitleHeight + this.Px(Theme.TitleGap) : 0);
             return new Rectangle(p, top, Math.Max(0, ClientSize.Width - (2 * p)), Math.Max(0, ClientSize.Height - top - p));
         }
     }

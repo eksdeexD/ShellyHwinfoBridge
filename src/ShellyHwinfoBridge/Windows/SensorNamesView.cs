@@ -14,20 +14,22 @@ namespace ShellyHwinfoBridge.Windows;
 /// </summary>
 internal sealed class SensorNamesView : WizardStepView
 {
-    private const float HeaderHeight = 34;
-    private const float RowHeight = 42;
-    private const float DefaultWidth = 300;
-    private const float NameWidth = 340;
+    private const float HeaderHeight = 26;
+    private const float RowHeight = 34;
+    private const float FieldHeight = 28;
+    private const float DefaultWidth = 220;
+    private const float NameWidth = 260;
+    private const float WarningGap = 8;
 
     private readonly SensorNamesModel _model;
     private readonly TextLabel _defaultCaption = new() { Text = "Default name", Caption = true, Tone = UiTone.Secondary };
     private readonly TextLabel _nameCaption = new() { Text = "Your name", Caption = true, Tone = UiTone.Secondary };
-    private readonly TextLink _reset = new() { Text = "Reset to defaults" };
-    private readonly ScrollArea _rows = new();
+    private readonly TextLink _reset = new() { Text = "Reset to defaults", Semibold = true };
+    private readonly ScrollPanel _rows = new();
     private readonly List<(string KeyId, TextLabel Default, ThemedTextBox Name, InfoLine Error)> _controls = [];
     private readonly InfoLine _applyError = new() { Tone = InfoTone.Error, Visible = false };
     private readonly InfoLine _warning = new() { Tone = InfoTone.Warning, Text = DeviceFormModel.RenameWarningText, Visible = false };
-    private readonly PillButton _showHow = new() { Text = HwinfoRenameHelp.ShowMeHowText, Visible = false, AccessibleName = "Show me how to update the names in HWiNFO" };
+    private readonly TextLink _showHow = new() { Text = HwinfoRenameHelp.ShowMeHowText, Semibold = true, Visible = false, AccessibleName = "Show me how to update the names in HWiNFO" };
     private bool _warningShown;
 
     public SensorNamesView(SensorNamesModel model)
@@ -100,37 +102,44 @@ internal sealed class SensorNamesView : WizardStepView
         }
     }
 
+    /// <summary>Every row without scrolling, plus room for the rename warning (it appears while typing) and an error.</summary>
+    public override float PreferredHeightDip(float widthDip)
+    {
+        var warning = WarningHeight(Px(widthDip)) * 96f / DeviceDpi;
+        return HeaderHeight + (_controls.Count * RowHeight) + WarningGap + warning + 4 + Theme.LineHeight;
+    }
+
     protected override void OnLayout(LayoutEventArgs levent)
     {
         base.OnLayout(levent);
         var w = WidthDip;
         var h = HeightDip;
         var resetSize = _reset.GetPreferredSize(Size.Empty);
-        _defaultCaption.Bounds = Dip(4, 6, DefaultWidth, 22);
-        _nameCaption.Bounds = Dip(4 + DefaultWidth + 16, 6, NameWidth, 22);
-        _reset.Bounds = new Rectangle(Width - resetSize.Width, Px(4), resetSize.Width, resetSize.Height);
+        _defaultCaption.Bounds = Dip(2, 4, DefaultWidth, 18);
+        _nameCaption.Bounds = Dip(2 + DefaultWidth + 12, 4, NameWidth, 18);
+        _reset.Bounds = new Rectangle(Width - resetSize.Width, Px(2), resetSize.Width, resetSize.Height);
 
-        var errorHeight = _applyError.Visible ? 32f : 0f;
-        var showHowWidth = Math.Max(Px(130), _showHow.GetPreferredSize(Size.Empty).Width);
-        var warningWidth = Math.Max(0, Width - showHowWidth - Px(16));
-        var warningHeight = _warningShown ? Math.Max(Px(36), _warning.GetPreferredHeight(warningWidth)) : 0;
+        var errorHeight = _applyError.Visible ? Theme.LineHeight + 4 : 0f;
+        var showHow = _showHow.GetPreferredSize(Size.Empty);
+        var warningWidth = Math.Max(0, Width - showHow.Width - Px(16));
+        var warningHeight = _warningShown ? WarningHeight(Width) : 0;
         var warningTop = Height - Px(errorHeight) - warningHeight;
         _warning.Bounds = new Rectangle(0, warningTop, warningWidth, warningHeight);
-        _showHow.Bounds = new Rectangle(Width - showHowWidth, warningTop + Math.Max(0, (warningHeight - Px(36)) / 2), showHowWidth, Px(36));
-        var rowsHeight = Math.Max(Px(RowHeight), warningTop - (_warningShown ? Px(8) : 0) - Px(HeaderHeight));
+        _showHow.Bounds = new Rectangle(Width - showHow.Width, warningTop + Math.Max(0, (warningHeight - showHow.Height) / 2), showHow.Width, showHow.Height);
+        var rowsHeight = Math.Max(Px(RowHeight), warningTop - (_warningShown ? Px(WarningGap) : 0) - Px(HeaderHeight));
         _rows.Bounds = new Rectangle(0, Px(HeaderHeight), Width, rowsHeight);
-        _applyError.Bounds = Dip(0, h - 28, w, 28);
+        _applyError.Bounds = Dip(0, h - Theme.LineHeight, w, Theme.LineHeight);
 
         var scroll = _rows.AutoScrollPosition;
-        var errorLeft = 4 + DefaultWidth + 16 + NameWidth + 16;
-        var errorWidth = Math.Max(0, w - errorLeft - 24);
+        var errorLeft = 2 + DefaultWidth + 12 + NameWidth + 12;
+        var errorWidth = Math.Max(0, w - errorLeft - 20);
         for (var i = 0; i < _controls.Count; i++)
         {
             var (_, label, name, error) = _controls[i];
             var top = i * RowHeight;
-            label.Bounds = Offset(Dip(4, top, DefaultWidth, 34), scroll);
-            name.Bounds = Offset(Dip(4 + DefaultWidth + 16, top, NameWidth, 34), scroll);
-            error.Bounds = Offset(Dip(errorLeft, top + 3, errorWidth, 28), scroll);
+            label.Bounds = Offset(Dip(2, top, DefaultWidth, FieldHeight), scroll);
+            name.Bounds = Offset(Dip(2 + DefaultWidth + 12, top, NameWidth, FieldHeight), scroll);
+            error.Bounds = Offset(Dip(errorLeft, top + 2, errorWidth, Theme.LineHeight + 2), scroll);
         }
 
         var content = new Size(0, Px(_controls.Count * RowHeight));
@@ -160,30 +169,10 @@ internal sealed class SensorNamesView : WizardStepView
         }
     }
 
-    /// <summary>A transparent panel that scrolls its rows and repaints the backdrop the scroll blitted.</summary>
-    private sealed class ScrollArea : ThemedPanel
+    /// <summary>The rename warning's height for the view width (it shares its line with "Show me how"), in pixels.</summary>
+    private int WarningHeight(int width)
     {
-        public ScrollArea()
-        {
-            AutoScroll = true;
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            NativeMethods.UseDarkExplorerTheme(this);
-        }
-
-        protected override void OnScroll(ScrollEventArgs se)
-        {
-            base.OnScroll(se);
-            Invalidate(true);
-        }
-
-        protected override void OnMouseWheel(MouseEventArgs e)
-        {
-            base.OnMouseWheel(e);
-            Invalidate(true);
-        }
+        var warningWidth = Math.Max(0, width - _showHow.GetPreferredSize(Size.Empty).Width - Px(16));
+        return Math.Max(Px(Theme.LineHeight), _warning.GetPreferredHeight(warningWidth));
     }
 }

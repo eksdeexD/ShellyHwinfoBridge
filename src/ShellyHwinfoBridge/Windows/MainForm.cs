@@ -7,35 +7,36 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// The main window (design/final/main-window.png): header with logo, title and status pill; the live stat cards (four,
-/// or five with "Total Power (AC)" first when additional devices exist; the Other card can show a hint and a "How to
-/// enable?" button); the "Energy history" card (Combined / Per device toggle with more than one device, Hours/Days/Months,
-/// bar chart with a hover tooltip, today and this month, and the device legend in per-device mode); the configuration
-/// card and two buttons (Settings, Pause/Resume polling). When setup is not done, one "Not set up yet" card replaces the
-/// stats and the energy card. <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under
-/// the header, and the settings page can open <see cref="ManageShellysPage"/> over itself; "Done", "‹ Settings" or Esc
-/// go back. Passive: the tray context pushes <see cref="MainViewState"/> and <see cref="EnergyChartModel"/> in, and the
-/// window raises events for its buttons. Closing hides it.
+/// The main window, fixed at <see cref="Theme.MainWindowWidth"/> × <see cref="Theme.MainWindowHeight"/> DIP: header with
+/// logo, title and status pill; the live stat cards (four, or five with "Total Power (AC)" first when additional devices
+/// exist; the Other card can show a hint and the "How to enable?" text command); the "Energy history" card (Combined /
+/// Per device toggle with more than one device, Hours/Days/Months, bar chart with a hover tooltip, today and this month,
+/// and the device legend in per-device mode); the configuration card and two text commands (Settings, Pause/Resume
+/// polling). When setup is not done, one "Not set up yet" card (with "Run setup wizard") replaces the stats and the
+/// energy card. <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under the header,
+/// and the settings page can open <see cref="ManageShellysPage"/> over itself; "‹ Home", "‹ Settings" or Esc go back.
+/// Passive: the tray context pushes <see cref="MainViewState"/> and <see cref="EnergyChartModel"/> in, and the window
+/// raises events for its commands. Closing hides it.
 /// </summary>
 internal sealed class MainForm : ThemedForm
 {
-    // Layout in DIP, measured from the 1536×1024 design image (client 1100×740).
-    private const int Pad = 24;
-    private const int Gap = 16;
-    private const int HeaderTop = 24;
-    private const int HeaderHeight = 44;
-    private const int LogoHeight = 46;
-    private const int StatsTop = 92;
-    private const int StatsHeight = 128;
-    private const int StatsHeightWithButton = 156;
-    private const int HowToHeight = 30;
-    private const int BottomHeight = 150;
-    private const int BottomMargin = 38;
-    private const int ButtonWidth = 276;
-    private const int ButtonHeight = 40;
-    private const int ChartTop = 72;
-    private const int TotalsHeight = 84;
-    private const int ConfigLabelWidth = 102;
+    // Layout in DIP (compact scale; spacing from Theme).
+    private const int Pad = Theme.WindowPadding;
+    private const int Gap = Theme.Gap;
+    private const int HeaderTop = 12;
+    private const int HeaderHeight = 32;
+    private const int LogoHeight = 30;
+    private const int StatsTop = HeaderTop + HeaderHeight + Gap;
+    private const int StatsHeight = 92;
+    private const int StatsHeightWithHowTo = 112;
+    private const int HowToHeight = 20;
+    private const int BottomHeight = 84;
+    private const int BottomMargin = 22;
+    private const int CommandsWidth = 120;
+    private const int ChartTop = 48;
+    private const int TotalsHeight = 58;
+    private const int ConfigLabelWidth = 64;
+    private const int ConfigLineStep = 20;
     private const int SettingsPageTop = HeaderTop + HeaderHeight;
 
     private static readonly EnergyPeriod[] Periods = [EnergyPeriod.Hours, EnergyPeriod.Days, EnergyPeriod.Months];
@@ -45,16 +46,16 @@ internal sealed class MainForm : ThemedForm
 
     // Total, AC, DC, Loss, Other: the first is shown only with additional devices.
     private readonly StatCard[] _stats = [new(), new(), new(), new(), new()];
-    private readonly PillButton _howToEnable = new() { Text = MainWindowPresenter.HowToEnableText, Visible = false, AccessibleName = "How to enable Other Components" };
+    private readonly TextLink _howToEnable = new() { Text = MainWindowPresenter.HowToEnableText, Semibold = true, Visible = false, AccessibleName = "How to enable Other Components" };
     private readonly CardPanel _energy = new() { Title = "Energy history", AccessibleName = "Energy history" };
     private readonly SegmentedControl _chartMode = new() { AccessibleName = "Chart mode", Visible = false };
     private readonly SegmentedControl _period = new() { AccessibleName = "Energy period" };
     private readonly BarChart _chart = new() { AccessibleName = "Energy chart" };
     private readonly CardPanel _config = new() { AccessibleName = "Configuration" };
     private readonly CardPanel _setup = new() { Title = "Not set up yet", AccessibleName = "Not set up yet" };
-    private readonly PillButton _runWizard = new() { Text = "Run setup wizard", Variant = PillVariant.Primary };
-    private readonly PillButton _settings = new() { Text = "Settings" };
-    private readonly PillButton _pause = new() { Text = "Pause polling" };
+    private readonly TextLink _runWizard = new() { Text = "Run setup wizard", Semibold = true };
+    private readonly TextLink _settings = new() { Text = "Settings", Semibold = true };
+    private readonly TextLink _pause = new() { Text = "Pause polling", Semibold = true };
     private IReadOnlyList<ChartLegendItem> _legend = [];
     private MainViewState? _state;
     private SettingsPage? _settingsPage;
@@ -100,7 +101,7 @@ internal sealed class MainForm : ThemedForm
         _chartMode.SelectedIndexChanged += (_, _) => ChartModeChanged?.Invoke(this, EventArgs.Empty);
         _howToEnable.Click += (_, _) => ShowHowToEnable();
 
-        SetClientSizeDip(new Size(1100, 740), new Size(980, 680));
+        SetFixedClientSizeDip(new Size(Theme.MainWindowWidth, Theme.MainWindowHeight));
     }
 
     /// <summary>Raised when "Settings" is clicked.</summary>
@@ -118,7 +119,7 @@ internal sealed class MainForm : ThemedForm
     /// <summary>Raised when the Combined / Per device selection changes; the owner stores <see cref="SelectedChartMode"/>.</summary>
     public event EventHandler? ChartModeChanged;
 
-    /// <summary>Raised after the settings page was closed ("Done", Esc, hiding the window, or <see cref="CloseSettings"/>).</summary>
+    /// <summary>Raised after the settings page was closed ("‹ Home", Esc, hiding the window, or <see cref="CloseSettings"/>).</summary>
     public event EventHandler? SettingsClosed;
 
     /// <summary>Gets the open settings page, or <c>null</c> while the dashboard is shown.</summary>
@@ -144,7 +145,7 @@ internal sealed class MainForm : ThemedForm
 
         CloseSettings(raise: false);
         _settingsPage = page;
-        page.DoneRequested += OnSettingsDone;
+        page.BackRequested += OnSettingsBack;
         page.ManageShellysRequested += OnManageShellysRequested;
         SuspendLayout();
         Controls.Add(page);
@@ -232,7 +233,7 @@ internal sealed class MainForm : ThemedForm
     /// <summary>Selects a chart period without raising <see cref="PeriodChanged"/>.</summary>
     public void SelectPeriod(EnergyPeriod period) => _period.SetItems(["Hours", "Days", "Months"], Array.IndexOf(Periods, period));
 
-    /// <summary>Enables or disables the Settings and Run setup wizard buttons (e.g. while the wizard is open).</summary>
+    /// <summary>Enables or disables the Settings and Run setup wizard commands (e.g. while the wizard is open).</summary>
     public void SetWindowButtonsEnabled(bool enabled)
     {
         _settings.Enabled = enabled;
@@ -259,7 +260,7 @@ internal sealed class MainForm : ThemedForm
 
         var showHowTo = state.Other.OtherState?.ShowHowToEnable == true;
         _howToEnable.Visible = showHowTo;
-        _stats[4].ReservedBottomDip = showHowTo ? HowToHeight + 16 : 0;
+        _stats[4].ReservedBottomDip = showHowTo ? HowToHeight + 6 : 0;
 
         var modeIndex = Math.Max(0, Array.IndexOf(ChartModes, state.ChartMode));
         if (_chartMode.SelectedIndex != modeIndex)
@@ -270,12 +271,19 @@ internal sealed class MainForm : ThemedForm
         _pause.Text = state.PauseButtonText;
         _pause.Enabled = state.PauseEnabled;
 
-        if (previous is null || previous.IsConfigured != state.IsConfigured || previous.Status.Text != state.Status.Text ||
+        if (previous is null || previous.IsConfigured != state.IsConfigured ||
             (previous.Total is null) != (state.Total is null) || previous.ShowChartModeToggle != state.ShowChartModeToggle ||
             (previous.Other.OtherState?.ShowHowToEnable == true) != showHowTo)
         {
             UpdateVisibility();
             PerformLayout();
+        }
+        else if (previous.Status.Text != state.Status.Text)
+        {
+            // The status text (with the live voltage) changes on nearly every poll: re-place only the pill. A layout pass
+            // of the whole window would also make WinForms scroll the open settings page back to its focused control.
+            LayoutHeader();
+            Invalidate(new Rectangle(0, 0, ClientSize.Width, this.Px(HeaderTop + HeaderHeight)));
         }
 
         if (previous is null || previous.Energy != state.Energy)
@@ -371,7 +379,7 @@ internal sealed class MainForm : ThemedForm
             if (_settingsPage is { } page)
             {
                 _settingsPage = null;
-                page.DoneRequested -= OnSettingsDone;
+                page.BackRequested -= OnSettingsBack;
                 page.ManageShellysRequested -= OnManageShellysRequested;
                 page.Dispose();
             }
@@ -393,15 +401,11 @@ internal sealed class MainForm : ThemedForm
         var pad = this.Px(Pad);
         var gap = this.Px(Gap);
         var right = w - pad;
-
-        // Header: the pill is right-aligned and sized to its text (at least 270 DIP).
-        var pillSize = _pill.GetPreferredSize(Size.Empty);
-        var pillWidth = Math.Max(this.Px(270), pillSize.Width);
-        _pill.Bounds = new Rectangle(right - pillWidth, this.Px(HeaderTop + 2), pillWidth, this.Px(42));
+        LayoutHeader();
 
         // Stats row: four (or five, with Total first) equal cards; taller while the Other card shows "How to enable?".
         var statsTop = this.Px(StatsTop);
-        var statsHeight = this.Px(_howToEnable.Visible ? StatsHeightWithButton : StatsHeight);
+        var statsHeight = this.Px(_howToEnable.Visible ? StatsHeightWithHowTo : StatsHeight);
         var shown = _stats.Where((_, i) => i > 0 || _state?.Total is not null).ToList();
         var cardWidth = (w - (2 * pad) - ((shown.Count - 1) * gap)) / shown.Count;
         for (var i = 0; i < shown.Count; i++)
@@ -414,30 +418,36 @@ internal sealed class MainForm : ThemedForm
         UpdateCompactCards();
         var other = _stats[4];
         var howToLeft = other.TextLeft;
-        var howToWidth = Math.Min(other.Width - howToLeft - this.Px(10), _howToEnable.GetPreferredSize(Size.Empty).Width - this.Px(24));
-        _howToEnable.Bounds = new Rectangle(howToLeft, other.Height - this.Px(14) - this.Px(HowToHeight), Math.Max(0, howToWidth), this.Px(HowToHeight));
+        var howToSize = _howToEnable.GetPreferredSize(Size.Empty);
+        var howToWidth = Math.Min(other.Width - howToLeft - this.Px(6), howToSize.Width);
+        _howToEnable.Bounds = new Rectangle(howToLeft, other.Height - this.Px(8) - this.Px(HowToHeight), Math.Max(0, howToWidth), this.Px(HowToHeight));
 
-        // Bottom row: configuration card and the button stack.
+        // Bottom row: the configuration card and, right of it, the Settings and Pause polling commands (one per config line).
         var bottomTop = h - this.Px(BottomMargin) - this.Px(BottomHeight);
-        var buttonWidth = this.Px(ButtonWidth);
-        var buttonLeft = right - buttonWidth;
-        _config.Bounds = new Rectangle(pad, bottomTop, buttonLeft - this.Px(20) - pad, this.Px(BottomHeight));
-        var buttonHeight = this.Px(ButtonHeight);
-        var buttonStep = (this.Px(BottomHeight) - buttonHeight) / 2;
-        _settings.Bounds = new Rectangle(buttonLeft, bottomTop, buttonWidth, buttonHeight);
-        _pause.Bounds = new Rectangle(buttonLeft, bottomTop + buttonStep, buttonWidth, buttonHeight);
+        var commandsLeft = right - this.Px(CommandsWidth);
+        _config.Bounds = new Rectangle(pad, bottomTop, commandsLeft - gap - pad, this.Px(BottomHeight));
+        var firstLine = bottomTop + ConfigFirstLineTop();
+        foreach (var (command, line) in new[] { (_settings, 0), (_pause, 1) })
+        {
+            var size = command.GetPreferredSize(Size.Empty);
+            var lineTop = firstLine + this.Px(line * ConfigLineStep);
+            command.Bounds = new Rectangle(commandsLeft, lineTop + ((this.Px(ConfigLineStep) - size.Height) / 2), Math.Min(size.Width, right - commandsLeft), size.Height);
+        }
 
         // Energy card fills the space between the stats and the bottom row. The period selector sits at the top right,
-        // the Combined / Per device toggle to its left.
+        // the Combined / Per device toggle to its left, both centred on the title line.
         var energyTop = statsTop + statsHeight + gap;
-        var energy = new Rectangle(pad, energyTop, right - pad, Math.Max(this.Px(220), bottomTop - gap - energyTop));
+        var energy = new Rectangle(pad, energyTop, right - pad, Math.Max(this.Px(180), bottomTop - gap - energyTop));
         _energy.Bounds = energy;
         var cardPad = this.Px(Theme.CardPadding);
-        _period.Bounds = new Rectangle(energy.Width - cardPad - this.Px(290), this.Px(14), this.Px(290), this.Px(40));
-        var modeWidth = Math.Max(this.Px(250), _chartMode.GetPreferredSize(Size.Empty).Width);
-        _chartMode.Bounds = new Rectangle(_period.Left - this.Px(12) - modeWidth, this.Px(14), modeWidth, this.Px(40));
+        var segmentHeight = this.Px(Theme.ButtonHeight);
+        var segmentTop = cardPad + ((_energy.TitleHeight - segmentHeight) / 2);
+        var periodWidth = _period.GetPreferredSize(Size.Empty).Width;
+        _period.Bounds = new Rectangle(energy.Width - cardPad - periodWidth, segmentTop, periodWidth, segmentHeight);
+        var modeWidth = _chartMode.GetPreferredSize(Size.Empty).Width;
+        _chartMode.Bounds = new Rectangle(_period.Left - this.Px(8) - modeWidth, segmentTop, modeWidth, segmentHeight);
         var chartTop = this.Px(ChartTop);
-        _chart.Bounds = new Rectangle(cardPad, chartTop, energy.Width - (2 * cardPad), Math.Max(this.Px(80), energy.Height - chartTop - this.Px(TotalsHeight)));
+        _chart.Bounds = new Rectangle(cardPad, chartTop, energy.Width - (2 * cardPad), Math.Max(this.Px(60), energy.Height - chartTop - this.Px(TotalsHeight)));
 
         // Settings page (and Manage Shellys over it): everything under the header.
         var pageTop = this.Px(SettingsPageTop);
@@ -455,7 +465,7 @@ internal sealed class MainForm : ThemedForm
         // Unconfigured: one card over the stats and energy area.
         _setup.Bounds = new Rectangle(pad, statsTop, right - pad, energy.Bottom - statsTop);
         var runSize = _runWizard.GetPreferredSize(Size.Empty);
-        _runWizard.Bounds = new Rectangle(cardPad, cardPad + _setup.TitleHeight + this.Px(12 + 64), Math.Max(this.Px(200), runSize.Width), this.Px(42));
+        _runWizard.Bounds = new Rectangle(cardPad, cardPad + _setup.TitleHeight + this.Px(Theme.TitleGap) + SetupTextHeight() + this.Px(Theme.RowGap), runSize.Width, runSize.Height);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -464,16 +474,35 @@ internal sealed class MainForm : ThemedForm
         var g = e.Graphics;
         var logoHeight = this.Px(LogoHeight);
         var top = this.Px(HeaderTop) + ((this.Px(HeaderHeight) - logoHeight) / 2);
-        var logoWidth = AppAssets.DrawLogo(g, new Point(this.Px(34), top), logoHeight);
-        var titleLeft = this.Px(34) + logoWidth + this.Px(18);
-        Gfx.Text(g, "ShellyHwinfoBridge", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop), Math.Max(0, _pill.Left - titleLeft - this.Px(16)), this.Px(HeaderHeight)), Theme.Ink);
+        var logoLeft = this.Px(Pad + 4);
+        var logoWidth = AppAssets.DrawLogo(g, new Point(logoLeft, top), logoHeight);
+        var titleLeft = logoLeft + logoWidth + this.Px(10);
+        Gfx.Text(g, "ShellyHwinfoBridge", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop), Math.Max(0, _pill.Left - titleLeft - this.Px(10)), this.Px(HeaderHeight)), Theme.Ink);
 
-        // The app version, very small, in the bottom margin under the button column (clear of the cards and buttons).
+        // The app version, very small, in the bottom margin under the command column (clear of the cards and commands).
         var tiny = Fonts.Get(FontRole.Tiny);
         var versionHeight = Gfx.Measure("Ag", tiny).Height;
         var version = new Rectangle(0, ClientSize.Height - this.Px(BottomMargin / 2) - (versionHeight / 2), ClientSize.Width - this.Px(Pad), versionHeight);
         Gfx.Text(g, SettingsPage.VersionText, tiny, version, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.Right);
     }
+
+    /// <summary>Places the status pill: right-aligned, sized to its text (at least 180 DIP), centred on the header line.</summary>
+    private void LayoutHeader()
+    {
+        var right = ClientSize.Width - this.Px(Pad);
+        var pillWidth = Math.Max(this.Px(180), _pill.GetPreferredSize(Size.Empty).Width);
+        var pillHeight = this.Px(28);
+        _pill.Bounds = new Rectangle(right - pillWidth, this.Px(HeaderTop) + ((this.Px(HeaderHeight) - pillHeight) / 2), pillWidth, pillHeight);
+    }
+
+    /// <summary>The top of the first configuration line inside the card (the three lines are centred vertically).</summary>
+    private int ConfigFirstLineTop() => (this.Px(BottomHeight) - this.Px(3 * ConfigLineStep)) / 2;
+
+    private const string SetupText = "Run the setup wizard to connect your Shelly plug, choose your power supply and pick the HWiNFO sensors. Until then nothing is polled or written to HWiNFO.";
+
+    private int SetupTextWidth() => Math.Max(0, Math.Min(_setup.Width - (2 * this.Px(Theme.CardPadding)), this.Px(560)));
+
+    private int SetupTextHeight() => Gfx.MeasureWrapped(SetupText, Fonts.Body, SetupTextWidth()).Height;
 
     private void CloseSettings(bool raise)
     {
@@ -485,7 +514,7 @@ internal sealed class MainForm : ThemedForm
         CloseManageShellys();
         page.CommitPendingEdits();
         _settingsPage = null;
-        page.DoneRequested -= OnSettingsDone;
+        page.BackRequested -= OnSettingsBack;
         page.ManageShellysRequested -= OnManageShellysRequested;
         SuspendLayout();
         Controls.Remove(page);
@@ -500,7 +529,7 @@ internal sealed class MainForm : ThemedForm
         }
     }
 
-    private void OnSettingsDone(object? sender, EventArgs e) => CloseSettings();
+    private void OnSettingsBack(object? sender, EventArgs e) => CloseSettings();
 
     private void OnManageBack(object? sender, EventArgs e) => CloseManageShellys();
 
@@ -583,25 +612,26 @@ internal sealed class MainForm : ThemedForm
         // Two totals: value (TotalValue) over a tracked caption; a 1 px divider between them.
         var tracking = this.PxF(Theme.CaptionTracking);
         var valueHeight = Gfx.Measure("0", f.TotalValue).Height;
-        var y = _energy.Height - this.Px(TotalsHeight) + this.Px(14);
-        var captionY = y + valueHeight + this.Px(2);
-        var x = this.Px(24);
+        var y = _energy.Height - this.Px(TotalsHeight) + this.Px(6);
+        var captionY = y + valueHeight + this.Px(1);
+        var captionHeight = Gfx.MeasureTracked("A", f.Caption, 0).Height;
+        var x = this.Px(Theme.CardPadding + 2);
         var todayWidth = Math.Max(Gfx.Measure(state.Energy.TodayValue, f.TotalValue).Width, Gfx.MeasureTracked(state.Energy.TodayCaption, f.Caption, tracking).Width);
         Gfx.Text(g, state.Energy.TodayValue, f.TotalValue, new Rectangle(x, y, todayWidth + this.Px(8), valueHeight), Theme.Ink);
         Gfx.DrawTracked(g, state.Energy.TodayCaption, f.Caption, new Point(x, captionY), Theme.InkSecondary, tracking);
 
-        var divider = Math.Max(x + this.Px(177), x + todayWidth + this.Px(32));
+        var divider = Math.Max(x + this.Px(110), x + todayWidth + this.Px(20));
         using (var pen = new Pen(Theme.Border, Math.Max(1, this.Px(1))))
         {
-            g.DrawLine(pen, divider, y + this.Px(2), divider, captionY + this.Px(18));
+            g.DrawLine(pen, divider, y + this.Px(2), divider, captionY + captionHeight);
         }
 
-        x = divider + this.Px(44);
+        x = divider + this.Px(24);
         var monthWidth = Math.Max(Gfx.Measure(state.Energy.MonthValue, f.TotalValue).Width, Gfx.MeasureTracked(state.Energy.MonthCaption, f.Caption, tracking).Width);
         Gfx.Text(g, state.Energy.MonthValue, f.TotalValue, new Rectangle(x, y, monthWidth + this.Px(8), valueHeight), Theme.Ink);
         Gfx.DrawTracked(g, state.Energy.MonthCaption, f.Caption, new Point(x, captionY), Theme.InkSecondary, tracking);
 
-        PaintLegend(g, x + monthWidth + this.Px(32), y, captionY + this.Px(18));
+        PaintLegend(g, x + monthWidth + this.Px(24), y, captionY + captionHeight);
     }
 
     /// <summary>The per-device legend (swatch and label per device), right-aligned in the totals row.</summary>
@@ -613,9 +643,9 @@ internal sealed class MainForm : ThemedForm
         }
 
         var f = Fonts;
-        var swatch = this.Px(12);
-        var swatchGap = this.Px(8);
-        var itemGap = this.Px(20);
+        var swatch = this.Px(10);
+        var swatchGap = this.Px(6);
+        var itemGap = this.Px(14);
         var widths = _legend.Select(l => swatch + swatchGap + Gfx.Measure(l.Label, f.Body).Width).ToList();
         var total = widths.Sum() + (itemGap * (widths.Count - 1));
         var x = Math.Max(minLeft, _energy.Width - this.Px(Theme.CardPadding) - total);
@@ -625,7 +655,7 @@ internal sealed class MainForm : ThemedForm
         {
             var item = _legend[i];
             var colour = ColourSwatch.Parse(item.Colour, Theme.Accent);
-            Gfx.FillRounded(g, colour, new RectangleF(x, y + ((lineHeight - swatch) / 2f), swatch, swatch), this.PxF(3));
+            Gfx.FillRounded(g, colour, new RectangleF(x, y + ((lineHeight - swatch) / 2f), swatch, swatch), this.PxF(2));
             var textLeft = x + swatch + swatchGap;
             Gfx.Text(g, item.Label, f.Body, new Rectangle(textLeft, y, Math.Max(0, _energy.Width - textLeft), lineHeight), Theme.InkSecondary);
             x += widths[i] + itemGap;
@@ -641,13 +671,13 @@ internal sealed class MainForm : ThemedForm
 
         var g = e.Graphics;
         var f = Fonts;
-        var labelLeft = this.Px(24);
+        var labelLeft = this.Px(Theme.CardPadding);
         var valueLeft = labelLeft + this.Px(ConfigLabelWidth);
-        var valueWidth = Math.Max(0, _config.Width - valueLeft - this.Px(20));
-        var lineHeight = this.Px(30);
+        var valueWidth = Math.Max(0, _config.Width - valueLeft - this.Px(Theme.CardPadding));
+        var lineHeight = this.Px(ConfigLineStep);
         var lines = new[] { ("PSU", state.PsuLine), ("Sensors", state.SensorsLine), ("HWiNFO", state.HwinfoLine) };
-        var step = this.Px(38);
-        var y = ((_config.Height - (2 * step) - lineHeight) / 2) + this.Px(2);
+        var step = lineHeight;
+        var y = ConfigFirstLineTop();
         foreach (var (label, value) in lines)
         {
             Gfx.Text(g, label, f.Body, new Rectangle(labelLeft, y, valueLeft - labelLeft, lineHeight), Theme.InkSecondary);
@@ -659,13 +689,12 @@ internal sealed class MainForm : ThemedForm
     private void PaintSetup(object? sender, PaintEventArgs e)
     {
         var p = this.Px(Theme.CardPadding);
-        var top = p + _setup.TitleHeight + this.Px(12);
-        var text = "Run the setup wizard to connect your Shelly plug, choose your power supply and pick the HWiNFO sensors. Until then nothing is polled or written to HWiNFO.";
+        var top = p + _setup.TitleHeight + this.Px(Theme.TitleGap);
         TextRenderer.DrawText(
             e.Graphics,
-            text,
+            SetupText,
             Fonts.Body,
-            new Rectangle(p, top, Math.Min(_setup.Width - (2 * p), this.Px(720)), this.Px(80)),
+            new Rectangle(p, top, SetupTextWidth(), SetupTextHeight() + this.Px(2)),
             Theme.InkSecondary,
             TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
     }

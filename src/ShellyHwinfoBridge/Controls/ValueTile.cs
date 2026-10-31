@@ -46,18 +46,18 @@ internal sealed class ValueTile : ThemedControl
     /// <summary>Gets or sets the value colour.</summary>
     public UiTone ValueTone { get; set; } = UiTone.Ink;
 
-    /// <summary>Preferred size: 140 × 72 DIP.</summary>
-    public override Size GetPreferredSize(Size proposedSize) => new(this.Px(140), this.Px(72));
+    /// <summary>Preferred size: 110 × 50 DIP.</summary>
+    public override Size GetPreferredSize(Size proposedSize) => new(this.Px(110), this.Px(50));
 
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
         Gfx.FillRounded(g, Theme.SurfaceElevated, new RectangleF(0, 0, Width, Height), this.PxF(Theme.ChipRadius));
         var f = Fonts;
-        var pad = this.Px(14);
+        var pad = this.Px(10);
         var valueHeight = Gfx.Measure("0", f.CardTitle).Height;
         var captionHeight = Gfx.MeasureTracked("A", f.Caption, 0).Height;
-        var gap = this.Px(6);
+        var gap = this.Px(3);
         var y = (Height - valueHeight - gap - captionHeight) / 2;
         Gfx.Text(g, _value, f.CardTitle, new Rectangle(pad, y, Width - (2 * pad), valueHeight), Theme.ToneColor(ValueTone));
         Gfx.DrawTracked(g, _caption, f.Caption, new Point(pad, y + valueHeight + gap), Theme.InkSecondary, this.PxF(Theme.CaptionTracking));

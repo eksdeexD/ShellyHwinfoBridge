@@ -122,7 +122,7 @@ internal sealed class ControlGalleryForm : ThemedForm
         _layout.Place(buttons, new PillButton { Text = "Off", Variant = PillVariant.Primary, Enabled = false }, 380, 64, 108, 42);
         _layout.Place(buttons, new TextLink { Text = "Cancel", Tone = LinkTone.Ink }, 20, 130, 80, 30);
         _layout.Place(buttons, new TextLink { Text = "Change", Underline = true }, 110, 130, 80, 30);
-        _layout.Place(buttons, new TextLink { Text = "Change…", Semibold = true }, 200, 130, 90, 30);
+        _layout.Place(buttons, new TextLink { Text = "Change", Semibold = true }, 200, 130, 90, 30);
         _layout.Place(buttons, new TextLink { Text = "Remove HWiNFO sensors", Tone = LinkTone.Danger }, 300, 130, 200, 30);
 
         // Status pills and segmented controls.
@@ -276,7 +276,7 @@ internal sealed class ControlGalleryForm : ThemedForm
 
         var psu = _layout.Place(this, new CardPanel { Title = "Power supply" }, 558, 86, 518, 160);
         _layout.Place(psu, new InfoLine { Text = "Seasonic Prime Fanless TX-700" }, 20, 54, 380, 24);
-        _layout.Place(psu, new TextLink { Text = "Change…", Semibold = true }, 418, 52, 80, 28);
+        _layout.Place(psu, new TextLink { Text = "Change", Semibold = true }, 418, 52, 80, 28);
         _layout.Place(psu, new InfoLine { Text = "700 W · Titanium · Cybenetics 21PS1872A" }, 20, 80, 380, 24);
         _layout.Place(psu, new InfoLine { Text = "Input voltage" }, 20, 116, 120, 30);
         _layout.Place(psu, new SegmentedControl(), 134, 112, 364, 38).SetItems(["Auto", "115 V", "230 V"], 0);
@@ -289,7 +289,7 @@ internal sealed class ControlGalleryForm : ThemedForm
             ReadOnly = true,
             Text = "PC Power (DC)\r\n − CPU Package Power\r\n − GPU Power\r\n − DIMM1 Power\r\n − DIMM3 Power",
         }, 20, 50, 410, 96);
-        _layout.Place(sensors, new TextLink { Text = "Edit…", Semibold = true }, 446, 50, 60, 28);
+        _layout.Place(sensors, new TextLink { Text = "Edit", Semibold = true }, 446, 50, 60, 28);
 
         var polling = _layout.Place(this, new CardPanel { Title = "Polling" }, 558, 262, 518, 155);
         _layout.Place(polling, new InfoLine { Text = "Interval" }, 20, 62, 90, 28);

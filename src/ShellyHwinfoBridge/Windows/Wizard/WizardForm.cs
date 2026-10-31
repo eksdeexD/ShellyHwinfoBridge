@@ -11,22 +11,27 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 /// </summary>
 internal sealed class WizardForm : ThemedForm
 {
-    // Layout in DIP, measured from the 1536×1024 design image (client 1100×740).
-    private const int Pad = 24;
-    private const int HeaderTop = 24;
-    private const int HeaderHeight = 44;
-    private const int StepsLeft = 345;
-    private const int TitleTop = 104;
-    private const int SubtitleTop = 152;
-    private const int HostTop = 196;
-    private const int FooterHeight = 100;
-    private const int ButtonWidth = 108;
-    private const int ButtonHeight = 42;
+    /// <summary>The fixed client size in DIP (fits the tallest step).</summary>
+    public static readonly Size ClientSizeDip = new(StepDialog.WidthDip, HostTop + (int)WizardStepView.StepHeightDip + FooterHeight);
+
+    // Layout in DIP (compact scale; spacing from Theme).
+    private const int Pad = Theme.WindowPadding;
+    private const int HeaderTop = 12;
+    private const int HeaderHeight = 32;
+    private const int StepsTop = 10;
+    private const int TitleTop = 62;
+    private const int TitleHeight = 32;
+    private const int SubtitleTop = 94;
+    private const int SubtitleHeight = 20;
+    private const int HostTop = 122;
+    private const int FooterHeight = 52;
+    private const int ButtonWidth = 84;
+    private const int ButtonHeight = Theme.ButtonHeight;
 
     private readonly WizardSession _session;
     private readonly StepIndicator _steps = new() { AccessibleName = "Setup steps" };
     private readonly ThemedPanel _host = new() { AccessibleName = "Step" };
-    private readonly TextLink _cancel = new() { Text = "Cancel", Tone = LinkTone.Ink };
+    private readonly TextLink _cancel = new() { Text = "Cancel", Semibold = true };
     private readonly PillButton _back = new() { Text = "Back" };
     private readonly PillButton _next = new() { Text = "Next", Variant = PillVariant.Primary };
     private readonly Dictionary<WizardStep, WizardStepView> _views = [];
@@ -50,7 +55,7 @@ internal sealed class WizardForm : ThemedForm
         _back.Click += (_, _) => _session.GoBack();
         _next.Click += async (_, _) => await NextAsync();
         _session.Changed += OnSessionChanged;
-        SetClientSizeDip(new Size(1100, 740), new Size(1000, 700));
+        SetFixedClientSizeDip(ClientSizeDip);
         SyncChrome();
     }
 
@@ -118,35 +123,37 @@ internal sealed class WizardForm : ThemedForm
 
         var pad = this.Px(Pad);
         var stepsSize = _steps.GetPreferredSize(Size.Empty);
-        _steps.Bounds = new Rectangle(this.Px(StepsLeft), this.Px(26), stepsSize.Width, Math.Max(stepsSize.Height, this.Px(66)));
+        _steps.Bounds = new Rectangle(w - pad - stepsSize.Width, this.Px(StepsTop), stepsSize.Width, stepsSize.Height);
 
         var footerTop = h - this.Px(FooterHeight);
-        _host.Bounds = new Rectangle(pad, this.Px(HostTop), w - (2 * pad), Math.Max(this.Px(200), footerTop - this.Px(HostTop)));
+        _host.Bounds = new Rectangle(pad, this.Px(HostTop), w - (2 * pad), Math.Max(this.Px(160), footerTop - this.Px(HostTop)));
         if (_view is not null)
         {
             _view.Bounds = new Rectangle(Point.Empty, _host.Size);
         }
 
-        var buttonTop = h - this.Px(38) - this.Px(ButtonHeight);
-        _next.Bounds = new Rectangle(w - pad - this.Px(ButtonWidth), buttonTop, this.Px(ButtonWidth), this.Px(ButtonHeight));
-        _back.Bounds = new Rectangle(_next.Left - this.Px(14) - this.Px(ButtonWidth), buttonTop, this.Px(ButtonWidth), this.Px(ButtonHeight));
+        var buttonTop = h - this.Px(Pad) - this.Px(ButtonHeight);
+        var nextWidth = Math.Max(this.Px(ButtonWidth), _next.GetPreferredSize(Size.Empty).Width);
+        _next.Bounds = new Rectangle(w - pad - nextWidth, buttonTop, nextWidth, this.Px(ButtonHeight));
+        _back.Bounds = new Rectangle(_next.Left - this.Px(8) - this.Px(ButtonWidth), buttonTop, this.Px(ButtonWidth), this.Px(ButtonHeight));
         var cancelSize = _cancel.GetPreferredSize(Size.Empty);
-        _cancel.Bounds = new Rectangle(this.Px(30), buttonTop + ((this.Px(ButtonHeight) - cancelSize.Height) / 2), cancelSize.Width, cancelSize.Height);
+        _cancel.Bounds = new Rectangle(pad, buttonTop + ((this.Px(ButtonHeight) - cancelSize.Height) / 2), cancelSize.Width, cancelSize.Height);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
         var g = e.Graphics;
-        var logoHeight = this.Px(46);
+        var logoHeight = this.Px(30);
         var top = this.Px(HeaderTop) + ((this.Px(HeaderHeight) - logoHeight) / 2);
-        var logoWidth = AppAssets.DrawLogo(g, new Point(this.Px(34), top), logoHeight);
-        var titleLeft = this.Px(34) + logoWidth + this.Px(18);
-        Gfx.Text(g, "Setup wizard", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop), Math.Max(0, _steps.Left - titleLeft - this.Px(16)), this.Px(HeaderHeight)), Theme.Ink);
+        var logoLeft = this.Px(Pad + 4);
+        var logoWidth = AppAssets.DrawLogo(g, new Point(logoLeft, top), logoHeight);
+        var titleLeft = logoLeft + logoWidth + this.Px(10);
+        Gfx.Text(g, "Setup wizard", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop), Math.Max(0, _steps.Left - titleLeft - this.Px(10)), this.Px(HeaderHeight)), Theme.Ink);
 
-        var width = ClientSize.Width - this.Px(60);
-        Gfx.Text(g, _session.PageTitle, Fonts.PageTitle, new Rectangle(this.Px(30), this.Px(TitleTop), width, this.Px(48)), Theme.Ink);
-        Gfx.Text(g, _session.PageSubtitle, Fonts.Subtitle, new Rectangle(this.Px(30), this.Px(SubtitleTop), width, this.Px(30)), Theme.InkSecondary);
+        var width = ClientSize.Width - this.Px(2 * (Pad + 2));
+        Gfx.Text(g, _session.PageTitle, Fonts.PageTitle, new Rectangle(this.Px(Pad + 2), this.Px(TitleTop), width, this.Px(TitleHeight)), Theme.Ink);
+        Gfx.Text(g, _session.PageSubtitle, Fonts.Subtitle, new Rectangle(this.Px(Pad + 2), this.Px(SubtitleTop), width, this.Px(SubtitleHeight)), Theme.InkSecondary);
     }
 
     private async Task NextAsync()

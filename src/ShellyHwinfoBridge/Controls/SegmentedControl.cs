@@ -3,7 +3,7 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Controls;
 
 /// <summary>
-/// Segmented pill ("Hours | Days | Months", "Auto | 115 V | 230 V"): 1 px Border, 1 px separators between
+/// Segmented button ("Hours | Days | Months", "Auto | 115 V | 230 V"), square like <see cref="PillButton"/>: 1 px Border| Days | Months", "Auto | 115 V | 230 V"): 1 px Border, 1 px separators between
 /// unselected segments, selected segment filled SurfaceElevated with Ink semibold text. Arrow keys move the selection.
 /// </summary>
 internal sealed class SegmentedControl : ThemedControl
@@ -73,11 +73,11 @@ internal sealed class SegmentedControl : ThemedControl
         Invalidate();
     }
 
-    /// <summary>Preferred size: equal segments wide enough for the longest label; 40 DIP high.</summary>
+    /// <summary>Preferred size: equal segments wide enough for the longest label; <see cref="Theme.ButtonHeight"/> high.</summary>
     public override Size GetPreferredSize(Size proposedSize)
     {
         var widest = _items.Count == 0 ? 0 : _items.Max(i => Gfx.Measure(i, Fonts.BodySemibold).Width);
-        return new Size(_items.Count * (widest + this.Px(48)), this.Px(40));
+        return new Size(_items.Count * (widest + this.Px(24)), this.Px(Theme.ButtonHeight));
     }
 
     protected override bool IsInputKey(Keys keyData) => keyData is Keys.Left or Keys.Right or Keys.Home or Keys.End || base.IsInputKey(keyData);
@@ -140,7 +140,7 @@ internal sealed class SegmentedControl : ThemedControl
         var g = e.Graphics;
         var count = _items.Count;
         var r = new RectangleF(0, 0, Width, Height);
-        var radius = Height / 2f;
+        const float radius = 0f;
         var border = Math.Max(1f, this.PxF(1));
         if (count == 0)
         {

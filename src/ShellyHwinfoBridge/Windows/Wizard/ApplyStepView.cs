@@ -10,8 +10,8 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 /// </summary>
 internal sealed class ApplyStepView : WizardStepView
 {
-    private const float LeftWidth = 470;
-    private const float LabelWidth = 108;
+    private const float LeftWidth = 430;
+    private const float LabelWidth = 84;
 
     private readonly ApplyStepModel _model;
     private readonly CardPanel _summary = new() { Title = "Summary" };
@@ -76,25 +76,26 @@ internal sealed class ApplyStepView : WizardStepView
         base.OnLayout(levent);
         var w = WidthDip;
         var h = HeightDip;
-        const float gap = 16;
+        const float gap = Theme.Gap;
+        const float p = Theme.CardPadding;
 
         // Left: summary lines (label column, wrapped values), then the toggle and the error.
         var summaryWidth = Px(LeftWidth);
-        var valueLeft = Px(20 + LabelWidth);
-        var valueWidth = summaryWidth - valueLeft - Px(20);
-        var y = Px(60);
+        var valueLeft = Px(p + LabelWidth);
+        var valueWidth = summaryWidth - valueLeft - Px(p);
+        var y = _summary.ContentBounds.Top;
         foreach (var (label, value) in _lines.Where(l => l.Label.Visible))
         {
-            var height = Math.Max(value.GetPreferredHeight(valueWidth), Px(22));
-            label.Bounds = new Rectangle(Px(20), y, valueLeft - Px(28), Px(22));
+            var height = Math.Max(value.GetPreferredHeight(valueWidth), Px(18));
+            label.Bounds = new Rectangle(Px(p), y, valueLeft - Px(p + 6), Px(18));
             value.Bounds = new Rectangle(valueLeft, y, valueWidth, height);
-            y += height + Px(10);
+            y += height + Px(6);
         }
 
-        var maxSummary = Px(h - 40 - gap - 40);
-        _summary.Bounds = new Rectangle(0, 0, summaryWidth, Math.Min(maxSummary, y + Px(10)));
-        _startWithWindows.Bounds = new Rectangle(0, _summary.Bottom + Px(gap), Px(260), Px(32));
-        _applyError.Bounds = new Rectangle(0, _startWithWindows.Bottom + Px(10), summaryWidth, Math.Max(Px(28), _applyError.GetPreferredHeight(summaryWidth)));
+        var maxSummary = Px(h - Theme.LineHeight - gap - Theme.LineHeight);
+        _summary.Bounds = new Rectangle(0, 0, summaryWidth, Math.Min(maxSummary, y + Px(p - 6)));
+        _startWithWindows.Bounds = new Rectangle(0, _summary.Bottom + Px(gap), Px(220), Px(Theme.LineHeight));
+        _applyError.Bounds = new Rectangle(0, _startWithWindows.Bottom + Px(8), summaryWidth, Math.Max(Px(Theme.LineHeight), _applyError.GetPreferredHeight(summaryWidth)));
 
         // Right: what Apply does.
         var right = LeftWidth + gap;

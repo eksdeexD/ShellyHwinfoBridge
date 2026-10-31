@@ -13,9 +13,9 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 /// </summary>
 internal sealed class VerifyStepView : WizardStepView
 {
-    private const float TopHeight = 236;
-    private const float HwinfoWidth = 400;
-    private const float ChecksWidth = 220;
+    private const float TopHeight = 178;
+    private const float HwinfoWidth = 300;
+    private const float ChecksWidth = 176;
 
     private readonly ApplyStepModel _model;
     private readonly CardPanel _hwinfo = new() { Title = "HWiNFO" };
@@ -121,49 +121,52 @@ internal sealed class VerifyStepView : WizardStepView
         base.OnLayout(levent);
         var w = WidthDip;
         var h = HeightDip;
-        const float gap = 16;
+        const float gap = Theme.Gap;
+        const float p = Theme.CardPadding;
 
         // HWiNFO card at the left: the text, then the buttons at the bottom of the card.
         _hwinfo.Bounds = Dip(0, 0, HwinfoWidth, TopHeight);
-        var inner = _hwinfo.Width - Px(40);
-        _hwinfoText.Bounds = new Rectangle(Px(20), Px(50), inner, Math.Min(Px(100), Math.Max(Px(28), _hwinfoText.GetPreferredHeight(inner))));
-        var buttonTop = Px(TopHeight - 20 - 40);
-        var x = Px(20);
+        var inner = _hwinfo.Width - Px(2 * p);
+        var contentTop = _hwinfo.ContentBounds.Top;
+        var buttonTop = Px(TopHeight - p - Theme.ButtonHeight);
+        _hwinfoText.Bounds = new Rectangle(Px(p), contentTop, inner, Math.Min(buttonTop - Px(6) - contentTop, Math.Max(Px(Theme.LineHeight), _hwinfoText.GetPreferredHeight(inner))));
+        var x = Px(p);
         foreach (var button in new[] { _primary, _secondary, _verifyButton }.Where(b => b.Visible))
         {
-            var width = Math.Max(Px(110), button.GetPreferredSize(Size.Empty).Width);
-            button.Bounds = new Rectangle(x, buttonTop, width, Px(40));
-            x += width + Px(12);
+            var width = button.GetPreferredSize(Size.Empty).Width;
+            button.Bounds = new Rectangle(x, buttonTop, width, Px(Theme.ButtonHeight));
+            x += width + Px(8);
         }
 
-        _restarting.Bounds = new Rectangle(Px(20), buttonTop, inner, Px(40));
+        _restarting.Bounds = new Rectangle(Px(p), buttonTop, inner, Px(Theme.ButtonHeight));
 
         // Verify card at the right: the four sensors as one list (tick when found, neutral ring while pending), the
         // tiles 2 × 2 and the status line under them.
         _verify.Bounds = Dip(HwinfoWidth + gap, 0, w - HwinfoWidth - gap, TopHeight);
-        var verifyInner = _verify.Width - Px(40);
+        var verifyInner = _verify.Width - Px(2 * p);
         var listWidth = Px(ChecksWidth);
+        var top = _verify.ContentBounds.Top;
         for (var i = 0; i < _checks.Length; i++)
         {
-            _checks[i].Bounds = new Rectangle(Px(20), Px(52 + (i * 28)), listWidth, Px(26));
+            _checks[i].Bounds = new Rectangle(Px(p), top + Px(i * 22), listWidth, Px(Theme.LineHeight));
         }
 
-        var tilesLeft = Px(20) + listWidth + Px(16);
-        var tilesWidth = Px(20) + verifyInner - tilesLeft;
-        var tileWidth = (tilesWidth - Px(10)) / 2;
+        var tilesLeft = Px(p) + listWidth + Px(10);
+        var tilesWidth = Px(p) + verifyInner - tilesLeft;
+        var tileWidth = (tilesWidth - Px(8)) / 2;
         for (var i = 0; i < _tiles.Length; i++)
         {
-            _tiles[i].Bounds = new Rectangle(tilesLeft + ((i % 2) * (tileWidth + Px(10))), Px(48 + ((i / 2) * 64)), tileWidth, Px(56));
+            _tiles[i].Bounds = new Rectangle(tilesLeft + ((i % 2) * (tileWidth + Px(8))), top + Px((i / 2) * 50), tileWidth, Px(44));
         }
 
-        var statusTop = Px(48 + 64 + 56 + 10);
-        _verifyStatus.Bounds = new Rectangle(Px(20), statusTop, verifyInner, Math.Max(Px(28), Math.Min(_verify.Height - statusTop - Px(8), _verifyStatus.GetPreferredHeight(verifyInner))));
+        var statusTop = top + Px(50 + 44 + 8);
+        _verifyStatus.Bounds = new Rectangle(Px(p), statusTop, verifyInner, Math.Max(Px(Theme.LineHeight), Math.Min(_verify.Height - statusTop - Px(6), _verifyStatus.GetPreferredHeight(verifyInner))));
 
         // Under the cards: the gadget tip, then its optional screenshot fitted to the rest of the page.
         var tipTop = Px(TopHeight + gap);
         var tipHeight = _tip.GetPreferredHeight(Width);
         _tip.Bounds = new Rectangle(0, tipTop, Width, tipHeight);
-        var imageTop = tipTop + tipHeight + Px(10);
+        var imageTop = tipTop + tipHeight + Px(8);
         var image = _gadgetScreenshot.FitInto(new Size(Width, Math.Max(0, Height - imageTop)));
         _gadgetScreenshot.Bounds = new Rectangle(new Point(0, imageTop), image);
     }

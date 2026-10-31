@@ -5,19 +5,25 @@ using ShellyHwinfoBridge.Windows.Wizard;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// A modal dialog that hosts one wizard step view for the settings page ("Change…" hosts the PSU step, "Edit…" the
-/// sensor step): page title and subtitle, the step, and Cancel / Save. Save asks <c>validate</c> first and stays open
-/// with the reason when the step is not valid. Esc = Cancel.
+/// A modal dialog that hosts one wizard step view for the settings page ("Change" hosts the PSU step, "Edit" the
+/// sensor step, also the device form and the sensor names): page title and subtitle, the step, and Cancel / Save. Fixed
+/// size: as wide as the wizard and as tall as the view needs (<see cref="WizardStepView.PreferredHeightDip"/>). Save asks
+/// <c>validate</c> first and stays open with the reason when the step is not valid. Esc = Cancel.
 /// </summary>
 internal sealed class StepDialog : ThemedForm
 {
-    private const int Pad = 24;
-    private const int TitleTop = 20;
-    private const int SubtitleTop = 66;
-    private const int HostTop = 108;
-    private const int FooterHeight = 84;
-    private const int ButtonWidth = 108;
-    private const int ButtonHeight = 42;
+    /// <summary>The client width in DIP (as the wizard window).</summary>
+    public const int WidthDip = 760;
+
+    private const int Pad = Theme.WindowPadding;
+    private const int TitleTop = 12;
+    private const int TitleHeight = 32;
+    private const int SubtitleTop = 44;
+    private const int SubtitleHeight = 20;
+    private const int HostTop = 72;
+    private const int FooterHeight = 56;
+    private const int ButtonWidth = 84;
+    private const int ButtonHeight = Theme.ButtonHeight;
 
     // Created in field initializers: the base constructor already lays out.
     private readonly PillButton _save = new() { Text = "Save", Variant = PillVariant.Primary };
@@ -56,7 +62,10 @@ internal sealed class StepDialog : ThemedForm
         ResumeLayout(false);
 
         _save.Click += (_, _) => Save();
-        SetClientSizeDip(new Size(1100, 700), new Size(1000, 640));
+        MaximizeBox = false;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        var hostHeight = (int)Math.Ceiling(_view.PreferredHeightDip(WidthDip - (2 * Pad)));
+        SetFixedClientSizeDip(new Size(WidthDip, HostTop + hostHeight + FooterHeight));
     }
 
     /// <summary>
@@ -116,12 +125,12 @@ internal sealed class StepDialog : ThemedForm
 
         var pad = this.Px(Pad);
         var footerTop = h - this.Px(FooterHeight);
-        _view.Bounds = new Rectangle(pad, this.Px(HostTop), w - (2 * pad), Math.Max(this.Px(200), footerTop - this.Px(HostTop)));
+        _view.Bounds = new Rectangle(pad, this.Px(HostTop), w - (2 * pad), Math.Max(this.Px(120), footerTop - this.Px(HostTop)));
 
-        var buttonTop = h - this.Px(24) - this.Px(ButtonHeight);
+        var buttonTop = h - pad - this.Px(ButtonHeight);
         _save.Bounds = new Rectangle(w - pad - this.Px(ButtonWidth), buttonTop, this.Px(ButtonWidth), this.Px(ButtonHeight));
-        _cancel.Bounds = new Rectangle(_save.Left - this.Px(14) - this.Px(ButtonWidth), buttonTop, this.Px(ButtonWidth), this.Px(ButtonHeight));
-        var errorWidth = Math.Max(0, _cancel.Left - this.Px(24) - pad);
+        _cancel.Bounds = new Rectangle(_save.Left - this.Px(8) - this.Px(ButtonWidth), buttonTop, this.Px(ButtonWidth), this.Px(ButtonHeight));
+        var errorWidth = Math.Max(0, _cancel.Left - this.Px(16) - pad);
         _error.Bounds = new Rectangle(pad, buttonTop, errorWidth, this.Px(ButtonHeight));
     }
 
@@ -129,8 +138,8 @@ internal sealed class StepDialog : ThemedForm
     {
         base.OnPaint(e);
         var width = ClientSize.Width - this.Px(2 * Pad);
-        Gfx.Text(e.Graphics, _title, Fonts.PageTitle, new Rectangle(this.Px(Pad + 4), this.Px(TitleTop), width, this.Px(46)), Theme.Ink);
-        Gfx.Text(e.Graphics, _subtitle, Fonts.Subtitle, new Rectangle(this.Px(Pad + 4), this.Px(SubtitleTop), width, this.Px(30)), Theme.InkSecondary);
+        Gfx.Text(e.Graphics, _title, Fonts.PageTitle, new Rectangle(this.Px(Pad + 2), this.Px(TitleTop), width, this.Px(TitleHeight)), Theme.Ink);
+        Gfx.Text(e.Graphics, _subtitle, Fonts.Subtitle, new Rectangle(this.Px(Pad + 2), this.Px(SubtitleTop), width, this.Px(SubtitleHeight)), Theme.InkSecondary);
     }
 
     private void Save()

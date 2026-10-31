@@ -166,12 +166,12 @@ internal sealed class RadioCard : CardPanel
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        var pad = this.Px(18);
-        var ring = this.PxF(20);
+        var pad = this.Px(10);
+        var ring = this.PxF(15);
         var titleFont = Fonts.ItemTitle;
         var titleHeight = Gfx.Measure(Title, titleFont).Height;
         var ringTop = pad + ((titleHeight - ring) / 2f);
-        var ringRect = new RectangleF(this.PxF(22), ringTop, ring, ring);
+        var ringRect = new RectangleF(this.PxF(12), ringTop, ring, ring);
         Gfx.DrawRounded(g, Checked ? Theme.Accent : Theme.InkDisabled, Math.Max(1.5f, this.PxF(1.5f)), ringRect, ring / 2f);
         if (Checked)
         {
@@ -181,10 +181,10 @@ internal sealed class RadioCard : CardPanel
             g.FillEllipse(brush, ringRect.Left + ((ring - dot) / 2f), ringRect.Top + ((ring - dot) / 2f), dot, dot);
         }
 
-        var left = (int)Math.Ceiling(ringRect.Right) + this.Px(20);
+        var left = (int)Math.Ceiling(ringRect.Right) + this.Px(10);
         var width = ClientSize.Width - left - pad;
         Gfx.Text(g, Title, titleFont, new Rectangle(left, pad, width, titleHeight), Enabled ? Theme.Ink : Theme.InkDisabled);
-        var top = pad + titleHeight + this.Px(5);
-        Gfx.Text(g, _description, Fonts.Body, new Rectangle(left, top, width, ClientSize.Height - top - this.Px(8)), Theme.InkSecondary, TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+        var top = pad + titleHeight + this.Px(2);
+        Gfx.Text(g, _description, Fonts.Body, new Rectangle(left, top, width, ClientSize.Height - top - this.Px(4)), Theme.InkSecondary, TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
     }
 }

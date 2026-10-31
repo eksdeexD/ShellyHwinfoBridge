@@ -48,12 +48,12 @@ internal sealed class StatCard : CardPanel
         }
     }
 
-    /// <summary>Gets the left text inset in device pixels (24 DIP, 18 DIP in a narrow card).</summary>
-    public int TextLeft => this.Px(IsNarrow ? 18 : 24);
+    /// <summary>Gets the left text inset in device pixels (<see cref="Theme.CardPadding"/>, 10 DIP in a narrow card).</summary>
+    public int TextLeft => this.Px(IsNarrow ? 10 : Theme.CardPadding);
 
-    private bool IsNarrow => ClientSize.Width < this.Px(200);
+    private bool IsNarrow => ClientSize.Width < this.Px(140);
 
-    private int TextWidth => ClientSize.Width - TextLeft - this.Px(IsNarrow ? 10 : 16);
+    private int TextWidth => ClientSize.Width - TextLeft - this.Px(IsNarrow ? 6 : 10);
 
     /// <summary>
     /// Gets or sets whether the card draws compactly (caption without letter spacing, value in the smaller totals font).
@@ -120,13 +120,13 @@ internal sealed class StatCard : CardPanel
         var valueFont = _compact || Gfx.Measure(_value, f.StatValue).Width > width ? f.TotalValue : f.StatValue;
         var valueHeight = Gfx.Measure("0", valueFont).Height;
         var subHeight = Gfx.Measure("Ag", f.Body).Height;
-        var gap1 = this.Px(4);
+        var gap1 = this.Px(3);
         var gap2 = this.Px(2);
         var total = captionSize.Height + gap1 + valueHeight + gap2 + subHeight;
-        var y = Math.Max(this.Px(16), (ClientSize.Height - total) / 2);
+        var y = Math.Max(this.Px(10), (ClientSize.Height - total) / 2);
         if (_placeholder && _reservedBottomDip > 0)
         {
-            y = this.Px(16);
+            y = this.Px(10);
         }
 
         if (captionSize.Width > width)
@@ -143,7 +143,7 @@ internal sealed class StatCard : CardPanel
 
         if (_placeholder)
         {
-            var bottom = ClientSize.Height - this.Px(12) - this.Px(_reservedBottomDip);
+            var bottom = ClientSize.Height - this.Px(6) - this.Px(_reservedBottomDip);
             var area = new Rectangle(left, y, width, Math.Max(0, bottom - y));
             Gfx.Text(g, _value, f.Body, area, Theme.InkSecondary, TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             return;

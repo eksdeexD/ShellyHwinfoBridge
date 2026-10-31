@@ -7,14 +7,17 @@ namespace ShellyHwinfoBridge.Windows;
 /// <summary>
 /// The "How to enable?" help of the Other Components card: the title (<see cref="HwinfoTips.GadgetExportTitle"/>), the
 /// gadget how-to with the user's selected sensor names (bold markup) on the left, the embedded
-/// <c>hwinfo-gadget.png</c> screenshot on the right, and OK. Esc or Enter closes it.
+/// <c>hwinfo-gadget.png</c> screenshot on the right, and OK. Fixed-size, sized to its content. Esc or Enter closes it.
 /// </summary>
 internal sealed class GadgetHelpDialog : ThemedForm
 {
-    private const int Pad = 24;
-    private const int TextWidth = 360;
-    private const int TitleTop = 20;
-    private const int ContentTop = 72;
+    private const int Pad = Theme.WindowPadding;
+    private const int WidthDip = 760;
+    private const int TextWidth = 260;
+    private const int TitleTop = 12;
+    private const int TitleHeight = 28;
+    private const int ContentTop = 48;
+    private const int MaxImageHeight = 400;
 
     // Created in field initializers: the base constructor already lays out.
     private readonly PillButton _ok = new() { Text = "OK", Variant = PillVariant.Primary, DialogResult = DialogResult.OK };
@@ -42,7 +45,7 @@ internal sealed class GadgetHelpDialog : ThemedForm
         Controls.AddRange([_text, _screenshot, _ok]);
         AcceptButton = _ok;
         CancelButton = _ok;
-        SetClientSizeDip(new Size(980, 560), new Size(980, 560));
+        SetFixedClientSizeDip(new Size(WidthDip, 480));
     }
 
     /// <summary>Shows the dialog modally over <paramref name="owner"/>.</summary>
@@ -58,6 +61,16 @@ internal sealed class GadgetHelpDialog : ThemedForm
         _ok.Focus();
     }
 
+    protected override void OnThemeDpiChanged()
+    {
+        base.OnThemeDpiChanged();
+
+        // As tall as the how-to or the screenshot (at the width left for it), plus the OK row.
+        var image = _screenshot.FitInto(new Size(ImageWidth(), this.Px(MaxImageHeight)));
+        var content = Math.Max(_text.GetPreferredHeight(this.Px(TextWidth)), image.Height);
+        ClientSize = new Size(this.Px(WidthDip), this.Px(ContentTop) + content + this.Px(Theme.Gap + Theme.ButtonHeight + Pad));
+    }
+
     protected override void OnLayout(LayoutEventArgs levent)
     {
         base.OnLayout(levent);
@@ -69,25 +82,26 @@ internal sealed class GadgetHelpDialog : ThemedForm
         }
 
         var pad = this.Px(Pad);
-        var buttonHeight = this.Px(40);
+        var buttonHeight = this.Px(Theme.ButtonHeight);
         var buttonTop = h - pad - buttonHeight;
-        var okWidth = Math.Max(this.Px(108), _ok.GetPreferredSize(Size.Empty).Width);
+        var okWidth = Math.Max(this.Px(84), _ok.GetPreferredSize(Size.Empty).Width);
         _ok.Bounds = new Rectangle(w - pad - okWidth, buttonTop, okWidth, buttonHeight);
 
         var top = this.Px(ContentTop);
         var textWidth = this.Px(TextWidth);
-        _text.Bounds = new Rectangle(pad + this.Px(4), top, textWidth, Math.Max(0, Math.Min(buttonTop - this.Px(16) - top, _text.GetPreferredHeight(textWidth))));
-        var imageLeft = _text.Right + this.Px(24);
-        var available = new Size(Math.Max(0, w - pad - imageLeft), Math.Max(0, buttonTop - this.Px(16) - top));
-        var size = _screenshot.FitInto(available);
+        _text.Bounds = new Rectangle(pad + this.Px(2), top, textWidth, Math.Max(0, Math.Min(buttonTop - this.Px(Theme.Gap) - top, _text.GetPreferredHeight(textWidth))));
+        var size = _screenshot.FitInto(new Size(ImageWidth(), Math.Max(0, buttonTop - this.Px(Theme.Gap) - top)));
         _screenshot.Visible = _screenshot.HasImage;
-        _screenshot.Bounds = new Rectangle(new Point(imageLeft, top), size);
+        _screenshot.Bounds = new Rectangle(new Point(this.Px(WidthDip - Pad) - size.Width, top), size);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
         var width = ClientSize.Width - this.Px(2 * Pad);
-        Gfx.Text(e.Graphics, HwinfoTips.GadgetExportTitle, Fonts.CardTitle, new Rectangle(this.Px(Pad + 4), this.Px(TitleTop), width, this.Px(36)), Theme.Ink);
+        Gfx.Text(e.Graphics, HwinfoTips.GadgetExportTitle, Fonts.CardTitle, new Rectangle(this.Px(Pad + 2), this.Px(TitleTop), width, this.Px(TitleHeight)), Theme.Ink);
     }
+
+    /// <summary>The width left for the screenshot right of the text, in device pixels.</summary>
+    private int ImageWidth() => this.Px(WidthDip - Pad - 2 - TextWidth - 20 - Pad);
 }

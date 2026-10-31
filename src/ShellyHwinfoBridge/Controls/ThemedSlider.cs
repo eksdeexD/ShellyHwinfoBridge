@@ -69,7 +69,7 @@ internal sealed class ThemedSlider : ThemedControl
         set => SetValueCore(value, raise: true);
     }
 
-    public override Size GetPreferredSize(Size proposedSize) => new(Math.Max(this.Px(160), proposedSize.Width), this.Px(28));
+    public override Size GetPreferredSize(Size proposedSize) => new(Math.Max(this.Px(120), proposedSize.Width), this.Px(Theme.LineHeight));
 
     protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
     {
@@ -159,8 +159,8 @@ internal sealed class ThemedSlider : ThemedControl
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        var knob = this.PxF(18);
-        var trackHeight = this.PxF(5);
+        var knob = this.PxF(14);
+        var trackHeight = this.PxF(4);
         var left = knob / 2f;
         var right = Width - (knob / 2f);
         var cy = Height / 2f;
@@ -182,14 +182,14 @@ internal sealed class ThemedSlider : ThemedControl
         if (ShowFocus)
         {
             using var pen = new Pen(Theme.Ink, Math.Max(1f, this.PxF(1)));
-            var ring = knob + this.PxF(5);
+            var ring = knob + this.PxF(4);
             g.DrawEllipse(pen, x - (ring / 2f), cy - (ring / 2f), ring, ring);
         }
     }
 
     private float KnobX()
     {
-        var knob = this.PxF(18);
+        var knob = this.PxF(14);
         var span = Math.Max(1f, Width - knob);
         var fraction = _maximum == _minimum ? 0f : (_value - _minimum) / (float)(_maximum - _minimum);
         return (knob / 2f) + (fraction * span);
@@ -197,7 +197,7 @@ internal sealed class ThemedSlider : ThemedControl
 
     private int ValueAt(int x)
     {
-        var knob = this.PxF(18);
+        var knob = this.PxF(14);
         var span = Math.Max(1f, Width - knob);
         var fraction = Math.Clamp((x - (knob / 2f)) / span, 0f, 1f);
         return _minimum + (int)Math.Round(fraction * (_maximum - _minimum));
