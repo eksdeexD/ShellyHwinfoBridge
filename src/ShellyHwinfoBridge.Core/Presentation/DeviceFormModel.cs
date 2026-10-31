@@ -30,11 +30,15 @@ public sealed class DeviceFormModel
     /// <summary>The form title when adding.</summary>
     public const string AddTitle = "Add a Shelly for your monitor or another device";
 
-    /// <summary>The warning shown before saving a changed label of an existing device (also used by the sensor-names dialog).</summary>
+    /// <summary>
+    /// The warning shown before saving a changed label of an existing device (also used by the sensor-names dialog). HWiNFO
+    /// keeps its own label per sensor, so the user must rename the sensors in HWiNFO (<see cref="HwinfoRenameHelp"/>).
+    /// </summary>
     public const string RenameWarningText =
-        "Renaming changes the HWiNFO sensor names. HWiNFO custom formulas, OSD, tray and gadget selections and other tools that use the old names stop working until you update them, and HWiNFO must be restarted.";
+        "This changes the HWiNFO sensor names, but HWiNFO keeps showing the old names until you rename the sensors in HWiNFO (right-click › Rename) or reset its preferences. HWiNFO custom formulas and OSD, tray or gadget selections that use the old names also need updating.";
 
     private readonly IReadOnlyList<string> _otherLabels;
+    private readonly IReadOnlyDictionary<string, string>? _sensorNames;
     private readonly string? _originalLabel;
     private readonly string? _originalPassword;
     private string _label;
@@ -47,6 +51,7 @@ public sealed class DeviceFormModel
     /// <param name="storedPassword">The device's stored password when editing, or <c>null</c>.</param>
     /// <param name="defaultLabel">The label a new device starts with; <c>null</c> for the first free "Monitor" label.</param>
     /// <param name="culture">The display culture; <c>null</c> for the current culture.</param>
+    /// <param name="sensorNames">The custom sensor names (<see cref="AppSettings.SensorNames"/>) for <see cref="RenameHelp"/>; <c>null</c> for none.</param>
     public DeviceFormModel(
         Func<CancellationToken, Task<IReadOnlyList<DiscoveredShelly>>> discover,
         Func<string, string?, CancellationToken, Task<ConnectionTestResult>> test,
@@ -54,10 +59,12 @@ public sealed class DeviceFormModel
         ShellyDeviceSettings? existing = null,
         string? storedPassword = null,
         string? defaultLabel = null,
-        CultureInfo? culture = null)
+        CultureInfo? culture = null,
+        IReadOnlyDictionary<string, string>? sensorNames = null)
     {
         ArgumentNullException.ThrowIfNull(otherLabels);
         _otherLabels = otherLabels;
+        _sensorNames = sensorNames;
         Connection = new ShellyStepModel(discover, test, culture);
         Mode = existing is null ? DeviceFormMode.Add : DeviceFormMode.Edit;
         IsPrimary = existing is not null && existing is not AdditionalDeviceSettings;
@@ -132,6 +139,15 @@ public sealed class DeviceFormModel
     /// </summary>
     public bool ShowRenameWarning =>
         Mode == DeviceFormMode.Edit && !IsPrimary && !string.Equals(_originalLabel?.Trim(), _label.Trim(), StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gets the "Update the names in HWiNFO" help for the pending relabel (the device's AC and Online sensors, old label →
+    /// new label), opened by "Show me how" next to <see cref="RenameWarningText"/>. Empty while
+    /// <see cref="ShowRenameWarning"/> is false.
+    /// </summary>
+    public HwinfoRenameHelp RenameHelp => ShowRenameWarning
+        ? HwinfoRenameHelp.ForDeviceRelabel(DeviceId, _originalLabel ?? string.Empty, _label, _sensorNames)
+        : new HwinfoRenameHelp([]);
 
     /// <summary>Gets whether the form can be saved: a valid label and host.</summary>
     public bool IsValid => LabelError is null && Connection.IsHostValid;

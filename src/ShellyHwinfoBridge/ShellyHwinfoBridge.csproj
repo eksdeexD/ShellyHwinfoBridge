@@ -34,6 +34,7 @@
     <EmbeddedResource Include="Assets\logo.png" LogicalName="ShellyHwinfoBridge.logo.png" />
     <EmbeddedResource Include="Assets\hwinfo-shared-memory.png" LogicalName="ShellyHwinfoBridge.hwinfo-shared-memory.png" />
     <EmbeddedResource Include="Assets\hwinfo-gadget.png" LogicalName="ShellyHwinfoBridge.hwinfo-gadget.png" Condition="Exists('Assets\hwinfo-gadget.png')" />
+    <EmbeddedResource Include="Assets\hwinfo-reset-preferences.png" LogicalName="ShellyHwinfoBridge.hwinfo-reset-preferences.png" Condition="Exists('Assets\hwinfo-reset-preferences.png')" />
   </ItemGroup>
 
 </Project>

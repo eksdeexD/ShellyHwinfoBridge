@@ -9,7 +9,8 @@ namespace ShellyHwinfoBridge.Windows;
 /// The "Customize HWiNFO sensor names" table (<see cref="SensorNamesModel"/>), hosted by a <see cref="StepDialog"/>:
 /// a header row (DEFAULT NAME, YOUR NAME, "Reset to defaults") and one row per published sensor with its default name,
 /// an editable name (empty = default, shown as the placeholder) and the row's validation error. The rows scroll when
-/// the dialog is short. Nothing is applied before Save.
+/// the dialog is short. While names differ from the saved ones, the rename warning and "Show me how" (opening
+/// <see cref="RenameHelpDialog"/>) sit under the rows. Nothing is applied before Save.
 /// </summary>
 internal sealed class SensorNamesView : WizardStepView
 {
@@ -25,6 +26,9 @@ internal sealed class SensorNamesView : WizardStepView
     private readonly ScrollArea _rows = new();
     private readonly List<(string KeyId, TextLabel Default, ThemedTextBox Name, InfoLine Error)> _controls = [];
     private readonly InfoLine _applyError = new() { Tone = InfoTone.Error, Visible = false };
+    private readonly InfoLine _warning = new() { Tone = InfoTone.Warning, Text = DeviceFormModel.RenameWarningText, Visible = false };
+    private readonly PillButton _showHow = new() { Text = HwinfoRenameHelp.ShowMeHowText, Visible = false, AccessibleName = "Show me how to update the names in HWiNFO" };
+    private bool _warningShown;
 
     public SensorNamesView(SensorNamesModel model)
     {
@@ -50,7 +54,10 @@ internal sealed class SensorNamesView : WizardStepView
 
         _reset.TabIndex = 0;
         _rows.TabIndex = 1;
-        Controls.AddRange([_defaultCaption, _nameCaption, _reset, _rows, _applyError]);
+        _warning.TabIndex = 2;
+        _showHow.TabIndex = 3;
+        Controls.AddRange([_defaultCaption, _nameCaption, _reset, _rows, _warning, _showHow, _applyError]);
+        _showHow.Click += (_, _) => RenameHelpDialog.Show(FindForm(), _model.RenameHelp);
         _reset.Click += (_, _) => _model.ResetToDefaults();
         _model.Changed += OnModelChanged;
         RefreshView();
@@ -81,6 +88,16 @@ internal sealed class SensorNamesView : WizardStepView
         _reset.Enabled = rows.Any(r => r.CustomName.Length > 0);
         _applyError.Visible = _model.ApplyError is not null;
         _applyError.Text = _model.ApplyError ?? string.Empty;
+
+        // The rename warning with "Show me how" while names differ from the saved ones.
+        var warn = _model.ShowRenameWarning;
+        if (_warningShown != warn)
+        {
+            _warningShown = warn;
+            _warning.Visible = warn;
+            _showHow.Visible = warn;
+            PerformLayout();
+        }
     }
 
     protected override void OnLayout(LayoutEventArgs levent)
@@ -94,7 +111,14 @@ internal sealed class SensorNamesView : WizardStepView
         _reset.Bounds = new Rectangle(Width - resetSize.Width, Px(4), resetSize.Width, resetSize.Height);
 
         var errorHeight = _applyError.Visible ? 32f : 0f;
-        _rows.Bounds = Dip(0, HeaderHeight, w, Math.Max(RowHeight, h - HeaderHeight - errorHeight));
+        var showHowWidth = Math.Max(Px(130), _showHow.GetPreferredSize(Size.Empty).Width);
+        var warningWidth = Math.Max(0, Width - showHowWidth - Px(16));
+        var warningHeight = _warningShown ? Math.Max(Px(36), _warning.GetPreferredHeight(warningWidth)) : 0;
+        var warningTop = Height - Px(errorHeight) - warningHeight;
+        _warning.Bounds = new Rectangle(0, warningTop, warningWidth, warningHeight);
+        _showHow.Bounds = new Rectangle(Width - showHowWidth, warningTop + Math.Max(0, (warningHeight - Px(36)) / 2), showHowWidth, Px(36));
+        var rowsHeight = Math.Max(Px(RowHeight), warningTop - (_warningShown ? Px(8) : 0) - Px(HeaderHeight));
+        _rows.Bounds = new Rectangle(0, Px(HeaderHeight), Width, rowsHeight);
         _applyError.Bounds = Dip(0, h - 28, w, 28);
 
         var scroll = _rows.AutoScrollPosition;

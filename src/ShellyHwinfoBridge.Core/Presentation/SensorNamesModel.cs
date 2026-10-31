@@ -95,6 +95,19 @@ public sealed class SensorNamesModel
     /// <summary>Gets whether to show the rename warning before saving (names changed).</summary>
     public bool ShowRenameWarning => HasChanges;
 
+    /// <summary>
+    /// Gets the "Update the names in HWiNFO" help for the pending change: every sensor whose effective name differs from
+    /// the saved one (old → new), in row order. Opened by "Show me how" next to the rename warning.
+    /// </summary>
+    public HwinfoRenameHelp RenameHelp
+    {
+        get
+        {
+            var now = EffectiveNames();
+            return HwinfoRenameHelp.ForSensorNames(_original, _sensors.Select(s => new KeyValuePair<string, string>(s.Key.Id, now[s.Key.Id])));
+        }
+    }
+
     /// <summary>Gets the last apply error, or <c>null</c>.</summary>
     public string? ApplyError { get; private set; }
 

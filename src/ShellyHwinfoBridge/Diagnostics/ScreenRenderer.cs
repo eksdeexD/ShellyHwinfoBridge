@@ -206,6 +206,17 @@ internal static class ScreenRenderer
         }),
         ("m4-main-other-hwinfo-not-running", () => MainWindow(SampleData.MainView(hwinfo: new HwinfoMonitorSnapshot(true, false, false, false, null), other: OtherComponentsState.Unknown), EnergyPeriod.Hours)),
         ("m4-gadget-help-dialog", () => new GadgetHelpDialog(HwinfoTips.GadgetExportFor(SampleData.Settings().Sensors.Select(s => s.Name)))),
+        ("m4-rename-help-dialog", () => new RenameHelpDialog(HwinfoRenameHelp.ForDeviceRelabel(SampleData.MonitorId, "Monitor", "Desk monitor"))),
+        ("m4-rename-help-dialog-many", () => new RenameHelpDialog(new HwinfoRenameHelp(
+        [
+            new SensorRename("PC Power (AC)", "Wall Power"),
+            new SensorRename("PC Power (DC)", "PC DC"),
+            new SensorRename("PC PSU Loss", "PSU Loss W"),
+            new SensorRename("PC Other Components", "Rest of PC"),
+            new SensorRename("Monitor Power (AC)", "Screen Power"),
+            new SensorRename("Total Power (AC)", "Desk Total"),
+            new SensorRename("Monitor Online", "Screen Online"),
+        ]))),
         ("m4-settings-2-devices", () => Settings(out _, SampleData.TwoDeviceSettings())),
         ("m4-settings-about", () =>
         {

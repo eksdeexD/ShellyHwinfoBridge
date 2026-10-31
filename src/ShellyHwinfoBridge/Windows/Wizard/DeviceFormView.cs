@@ -12,7 +12,8 @@ namespace ShellyHwinfoBridge.Windows.Wizard;
 /// Cancel buttons) and Manage Shellys (Add / Edit, hosted by a
 /// <see cref="StepDialog"/>). Left: "Found on your network" (mDNS list, "Search again"), as in step 2. Right: Label and
 /// "Include in totals", Host and Password, "Test connection" with its result, the Power / Voltage / Current tiles and
-/// one message line (label error, or the rename warning when an existing device's label changed). Thin: every
+/// one message line (label error, or the rename warning when an existing device's label changed, with "Show me how"
+/// opening <see cref="RenameHelpDialog"/>). Thin: every
 /// decision lives in the model.
 /// </summary>
 internal sealed class DeviceFormView : WizardStepView
@@ -39,9 +40,11 @@ internal sealed class DeviceFormView : WizardStepView
     private readonly ValueTile _voltage = new() { Caption = "Voltage" };
     private readonly ValueTile _current = new() { Caption = "Current" };
     private readonly InfoLine _message = new();
+    private readonly PillButton _showHow = new() { Text = HwinfoRenameHelp.ShowMeHowText, Visible = false, AccessibleName = "Show me how to update the names in HWiNFO" };
     private readonly PillButton _save = new() { Variant = PillVariant.Primary };
     private readonly PillButton _cancel = new() { Text = "Cancel" };
     private IReadOnlyList<DiscoveredShelly>? _shownDevices;
+    private bool _showHowShown;
 
     /// <summary>Creates the form view.</summary>
     /// <param name="form">The form model.</param>
@@ -61,7 +64,7 @@ internal sealed class DeviceFormView : WizardStepView
         _cancel.Visible = inline;
 
         _found.Controls.AddRange([_list, _discoveryStatus, _searchAgain]);
-        _device.Controls.AddRange([_labelCaption, _label, _include, _hostLabel, _passwordLabel, _host, _password, _test, _result, _power, _voltage, _current, _message, _save, _cancel]);
+        _device.Controls.AddRange([_labelCaption, _label, _include, _hostLabel, _passwordLabel, _host, _password, _test, _result, _power, _voltage, _current, _message, _showHow, _save, _cancel]);
         for (var i = 0; i < _device.Controls.Count; i++)
         {
             _device.Controls[i].TabIndex = i;
@@ -116,6 +119,7 @@ internal sealed class DeviceFormView : WizardStepView
         // The owner may dispose this view in response: raise both after the click has been handled.
         _save.Click += (_, _) => Defer(() => SaveRequested?.Invoke(this, EventArgs.Empty));
         _cancel.Click += (_, _) => Defer(() => CancelRequested?.Invoke(this, EventArgs.Empty));
+        _showHow.Click += (_, _) => RenameHelpDialog.Show(FindForm(), _form.RenameHelp);
         _form.Changed += OnModelChanged;
         RefreshView();
     }
@@ -205,6 +209,15 @@ internal sealed class DeviceFormView : WizardStepView
             _message.Visible = false;
         }
 
+        // "Show me how" opens the HWiNFO rename help while the rename warning is shown.
+        var showHow = _form.LabelError is null && _form.ShowRenameWarning;
+        if (_showHowShown != showHow)
+        {
+            _showHowShown = showHow;
+            _showHow.Visible = showHow;
+            PerformLayout();
+        }
+
         _save.Enabled = _form.IsValid;
     }
 
@@ -252,7 +265,10 @@ internal sealed class DeviceFormView : WizardStepView
         var buttonsTop = _device.Height - Px(20 + 40);
         var messageTop = Px(318);
         var messageBottom = _inline ? buttonsTop - Px(8) : _device.Height - Px(16);
-        _message.Bounds = new Rectangle(Px(20), messageTop, cw, Math.Max(Px(28), Math.Min(messageBottom - messageTop, _message.GetPreferredHeight(cw))));
+        var showHowHeight = _showHowShown ? Px(36 + 8) : 0;
+        _message.Bounds = new Rectangle(Px(20), messageTop, cw, Math.Max(Px(28), Math.Min(messageBottom - messageTop - showHowHeight, _message.GetPreferredHeight(cw))));
+        var showHowWidth = Math.Max(Px(130), _showHow.GetPreferredSize(Size.Empty).Width);
+        _showHow.Bounds = new Rectangle(Px(20 + 32), _message.Bottom + Px(8), showHowWidth, Px(36));
 
         var saveWidth = Math.Max(Px(130), _save.GetPreferredSize(Size.Empty).Width);
         var cancelWidth = Math.Max(Px(108), _cancel.GetPreferredSize(Size.Empty).Width);

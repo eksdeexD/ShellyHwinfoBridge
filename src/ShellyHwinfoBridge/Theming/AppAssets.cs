@@ -18,6 +18,12 @@ internal static class AppAssets
     /// </summary>
     public static Image? TryLoadHwinfoGadgetScreenshot() => Load("ShellyHwinfoBridge.hwinfo-gadget.png");
 
+    /// <summary>
+    /// Loads the optional screenshot of HWiNFO's Settings with "Reset Preferences" (<c>Assets/hwinfo-reset-preferences.png</c>,
+    /// embedded only when the file exists), or <c>null</c>. The caller owns the image.
+    /// </summary>
+    public static Image? TryLoadHwinfoResetPreferencesScreenshot() => Load("ShellyHwinfoBridge." + Core.Presentation.HwinfoRenameHelp.Fix2Screenshot);
+
     /// <summary>Draws the logo fitted to <paramref name="height"/> pixels at <paramref name="location"/>; returns the drawn width.</summary>
     public static int DrawLogo(Graphics g, Point location, int height)
     {

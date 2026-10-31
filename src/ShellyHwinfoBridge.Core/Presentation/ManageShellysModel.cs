@@ -130,7 +130,7 @@ public sealed class ManageShellysModel
         }
 
         var others = settings.AdditionalDevices.Where(d => !ReferenceEquals(d, device)).Select(d => d.Label).ToList();
-        return Open(new DeviceFormModel(_discover, _runtime.TestConnectionAsync, others, device, _runtime.GetDevicePassword(device.Id), culture: _culture));
+        return Open(new DeviceFormModel(_discover, _runtime.TestConnectionAsync, others, device, _runtime.GetDevicePassword(device.Id), culture: _culture, sensorNames: settings.SensorNames));
     }
 
     /// <summary>Closes the form without saving.</summary>
