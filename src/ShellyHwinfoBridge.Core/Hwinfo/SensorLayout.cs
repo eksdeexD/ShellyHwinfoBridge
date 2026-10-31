@@ -111,8 +111,8 @@ public sealed record SensorSlot(SensorKey Key, string Subkey, string Name, strin
 /// <summary>
 /// The set of published sensors and their subkeys. Order (SPEC "HWiNFO sensors with additional devices"):
 /// Power0 PC AC, Power1 PC DC, Power2 PC loss, Power3 PC Other, Power4… one AC sensor per additional device in list
-/// order, then Total Power (AC) only when at least one additional device exists; Other0 Shelly Online, Other1 Energy
-/// Today, Other2 Energy This Month, Other3… one online sensor per additional device. Subkeys are reassigned when the
+/// order, then Total Power (AC) only when at least one additional device exists; Other0 Energy Today, Other1 Energy
+/// This Month, Other2 Shelly Online, Other3… one online sensor per additional device. Subkeys are reassigned when the
 /// device list changes.
 /// </summary>
 public sealed class SensorLayout : IEquatable<SensorLayout>
@@ -145,7 +145,7 @@ public sealed class SensorLayout : IEquatable<SensorLayout>
     {
         ArgumentNullException.ThrowIfNull(settings);
         var power = new List<SensorKey> { SensorKey.PcAc, SensorKey.PcDc, SensorKey.PcLoss, SensorKey.PcOther };
-        var other = new List<SensorKey> { SensorKey.PcOnline, SensorKey.EnergyToday, SensorKey.EnergyMonth };
+        var other = new List<SensorKey> { SensorKey.EnergyToday, SensorKey.EnergyMonth, SensorKey.PcOnline };
         var devices = settings.AdditionalDevices ?? [];
         foreach (var device in devices)
         {

@@ -61,13 +61,13 @@ public sealed class EnergyLoggerTests : IDisposable
         logger.Updated += (_, _) => updates++;
 
         Poll(logger, 300, 280, 1000);
-        Assert.Equal("2.40", Value("Other1"));
-        Assert.Equal("48.40", Value("Other2"));
+        Assert.Equal("2.40", Value("Other0"));
+        Assert.Equal("48.40", Value("Other1"));
 
         Poll(logger, 300, 280, 1010);
         Poll(logger, 300, 280, 1020);
-        Assert.Equal("2.42", Value("Other1"));
-        Assert.Equal("48.42", Value("Other2"));
+        Assert.Equal("2.42", Value("Other0"));
+        Assert.Equal("48.42", Value("Other1"));
         Assert.Equal(3, updates);
         Assert.Equal(Round(new EnergyTotals(2.42, 48.42, 2.2 + (2 * 280 / 3600.0 / 1000), 2.2 + (2 * 280 / 3600.0 / 1000))), Round(logger.GetTotals()));
     }
@@ -81,8 +81,8 @@ public sealed class EnergyLoggerTests : IDisposable
 
         _registry.SetOffline();
 
+        Assert.Equal("0.20", Value("Other0"));
         Assert.Equal("0.20", Value("Other1"));
-        Assert.Equal("0.20", Value("Other2"));
         Assert.Equal("0.0", Value("Power0"));
     }
 
@@ -168,7 +168,7 @@ public sealed class EnergyLoggerTests : IDisposable
         Poll(logger, 100, 90, 1000);
         Poll(logger, 100, 90, 1100);
 
-        Assert.Equal("0.00", Value("Other1"));
+        Assert.Equal("0.00", Value("Other0"));
         Assert.Null(_store.LoadState());
 
         // Re-enabling starts from a new baseline: the time logging was off is not counted.
@@ -259,7 +259,7 @@ public sealed class EnergyLoggerTests : IDisposable
 
         // PC 100 Wh + monitor 50 Wh; the lamp's 100 Wh is excluded.
         Assert.Equal(0.15, logger.GetTotals().TodayAcKwh, 9);
-        Assert.Equal("0.15", Value("Other1"));
+        Assert.Equal("0.15", Value("Other0"));
         Assert.Equal(0.1, logger.GetDeviceTotals(LampId).TodayAcKwh, 9);
         Assert.Equal(0.05, logger.GetDeviceTotals(MonitorId).TodayAcKwh, 9);
     }

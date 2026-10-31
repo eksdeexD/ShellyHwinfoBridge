@@ -34,17 +34,17 @@ public class HwinfoSensorRegistryTests
         Assert.Equal("PC PSU Loss", Value("Power2", "Name"));
         Assert.Equal("PC Other Components", Value("Power3", "Name"));
         Assert.Null(Value("Power4", "Name"));
-        Assert.Equal("Shelly Online", Value("Other0", "Name"));
+        Assert.Equal("Shelly Online", Value("Other2", "Name"));
         Assert.Equal("W", Value("Power0", "Unit"));
-        Assert.Equal(string.Empty, Value("Other0", "Unit"));
+        Assert.Equal(string.Empty, Value("Other2", "Unit"));
         Assert.Equal("0.0", Value("Power1"));
-        Assert.Equal("0", Value("Other0"));
-        Assert.Equal("Energy Today", Value("Other1", "Name"));
-        Assert.Equal("Energy This Month", Value("Other2", "Name"));
+        Assert.Equal("0", Value("Other2"));
+        Assert.Equal("Energy Today", Value("Other0", "Name"));
+        Assert.Equal("Energy This Month", Value("Other1", "Name"));
+        Assert.Equal("kWh", Value("Other0", "Unit"));
         Assert.Equal("kWh", Value("Other1", "Unit"));
-        Assert.Equal("kWh", Value("Other2", "Unit"));
+        Assert.Equal("0.00", Value("Other0"));
         Assert.Equal("0.00", Value("Other1"));
-        Assert.Equal("0.00", Value("Other2"));
 
         Assert.False(Registry.EnsureKeys());
     }
@@ -81,9 +81,9 @@ public class HwinfoSensorRegistryTests
         Assert.Equal("Monitor Power (AC)", map["Power4"]);
         Assert.Equal("Lamp Power (AC)", map["Power5"]);
         Assert.Equal("Total Power (AC)", map["Power6"]);
-        Assert.Equal("Shelly Online", map["Other0"]);
-        Assert.Equal("Energy Today", map["Other1"]);
-        Assert.Equal("Energy This Month", map["Other2"]);
+        Assert.Equal("Shelly Online", map["Other2"]);
+        Assert.Equal("Energy Today", map["Other0"]);
+        Assert.Equal("Energy This Month", map["Other1"]);
         Assert.Equal("Monitor Online", map["Other3"]);
         Assert.Equal("Lamp Online", map["Other4"]);
         Assert.Equal(12, layout.Slots.Count);
@@ -163,8 +163,8 @@ public class HwinfoSensorRegistryTests
         Assert.True(Registry.EnsureKeys());
         Registry.WriteEnergy(2.414, 48.7);
         Assert.False(Registry.EnsureKeys());
-        Assert.Equal("2.41", Value("Other1"));
-        Assert.Equal("48.70", Value("Other2"));
+        Assert.Equal("2.41", Value("Other0"));
+        Assert.Equal("48.70", Value("Other1"));
     }
 
     [Theory]
@@ -219,7 +219,7 @@ public class HwinfoSensorRegistryTests
         Assert.Equal("48.1", Value("Power3"));
         Assert.Equal("31.3", Value("Power4"));
         Assert.Equal("183.2", Value("Power5"));
-        Assert.Equal("1", Value("Other0"));
+        Assert.Equal("1", Value("Other2"));
         Assert.Equal("1", Value("Other3"));
     }
 
@@ -263,14 +263,14 @@ public class HwinfoSensorRegistryTests
         registry.WriteEnergy(2.41, 48.7);
         registry.SetOffline();
 
-        Assert.Equal("2.41", Value("Other1"));
-        Assert.Equal("48.70", Value("Other2"));
+        Assert.Equal("2.41", Value("Other0"));
+        Assert.Equal("48.70", Value("Other1"));
         foreach (var subkey in new[] { "Power0", "Power1", "Power2", "Power3", "Power4", "Power5" })
         {
             Assert.Equal("0.0", Value(subkey));
         }
 
-        Assert.Equal("0", Value("Other0"));
+        Assert.Equal("0", Value("Other2"));
         Assert.Equal("0", Value("Other3"));
         Assert.Equal("PC Power (AC)", Value("Power0", "Name"));
     }

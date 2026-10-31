@@ -160,11 +160,11 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.Equal(312.4, reading.Power.AcWatts, 6);
         Assert.Same(reading, runtime.LastReading);
         Assert.Equal("312.4", Value("Power0"));
-        Assert.Equal("1", Value("Other0"));
+        Assert.Equal("1", Value("Other2"));
         Assert.Equal(SensorValueFormatter.FormatWatts(reading.Power.DcWatts - 250), Value("Power3"));
         Assert.Equal(OtherSource.SharedMemory, runtime.Other.Source);
         Assert.Equal("PC Power (AC)", Name("Power0"));
-        Assert.Equal("0.00", Value("Other1"));
+        Assert.Equal("0.00", Value("Other0"));
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public sealed class BridgeRuntimeTests : IDisposable
         runtime.Pause();
         Assert.Equal(RuntimeState.Paused, runtime.State);
         Assert.Null(runtime.LastReading);
-        Assert.Equal("0", Value("Other0"));
+        Assert.Equal("0", Value("Other2"));
 
         await NextReading(runtime, () =>
         {
@@ -242,7 +242,7 @@ public sealed class BridgeRuntimeTests : IDisposable
             _time.Advance(TimeSpan.FromSeconds(1));
         });
         Assert.Equal(RuntimeState.Running, runtime.State);
-        Assert.Equal("1", Value("Other0"));
+        Assert.Equal("1", Value("Other2"));
     }
 
     [Fact]
@@ -364,7 +364,7 @@ public sealed class BridgeRuntimeTests : IDisposable
 
         await runtime.StopAsync();
 
-        Assert.Equal("0", Value("Other0"));
+        Assert.Equal("0", Value("Other2"));
         Assert.Equal("0.0", Value("Power0"));
         Assert.True(_clients[0].Disposed);
         Assert.True(File.Exists(Path.Combine(_dir, "energy", EnergyCsvStore.StateFileName)));
@@ -462,7 +462,7 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.Equal("0.0", Value("Power4"));
         Assert.Equal(OnlineState.Online, runtime.OnlineState);
         Assert.Equal(RuntimeState.Running, runtime.State);
-        await WaitUntil(() => Value("Other0") == "1");
+        await WaitUntil(() => Value("Other2") == "1");
         Assert.Equal("312.4", Value("Power0"));
     }
 
