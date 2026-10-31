@@ -9,12 +9,18 @@ namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 /// </summary>
 public sealed class HwinfoStepModel
 {
-    /// <summary>The note shown under the status card.</summary>
-    public const string RestartNote = "HWiNFO must be restarted at the end of setup. The wizard can do that for you.";
+    /// <summary>The how-to steps for turning on Shared Memory Support, in order.</summary>
+    public static readonly IReadOnlyList<string> HowToSteps =
+    [
+        "In HWiNFO, open the sensor window's Settings (gear icon), then click \"Main Settings\".",
+        "On the \"General / User Interface\" tab, tick \"Shared Memory Support\" and click OK.",
+        "Restart HWiNFO.",
+        "Click \"Check again\" here.",
+    ];
 
-    /// <summary>The note about the free version's 12-hour shared memory limit.</summary>
+    /// <summary>The note about the free version's 12-hour shared memory limit (the only note under the status card).</summary>
     public const string FreeVersionNote =
-        "The free HWiNFO version turns Shared Memory Support off after 12 hours. That is fine: the app only needs it during setup.";
+        "The free HWiNFO version turns Shared Memory Support off after 12 hours. That is fine: the app only needs it during setup, and you can turn it off again afterwards.";
 
     private readonly Func<HwinfoStatus> _detect;
     private readonly Func<HwinfoSnapshot?> _readSharedMemory;

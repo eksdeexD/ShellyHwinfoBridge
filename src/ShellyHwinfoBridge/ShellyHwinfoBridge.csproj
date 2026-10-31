@@ -32,7 +32,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\logo.png" LogicalName="ShellyHwinfoBridge.logo.png" />
-    <EmbeddedResource Include="Assets\hwinfo-shared-memory.png" LogicalName="ShellyHwinfoBridge.hwinfo-shared-memory.png" Condition="Exists('Assets\hwinfo-shared-memory.png')" />
+    <EmbeddedResource Include="Assets\hwinfo-shared-memory.png" LogicalName="ShellyHwinfoBridge.hwinfo-shared-memory.png" />
   </ItemGroup>
 
 </Project>

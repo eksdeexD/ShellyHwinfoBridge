@@ -6,26 +6,20 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
-/// Step 1: a "Status" card (installed, running, Shared Memory Support, "Check again") and a "Turn on Shared Memory" card
-/// with the how-to and the screenshot slot (the embedded screenshot when present, else a bordered placeholder).
+/// Step 1: a "Status" card (installed, running, Shared Memory Support, "Check again") with the note about the free
+/// version's 12-hour limit under it, and a "Turn on Shared Memory" card with the numbered how-to and the screenshot
+/// (the embedded one, scaled to fit with its aspect ratio; a bordered placeholder if it is missing).
 /// </summary>
 internal sealed class HwinfoStepView : WizardStepView
 {
-    private const string Steps =
-        "1.  Open HWiNFO64 (sensors-only mode is fine).\n" +
-        "2.  Open Settings: the gear in the sensor window, or Program › Settings.\n" +
-        "3.  On the General / User Interface tab, tick \"Shared Memory Support\".\n" +
-        "4.  Click OK, then click Check again here.";
-
     private readonly HwinfoStepModel _model;
     private readonly CardPanel _status = new() { Title = "Status" };
     private readonly InfoLine[] _lines = [new(), new(), new()];
     private readonly PillButton _checkAgain = new() { Text = "Check again" };
     private readonly InfoLine _warning = new() { Tone = InfoTone.Warning };
-    private readonly InfoLine _restartNote = new() { Text = HwinfoStepModel.RestartNote };
     private readonly InfoLine _freeNote = new() { Text = HwinfoStepModel.FreeVersionNote };
     private readonly CardPanel _howTo = new() { Title = "Turn on Shared Memory" };
-    private readonly TextLabel _steps = new() { Text = Steps, WordWrap = true, Tone = UiTone.Ink };
+    private readonly List<(TextLabel Number, TextLabel Text)> _steps = [];
     private readonly ScreenshotSlot _screenshot = new();
 
     public HwinfoStepView(HwinfoStepModel model)
@@ -37,9 +31,17 @@ internal sealed class HwinfoStepView : WizardStepView
         }
 
         _status.Controls.Add(_checkAgain);
-        _howTo.Controls.Add(_steps);
+        for (var i = 0; i < HwinfoStepModel.HowToSteps.Count; i++)
+        {
+            var number = new TextLabel { Text = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) + ".", VerticalCenter = false };
+            var text = new TextLabel { Text = HwinfoStepModel.HowToSteps[i], WordWrap = true };
+            _steps.Add((number, text));
+            _howTo.Controls.Add(number);
+            _howTo.Controls.Add(text);
+        }
+
         _howTo.Controls.Add(_screenshot);
-        Controls.AddRange([_status, _warning, _restartNote, _freeNote, _howTo]);
+        Controls.AddRange([_status, _warning, _freeNote, _howTo]);
         _checkAgain.Click += (_, _) => _model.Refresh();
         _model.Changed += OnModelChanged;
         RefreshView();
@@ -86,22 +88,32 @@ internal sealed class HwinfoStepView : WizardStepView
 
         var noteTop = _status.Bottom + Px(gap);
         var noteWidth = _status.Width;
-        foreach (var note in new[] { _warning, _restartNote, _freeNote }.Where(n => n.Visible))
+        foreach (var note in new[] { _warning, _freeNote }.Where(n => n.Visible))
         {
             var height = note.GetPreferredHeight(noteWidth);
             note.Bounds = new Rectangle(0, noteTop, noteWidth, height);
             noteTop += height + Px(10);
         }
 
-        // Right column: how-to and the 16:9 screenshot slot.
+        // Right column: the numbered steps (hanging indent), then the screenshot fitted to the remaining space.
         _howTo.Bounds = Dip(left + gap, 0, w - left - gap, HeightDip);
         var inner = _howTo.Width - Px(40);
-        var stepsHeight = _steps.GetPreferredHeight(inner);
-        _steps.Bounds = new Rectangle(Px(20), Px(60), inner, stepsHeight);
-        var slotTop = _steps.Bottom + Px(14);
-        var slotHeight = Math.Max(Px(80), _howTo.Height - slotTop - Px(20));
-        var slotWidth = Math.Min(inner, (int)(slotHeight * 16f / 9f));
-        slotHeight = (int)(slotWidth * 9f / 16f);
+        var numberWidth = Px(22);
+        var textWidth = inner - numberWidth;
+        var stepTop = Px(58);
+        foreach (var (number, text) in _steps)
+        {
+            var height = text.GetPreferredHeight(textWidth);
+            number.Bounds = new Rectangle(Px(20), stepTop, numberWidth, height);
+            text.Bounds = new Rectangle(Px(20) + numberWidth, stepTop, textWidth, height);
+            stepTop += height + Px(4);
+        }
+
+        var slotTop = stepTop + Px(12);
+        var available = new Size(inner, Math.Max(Px(80), _howTo.Height - slotTop - Px(20)));
+        var aspect = _screenshot.AspectRatio;
+        var slotWidth = Math.Min(available.Width, (int)(available.Height * aspect));
+        var slotHeight = (int)Math.Round(slotWidth / aspect);
         _screenshot.Bounds = new Rectangle(Px(20), slotTop, slotWidth, slotHeight);
     }
 
@@ -125,7 +137,7 @@ internal sealed class HwinfoStepView : WizardStepView
 
     private void OnModelChanged(object? sender, EventArgs e) => RefreshView();
 
-    /// <summary>The screenshot (embedded <c>Assets/hwinfo-shared-memory.png</c>) or a bordered placeholder.</summary>
+    /// <summary>The screenshot (embedded <c>Assets/hwinfo-shared-memory.png</c>) in a 1 px Border frame, or a bordered placeholder.</summary>
     private sealed class ScreenshotSlot : ThemedControl
     {
         private readonly Image? _image = AppAssets.TryLoadHwinfoScreenshot();
@@ -133,29 +145,37 @@ internal sealed class HwinfoStepView : WizardStepView
         public ScreenshotSlot()
         {
             AccessibleRole = AccessibleRole.Graphic;
-            AccessibleName = "Screenshot: HWiNFO Shared Memory Support setting";
+            AccessibleName = "Screenshot: HWiNFO Settings, General / User Interface tab, with Shared Memory Support ticked";
         }
+
+        /// <summary>Gets the width/height ratio to lay the slot out with (the image's, else 16:9).</summary>
+        public float AspectRatio => _image is { Width: > 0, Height: > 0 } image ? image.Width / (float)image.Height : 16f / 9f;
 
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            var r = new RectangleF(0, 0, Width, Height);
-            var radius = this.PxF(Theme.ChipRadius);
+            var line = Math.Max(1, this.Px(1));
             if (_image is not null)
             {
+                // The slot has the image's aspect ratio: draw it inside the 1 px frame.
                 var state = g.Save();
-                using var clip = Gfx.RoundedRect(r, radius);
-                g.SetClip(clip);
                 g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                var scale = Math.Min(Width / (float)_image.Width, Height / (float)_image.Height);
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+                var inner = new Rectangle(line, line, Math.Max(1, Width - (2 * line)), Math.Max(1, Height - (2 * line)));
+                var scale = Math.Min(inner.Width / (float)_image.Width, inner.Height / (float)_image.Height);
                 var size = new SizeF(_image.Width * scale, _image.Height * scale);
-                g.DrawImage(_image, new RectangleF((Width - size.Width) / 2, (Height - size.Height) / 2, size.Width, size.Height));
+                g.DrawImage(_image, new RectangleF(inner.X + ((inner.Width - size.Width) / 2), inner.Y + ((inner.Height - size.Height) / 2), size.Width, size.Height));
                 g.Restore(state);
-                Gfx.DrawRounded(g, Theme.Border, Math.Max(1f, this.PxF(1)), r, radius);
+                using var border = new SolidBrush(Theme.Border);
+                g.FillRectangle(border, 0, 0, Width, line);
+                g.FillRectangle(border, 0, Height - line, Width, line);
+                g.FillRectangle(border, 0, 0, line, Height);
+                g.FillRectangle(border, Width - line, 0, line, Height);
                 return;
             }
 
-            Gfx.FillAndBorder(g, Theme.Field, Theme.Border, Math.Max(1f, this.PxF(1)), r, radius);
+            var r = new RectangleF(0, 0, Width, Height);
+            Gfx.FillAndBorder(g, Theme.Field, Theme.Border, Math.Max(1f, this.PxF(1)), r, this.PxF(Theme.ChipRadius));
             Gfx.Text(
                 g,
                 "Screenshot: HWiNFO Shared Memory Support setting",
