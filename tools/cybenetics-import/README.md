@@ -39,6 +39,36 @@ one voltage is found, the tool warns, because most reports cover both.
 
 To add entries, use `merge` (below) rather than editing `psu-database.json` by hand.
 
+## Saved evaluation pages (HTML)
+
+The report web page (e.g. `https://www.cybenetics.com/evaluations/psus/1872/`) carries the same test tables as the
+PDF. Save it from the browser ("Web page, HTML only" is enough) and import it:
+
+```powershell
+dotnet run --project tools/cybenetics-import -- import --html "Seasonic Prime TX-1600 (ATX v3.0).htm" `
+  --series "Prime TX" --rating80plus Titanium
+```
+
+A plain path ending in `.html`/`.htm`, or any non-PDF file that starts with `<html` or `<!doctype html`, is read the
+same way. From the page the tool takes the brand, model, wattage (`Rated Power (W)`), report id, report URL (canonical
+link, or the page's own `/evaluations/psus/<n>/` links such as the PDF download) and a platform revision written as a
+model suffix (`Prime TX-1600 (ATX v3.0)` becomes model `Prime TX-1600`, revision `ATX v3.0`); without `--id` the id
+is derived from brand, model and revision. Command-line (or catalogue) values win. The page does not name the
+80 Plus or Cybenetics ratings in text (they are badge images), and not the series, so pass those.
+
+How it reads the tables (HtmlAgilityPack): in every table with a `DC/AC (Watts)` header, a test is two rows: the
+first (label cell `10%`…`110%` or `20W`…`80W` spanning both rows, currents, **DC** watts, efficiency) and the
+second (voltages, **AC** watts, `115.2V`). Older pages (2020) number the tests (`Test #` 1–11 and 1–4); those are
+mapped to 10–110 % and 20–80 W from the tab pane id, or else from the DC value. Cross-load rows (`CL1`…), ripple
+and 5VSB tables never match. The voltage comes from the tab pane id (`nav-…-10-110-230`, `nav-…-20-80-115`), else the
+AC voltage cell (≥ 180 V is 230 V), else the nearest `115V`/`230V` heading. The printed efficiency confirms each
+pair; a mismatch keeps the row (from the DC/AC column) with a warning. A one-row layout with a `70.006 / 78.495` cell
+is read too.
+
+Checked against six saved pages (2020–2025, including the 2020 numbered layout): all 15 points per voltage, and the
+TX-700 page gives exactly the seed entry, identical to the PDF import of 21PS1872A. Some pages print a light-load
+efficiency that differs slightly from DC/AC (e.g. 75.53 % for 20.008/26.422 W); those rows get a warning.
+
 ## Batch import
 
 A catalogue is a CSV file with the header
@@ -50,8 +80,10 @@ A catalogue is a CSV file with the header
 dotnet run --project tools/cybenetics-import -- batch --catalog catalog.csv --reports work\reports --out work\entries
 ```
 
-For each row the tool imports `<reports>\<reportId>.pdf`. If `<reportId>-115.pdf` exists too, that file is read as
-115 V and the main file as 230 V (its own voltage markers still win). One `<id>.json` per imported row and a
+For each row the tool imports `<reports>\<reportId>.html` (a saved evaluation page) when it exists, otherwise
+`<reports>\<reportId>.pdf`; with a page, empty catalogue cells (brand, model, revision, wattage, reportUrl) are filled
+from it. If `<reportId>-115.pdf` exists next to a PDF, that file is read as 115 V and the main file as 230 V (its own
+voltage markers still win). One `<id>.json` per imported row and a
 `summary.csv` (`id,reportId,status,points230,points115,warnings,message`, status `ok` or `error`) go to `--out`.
 The exit code is 0 only when every row imported. Rows with warnings are still `ok`: read the `message` column and
 check those rows against the PDF. `id` and `reportId` may only contain letters, digits, `.`, `_` and `-`.
@@ -117,6 +149,8 @@ Fixtures (synthetic text, not copied from reports):
 
 - `tests/Fixtures/tx700-stacked.txt`: the stacked layout built from the TX-700 seed values in `psu-database.json`;
   the tests check that the tool reproduces the seed entry exactly, also after a round trip through a generated PDF.
+- `tests/Fixtures/evaluation-page-tx700.html`: a synthetic evaluation page with the structure described above
+  (tab panes, two-row tests, cross-load, ripple and 5VSB tables) carrying the seed DC/AC values.
 - `tests/Fixtures/supplementary-fan-pagebreak.txt`: the real-report layout above for a fictitious 850 W unit, with
   fan speed and noise columns whose values sit closer to the nominal load than DC, a page break inside a row,
   crossload rows, a 5VSB efficiency table and a summary block.

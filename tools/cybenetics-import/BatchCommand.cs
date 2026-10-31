@@ -58,30 +58,26 @@ public static class BatchCommand
         Func<string, IReadOnlyList<string>> readLines,
         HashSet<string> seenIds)
     {
-        EntryMetadata metadata;
-        try
+        if (!Catalog.IsSafeFileName(row.Id) || !Catalog.IsSafeFileName(row.ReportId))
         {
-            metadata = row.ToMetadata();
-        }
-        catch (ArgumentException ex)
-        {
-            return ("error", $"catalogue line {row.LineNumber}: {ex.Message}", null);
+            return ("error", $"catalogue line {row.LineNumber}: id and reportId are required and may only contain letters, digits, '.', '_' and '-'.", null);
         }
 
-        if (!Catalog.IsSafeFileName(metadata.Id) || !Catalog.IsSafeFileName(metadata.ReportId ?? string.Empty))
+        if (!seenIds.Add(row.Id))
         {
-            return ("error", $"catalogue line {row.LineNumber}: id and reportId may only contain letters, digits, '.', '_' and '-'.", null);
+            return ("error", $"catalogue line {row.LineNumber}: duplicate id {row.Id}.", null);
         }
 
-        if (!seenIds.Add(metadata.Id))
-        {
-            return ("error", $"catalogue line {row.LineNumber}: duplicate id {metadata.Id}.", null);
-        }
-
-        var main = Path.Combine(reports, metadata.ReportId + ".pdf");
-        var us = Path.Combine(reports, metadata.ReportId + "-115.pdf");
+        // A saved evaluation page (<reportId>.html) is preferred over the PDF: its tables are structured.
+        var html = Path.Combine(reports, row.ReportId + ".html");
+        var main = File.Exists(html) ? html : Path.Combine(reports, row.ReportId + ".pdf");
+        var us = Path.Combine(reports, row.ReportId + "-115.pdf");
         var inputs = new List<ImportInput>();
-        if (File.Exists(us))
+        if (main == html)
+        {
+            inputs.Add(new ImportInput(main, null));
+        }
+        else if (File.Exists(us))
         {
             // Separate documents per voltage: the main one is the 230 V report. Its own voltage markers still win,
             // so a main document that covers both voltages is not mislabelled.
@@ -98,7 +94,18 @@ public static class BatchCommand
         }
         else
         {
-            return ("error", $"missing {main}", null);
+            return ("error", $"missing {row.ReportId}.html or {main}", null);
+        }
+
+        EntryMetadata metadata;
+        try
+        {
+            // Empty catalogue cells are completed from the saved page, when there is one.
+            metadata = EntryMetadata.FromValues(EntryImporter.WithPageMetadata(row.ToValues(), inputs));
+        }
+        catch (ArgumentException ex)
+        {
+            return ("error", $"catalogue line {row.LineNumber}: {ex.Message}", null);
         }
 
         log.WriteLine($"--- {metadata.Id} ({string.Join(", ", inputs.Select(i => Path.GetFileName(i.Path)))})");

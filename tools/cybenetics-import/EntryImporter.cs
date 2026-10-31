@@ -57,6 +57,22 @@ public static class EntryImporter
         var points = new List<MeasuredPoint>();
         foreach (var input in inputs)
         {
+            if (HtmlReportParser.IsHtml(input.Path))
+            {
+                ParseResult page;
+                try
+                {
+                    page = HtmlReportParser.Parse(File.ReadAllText(input.Path), metadata.Wattage, input.Voltage).Result;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    return Fail($"cannot read {input.Path}: {ex.Message}");
+                }
+
+                Collect(Path.GetFileName(input.Path), page);
+                continue;
+            }
+
             IReadOnlyList<string> lines;
             try
             {
@@ -80,8 +96,11 @@ public static class EntryImporter
             var options = createOptions();
             options.ForcedVoltage = input.Voltage;
             options.DefaultVoltage = input.DefaultVoltage ?? options.DefaultVoltage;
-            var file = Path.GetFileName(input.Path);
-            var result = new ReportParser(options).Parse(lines, metadata.Wattage);
+            Collect(Path.GetFileName(input.Path), new ReportParser(options).Parse(lines, metadata.Wattage));
+        }
+
+        void Collect(string file, ParseResult result)
+        {
             foreach (var warning in result.Warnings)
             {
                 Warn($"{file}: {warning}");
@@ -133,6 +152,43 @@ public static class EntryImporter
 
         ImportResult Fail(string error) =>
             new(null, error, warnings, points.GroupBy(p => p.Voltage).ToDictionary(g => g.Key, g => g.Count()));
+    }
+
+    /// <summary>
+    /// Completes metadata values with what the first saved evaluation page (HTML input) says; given values win.
+    /// </summary>
+    /// <param name="values">The values from the command line or catalogue (keys as in <see cref="EntryMetadata.FromValues"/>).</param>
+    /// <param name="inputs">The inputs.</param>
+    public static Dictionary<string, string?> WithPageMetadata(IReadOnlyDictionary<string, string?> values, IEnumerable<ImportInput> inputs)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        ArgumentNullException.ThrowIfNull(inputs);
+        var result = new Dictionary<string, string?>(values, StringComparer.OrdinalIgnoreCase);
+        var page = inputs.FirstOrDefault(i => HtmlReportParser.IsHtml(i.Path));
+        if (page is null)
+        {
+            return result;
+        }
+
+        string html;
+        try
+        {
+            html = File.ReadAllText(page.Path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return result; // The import itself reports the unreadable file.
+        }
+
+        foreach (var (key, value) in HtmlReportParser.Parse(html).Metadata.ToValues())
+        {
+            if (string.IsNullOrWhiteSpace(result.GetValueOrDefault(key)))
+            {
+                result[key] = value;
+            }
+        }
+
+        return result;
     }
 
     /// <summary>Reads an input: <c>.pdf</c> with PdfPig, anything else as extracted text, one line per row.</summary>

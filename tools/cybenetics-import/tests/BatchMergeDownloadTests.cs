@@ -46,6 +46,8 @@ public sealed class BatchMergeDownloadTests : IDisposable
         File.WriteAllLines(Path.Combine(reports, "99PS0002A-115.pdf"),
             ["Load Tests", "50% 30.1A 421.953 89.962%", "12.08V 469.037 115.15V", "100% 60.2A 843.905 87.723%", "12.07V 962.011 115.2V"]);
 
+        File.WriteAllLines(Path.Combine(reports, "99PS0004A.pdf"), ["Load Tests"]);
+
         var catalog = Path.Combine(_dir, "catalog.csv");
         File.WriteAllLines(catalog,
         [

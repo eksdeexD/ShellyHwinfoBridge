@@ -16,15 +16,19 @@ public static class ImportCommand
 
     private const string Help = """
         Usage:
-          CybeneticsImport <report.pdf|report.txt> [more inputs...] [options]   import one entry
+          CybeneticsImport [import] <report.pdf|page.html|report.txt> [more inputs...] [options]   import one entry
+          CybeneticsImport import --html <saved evaluation page.html> [options]
           CybeneticsImport batch --catalog <csv> --reports <dir> --out <dir>    import every catalogue row
           CybeneticsImport merge --entries <dir> --into <psu-database.json>     merge entries into the database
           CybeneticsImport download --catalog <csv> --reports <dir>             fetch missing report PDFs (see README)
 
         Single import: builds one psu-database.json entry from Cybenetics report(s).
 
-        Inputs (.pdf is read with PdfPig, any other extension is read as extracted text, one line per row):
-          <path>                       voltage taken from markers in the text ("230V", "115V")
+        Inputs (.pdf is read with PdfPig; .html/.htm, or any file starting with <html or <!doctype html, is read as a
+        saved Cybenetics evaluation page; anything else is read as extracted text, one line per row):
+          <path>                       voltage taken from the page's voltage tabs or markers in the text
+          --html <path>                a saved evaluation page; brand, model, revision, wattage, report id and URL are
+                                       taken from it unless given (and id derived from brand, model and revision)
           --input230 <path>            input whose rows are all 230 V
           --input115 <path>            input whose rows are all 115 V
 
@@ -77,6 +81,8 @@ public static class ImportCommand
                     return MergeCommand.Run(OptionSet.Parse(args[1..], ["entries", "into", "date"], []), stderr, DateTime.Today);
                 case "download":
                     return DownloadCommand.Run(OptionSet.Parse(args[1..], ["catalog", "reports"], []), stderr);
+                case "import":
+                    return RunImport(args[1..], stdout, stderr, readLines);
                 default:
                     return RunImport(args, stdout, stderr, readLines);
             }
@@ -125,8 +131,8 @@ public static class ImportCommand
 
     private static int RunImport(string[] args, TextWriter stdout, TextWriter stderr, Func<string, IReadOnlyList<string>> readLines)
     {
-        var values = OptionSet.Parse(args, ["input230", "input115", "out", .. MetadataNames, .. TuningNames], ["dump-text"]);
-        var inputs = values.Positional.Select(p => new ImportInput(p, null))
+        var values = OptionSet.Parse(args, ["input230", "input115", "html", "out", .. MetadataNames, .. TuningNames], ["dump-text"]);
+        var inputs = values.Positional.Concat(values.All("html")).Select(p => new ImportInput(p, null))
             .Concat(values.All("input230").Select(p => new ImportInput(p, 230)))
             .Concat(values.All("input115").Select(p => new ImportInput(p, 115)))
             .ToList();
@@ -135,7 +141,12 @@ public static class ImportCommand
             throw new ArgumentException("No input file given.");
         }
 
-        var metadata = EntryMetadata.FromValues(MetadataNames.ToDictionary(n => n, values.Get));
+        foreach (var html in values.All("html").Where(p => !HtmlReportParser.IsHtml(p)))
+        {
+            throw new ArgumentException($"--html {html}: not an .html/.htm file or HTML page.");
+        }
+
+        var metadata = EntryMetadata.FromValues(EntryImporter.WithPageMetadata(MetadataNames.ToDictionary(n => n, values.Get), inputs));
         _ = CreateParserOptions(values);
 
         var result = EntryImporter.Import(metadata, inputs, () => CreateParserOptions(values), readLines, stderr, values.Flag("dump-text"));

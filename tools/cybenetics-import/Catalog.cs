@@ -20,7 +20,10 @@ public sealed record CatalogRow(int LineNumber, IReadOnlyDictionary<string, stri
 
     /// <summary>Builds the entry metadata from the row.</summary>
     /// <exception cref="ArgumentException">A value is missing or malformed.</exception>
-    public EntryMetadata ToMetadata() => EntryMetadata.FromValues(new Dictionary<string, string?>
+    public EntryMetadata ToMetadata() => EntryMetadata.FromValues(ToValues());
+
+    /// <summary>Returns the row as metadata values (keys as in <see cref="EntryMetadata.FromValues"/>).</summary>
+    public Dictionary<string, string?> ToValues() => new(StringComparer.OrdinalIgnoreCase)
     {
         ["id"] = this["id"],
         ["brand"] = this["brand"],
@@ -32,7 +35,7 @@ public sealed record CatalogRow(int LineNumber, IReadOnlyDictionary<string, stri
         ["ratingcybenetics"] = this["ratingCybenetics"],
         ["reportid"] = this["reportId"],
         ["url"] = this["reportUrl"],
-    });
+    };
 }
 
 /// <summary>

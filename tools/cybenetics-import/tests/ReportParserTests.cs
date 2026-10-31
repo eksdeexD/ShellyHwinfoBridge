@@ -7,14 +7,14 @@ namespace CybeneticsImport.Tests;
 public class ReportParserTests
 {
     // SPEC seed data for the Seasonic Prime Fanless TX-700 (Cybenetics report 21PS1872A), (AC, DC) sorted by AC.
-    private static readonly (double Ac, double Dc)[] Expected230 =
+    internal static readonly (double Ac, double Dc)[] Expected230 =
     [
         (25.948, 20.298), (47.421, 40.442), (67.789, 60.907), (78.781, 70.914), (88.435, 81.049),
         (151.862, 141.691), (225.442, 212.262), (299.387, 282.765), (374.101, 353.196), (449.589, 423.603),
         (525.524, 493.819), (597.872, 559.700), (674.794, 630.023), (752.735, 700.385), (831.082, 769.816),
     ];
 
-    private static readonly (double Ac, double Dc)[] Expected115 =
+    internal static readonly (double Ac, double Dc)[] Expected115 =
     [
         (25.678, 20.005), (46.634, 40.004), (67.580, 60.003), (78.495, 70.006), (88.228, 79.964),
         (151.718, 139.962), (226.233, 210.010), (301.226, 280.060), (376.703, 350.020), (453.959, 419.752),
