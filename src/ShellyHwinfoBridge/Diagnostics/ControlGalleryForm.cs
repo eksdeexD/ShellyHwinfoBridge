@@ -90,7 +90,7 @@ internal sealed class ControlGalleryForm : ThemedForm
             x += 251 + 16;
         }
 
-        var energy = _layout.Place(this, new CardPanel { Title = "Energy" }, 24, 236, 1052, 300);
+        var energy = _layout.Place(this, new CardPanel { Title = "Energy history" }, 24, 236, 1052, 300);
         var segmented = _layout.Place(energy, new SegmentedControl(), 1052 - 20 - 290, 14, 290, 40);
         segmented.SetItems(["Hours", "Days", "Months"], 0);
         var chart = _layout.Place(energy, new BarChart(), 20, 74, 1012, 140);
@@ -167,7 +167,7 @@ internal sealed class ControlGalleryForm : ThemedForm
         {
             var hour = start.AddHours(i);
             var label = i % 4 == 0 ? hour.ToString("HH", System.Globalization.CultureInfo.InvariantCulture) : null;
-            bars.Add(new ChartBar(values[i], label, $"{hour:ddd HH:mm} · {values[i]:0.00} kWh · PC est. {values[i] * 0.92:0.00} kWh"));
+            bars.Add(new ChartBar(values[i], label, [$"{hour:ddd HH:mm}", $"{values[i]:0.00} kWh", $"PC est. {values[i] * 0.92:0.00} kWh"]));
         }
 
         return bars;

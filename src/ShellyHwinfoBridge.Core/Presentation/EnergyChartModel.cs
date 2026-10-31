@@ -7,9 +7,16 @@ namespace ShellyHwinfoBridge.Core.Presentation;
 /// <summary>One bar of the energy chart.</summary>
 /// <param name="Value">Wall energy in kWh (0 without data).</param>
 /// <param name="Label">The X label under the bar, or <c>null</c>.</param>
-/// <param name="Tooltip">The hover readout, e.g. "Thu 18:00 · 0.34 kWh · PC est. 0.31 kWh".</param>
+/// <param name="TooltipLines">
+/// The hover tooltip, one entry per line: the bucket ("Fri 18:00", "Fri 30 Oct", "Oct 2026"), the wall energy
+/// ("0.34 kWh") and, when the log has estimated DC energy for the bucket, "PC est. 0.31 kWh"; or the bucket and "no data".
+/// </param>
 /// <param name="HasData">Whether any data fell into the bar.</param>
-public sealed record ChartBarModel(double Value, string? Label, string Tooltip, bool HasData);
+public sealed record ChartBarModel(double Value, string? Label, IReadOnlyList<string> TooltipLines, bool HasData)
+{
+    /// <summary>Gets the tooltip on one line ("Fri 18:00 · 0.34 kWh · PC est. 0.31 kWh"), e.g. for accessibility.</summary>
+    public string Tooltip => string.Join(" · ", TooltipLines);
+}
 
 /// <summary>The energy chart: bars, the Y maximum and the Y labels (bottom to top: "0", "0.2", "0.4 kWh").</summary>
 /// <param name="Bars">The bars, oldest first.</param>
@@ -35,6 +42,8 @@ public sealed record EnergyChartModel(IReadOnlyList<ChartBarModel> Bars, double 
         ArgumentNullException.ThrowIfNull(buckets);
         ArgumentNullException.ThrowIfNull(culture);
         var dayPattern = DayMonthPattern(culture);
+        var dayTooltipPattern = ShortPattern(culture.DateTimeFormat.MonthDayPattern);
+        var monthTooltipPattern = ShortPattern(culture.DateTimeFormat.YearMonthPattern);
         var bars = new List<ChartBarModel>(buckets.Count);
         for (var i = 0; i < buckets.Count; i++)
         {
@@ -49,12 +58,12 @@ public sealed record EnergyChartModel(IReadOnlyList<ChartBarModel> Bars, double 
             var when = period switch
             {
                 EnergyPeriod.Hours => b.StartLocal.ToString("ddd HH:mm", culture),
-                EnergyPeriod.Days => b.StartLocal.ToString("ddd ", culture) + b.StartLocal.ToString(dayPattern, culture),
-                _ => b.StartLocal.ToString("MMMM yyyy", culture),
+                EnergyPeriod.Days => b.StartLocal.ToString("ddd ", culture) + b.StartLocal.ToString(dayTooltipPattern, culture),
+                _ => b.StartLocal.ToString(monthTooltipPattern, culture),
             };
-            var tooltip = b.HasData
-                ? $"{when} · {UiFormat.Kwh(b.AcKwh, culture)} · PC est. {UiFormat.Kwh(b.DcEstKwh, culture)}"
-                : $"{when} · no data";
+            IReadOnlyList<string> tooltip = !b.HasData ? [when, "no data"]
+                : b.DcEstKwh > 0 ? [when, UiFormat.Kwh(b.AcKwh, culture), "PC est. " + UiFormat.Kwh(b.DcEstKwh, culture)]
+                : [when, UiFormat.Kwh(b.AcKwh, culture)];
             bars.Add(new ChartBarModel(b.HasData ? Math.Max(0, b.AcKwh) : 0, label, tooltip, b.HasData));
         }
 
@@ -62,6 +71,10 @@ public sealed record EnergyChartModel(IReadOnlyList<ChartBarModel> Bars, double 
         var yMax = ChartScale.Nice(max);
         return new EnergyChartModel(bars, yMax, ChartScale.Labels(yMax, culture));
     }
+
+    /// <summary>Abbreviates the month in a culture pattern ("MMMM d" → "MMM d", "MMMM yyyy" → "MMM yyyy").</summary>
+    private static string ShortPattern(string pattern) =>
+        pattern.Contains("MMMM", StringComparison.Ordinal) ? pattern.Replace("MMMM", "MMM", StringComparison.Ordinal) : pattern;
 
     /// <summary>The culture's short date pattern without the year ("M/d" for en-US, "dd-MM" for da-DK).</summary>
     /// <param name="culture">The culture.</param>

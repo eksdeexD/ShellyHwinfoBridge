@@ -36,6 +36,18 @@ internal static class ScreenRenderer
             form.PreviewHover(22);
             return form;
         }),
+        ("main-window-hours-hover", () =>
+        {
+            var form = MainWindow(SampleData.MainView(), EnergyPeriod.Hours);
+            form.PreviewHover(30);
+            return form;
+        }),
+        ("main-window-hours-hover-tallest", () =>
+        {
+            var form = MainWindow(SampleData.MainView(), EnergyPeriod.Hours);
+            form.PreviewHover(47);
+            return form;
+        }),
         ("main-window-price-offline-no-shm", () => MainWindow(PriceOfflineNoSharedMemory(), EnergyPeriod.Hours)),
         ("dialog-confirm", () => ThemedDialog.CreateForPreview("Remove HWiNFO sensors?", "This deletes the Shelly Power sensors from HWiNFO and pauses polling. Resume polling to create them again.", "Remove", "Cancel")),
         ("main-window-unconfigured",() => MainWindow(SampleData.MainView(RuntimeState.Unconfigured, OnlineState.Unknown, HwinfoMonitorSnapshot.Unknown), EnergyPeriod.Hours)),

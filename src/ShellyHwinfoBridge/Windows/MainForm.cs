@@ -7,7 +7,7 @@ namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
 /// The main window (design/final/main-window.png): header with logo, title and status pill; four live stat cards; the
-/// energy card (Hours/Days/Months, bar chart, today and this month); the configuration card and two buttons (Settings,
+/// "Energy history" card (Hours/Days/Months, bar chart with a hover tooltip, today and this month); the configuration card and two buttons (Settings,
 /// Pause/Resume polling). When setup is not done, one "Not set up yet" card replaces the stats and the energy card.
 /// <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under the header; "Done" or Esc
 /// returns to the dashboard. Passive: the tray context pushes <see cref="MainViewState"/> and
@@ -36,7 +36,7 @@ internal sealed class MainForm : ThemedForm
 
     private readonly StatusPill _pill = new();
     private readonly StatCard[] _stats = [new(), new(), new(), new()];
-    private readonly CardPanel _energy = new() { Title = "Energy", AccessibleName = "Energy" };
+    private readonly CardPanel _energy = new() { Title = "Energy history", AccessibleName = "Energy history" };
     private readonly SegmentedControl _period = new() { AccessibleName = "Energy period" };
     private readonly BarChart _chart = new() { AccessibleName = "Energy chart" };
     private readonly CardPanel _config = new() { AccessibleName = "Configuration" };
@@ -78,7 +78,6 @@ internal sealed class MainForm : ThemedForm
         _runWizard.Click += (_, _) => WizardRequested?.Invoke(this, EventArgs.Empty);
         _pause.Click += (_, _) => PauseToggleRequested?.Invoke(this, EventArgs.Empty);
         _period.SelectedIndexChanged += (_, _) => PeriodChanged?.Invoke(this, EventArgs.Empty);
-        _chart.HoveredIndexChanged += (_, _) => _energy.Invalidate(ReadoutBounds());
 
         SetClientSizeDip(new Size(1100, 740), new Size(980, 680));
     }
@@ -181,8 +180,7 @@ internal sealed class MainForm : ThemedForm
     public void ApplyChart(EnergyChartModel chart)
     {
         ArgumentNullException.ThrowIfNull(chart);
-        _chart.SetData(chart.Bars.Select(b => new ChartBar(b.Value, b.Label, b.Tooltip)).ToList(), chart.YMax, chart.YLabels);
-        _energy.Invalidate(ReadoutBounds());
+        _chart.SetData(chart.Bars.Select(b => new ChartBar(b.Value, b.Label, b.TooltipLines)).ToList(), chart.YMax, chart.YLabels);
     }
 
     protected override bool ProcessDialogKey(Keys keyData)
@@ -363,24 +361,11 @@ internal sealed class MainForm : ThemedForm
     private Rectangle TotalsBounds() =>
         new(0, _energy.Height - this.Px(TotalsHeight), _energy.Width, this.Px(TotalsHeight));
 
-    private Rectangle ReadoutBounds() =>
-        new(this.Px(140), 0, Math.Max(0, _period.Left - this.Px(140)), this.Px(ChartTop));
 
     private void PaintEnergy(object? sender, PaintEventArgs e)
     {
         var g = e.Graphics;
         var f = Fonts;
-
-        // Hover readout between the title and the period selector.
-        if (_chart.HoveredTooltip is { } readout)
-        {
-            var area = ReadoutBounds();
-            area.Width -= this.Px(20);
-            area.Y = this.Px(14);
-            area.Height = this.Px(40);
-            Gfx.Text(g, readout, f.Body, area, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
-        }
-
         if (_state is not { } state)
         {
             return;

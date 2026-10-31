@@ -5,13 +5,14 @@ namespace ShellyHwinfoBridge.Controls;
 /// <summary>A bar of the <see cref="BarChart"/>.</summary>
 /// <param name="Value">The value in chart units (kWh); bars without data use 0.</param>
 /// <param name="Label">The X label under the bar, or null for none.</param>
-/// <param name="Tooltip">The hover readout ("Thu 18:00 · 0.34 kWh · PC est. 0.31 kWh").</param>
-internal sealed record ChartBar(double Value, string? Label, string Tooltip);
+/// <param name="TooltipLines">The hover tooltip, one entry per line ("Thu 18:00", "0.34 kWh", "PC est. 0.31 kWh").</param>
+internal sealed record ChartBar(double Value, string? Label, IReadOnlyList<string> TooltipLines);
 
 /// <summary>
 /// The energy bar chart (GDI+, no library): Y labels at the left with horizontal grid lines only (Grid colour), square
-/// Accent bars 60 % of their slot, X labels under labelled bars. Hovering raises <see cref="HoveredIndexChanged"/>;
-/// the owner shows <see cref="HoveredTooltip"/> (in the card corner).
+/// Accent bars 60 % of their slot, X labels under labelled bars. The hovered bar turns AccentHover and the chart draws
+/// its own themed tooltip over it (Surface fill, 1 px Border, 8 px radius, Body text): above the bar, or inside the
+/// plot when there is no room above. No WinForms ToolTip is involved; leaving the chart hides it.
 /// </summary>
 internal sealed class BarChart : ThemedControl
 {
@@ -34,8 +35,8 @@ internal sealed class BarChart : ThemedControl
     /// <summary>Gets the hovered bar index, or -1.</summary>
     public int HoveredIndex => _hovered;
 
-    /// <summary>Gets the hovered bar's tooltip, or null.</summary>
-    public string? HoveredTooltip => _hovered >= 0 && _hovered < _bars.Count ? _bars[_hovered].Tooltip : null;
+    /// <summary>Gets the hovered bar's tooltip on one line ("Thu 18:00 · 0.34 kWh"), or null.</summary>
+    public string? HoveredTooltip => _hovered >= 0 && _hovered < _bars.Count ? string.Join(" · ", _bars[_hovered].TooltipLines) : null;
 
     /// <summary>Gets or sets the height reserved for X labels in DIP (default 28).</summary>
     public int XLabelHeightDip { get; set; } = 28;
@@ -104,8 +105,7 @@ internal sealed class BarChart : ThemedControl
         using var hover = new SolidBrush(Theme.AccentHover);
         for (var i = 0; i < _bars.Count; i++)
         {
-            var value = Math.Clamp(_bars[i].Value, 0, _yMax);
-            var height = (float)(plot.Height * value / _yMax);
+            var height = BarHeight(i, plot);
             var x = plot.Left + (i * slot) + ((slot - barWidth) / 2f);
             if (height > 0)
             {
@@ -120,6 +120,62 @@ internal sealed class BarChart : ThemedControl
                 var rect = new Rectangle(left, plot.Bottom + this.Px(10), size.Width + this.Px(2), size.Height);
                 Gfx.Text(g, label, labelFont, rect, Theme.InkSecondary, Gfx.SingleLine);
             }
+        }
+
+        if (_hovered >= 0 && _hovered < _bars.Count)
+        {
+            DrawTooltip(g, plot, slot);
+        }
+    }
+
+    private float BarHeight(int index, Rectangle plot) =>
+        (float)(plot.Height * Math.Clamp(_bars[index].Value, 0, _yMax) / _yMax);
+
+    /// <summary>Draws the hovered bar's tooltip: centred over the bar, kept inside the control.</summary>
+    private void DrawTooltip(Graphics g, Rectangle plot, float slot)
+    {
+        var lines = _bars[_hovered].TooltipLines;
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        var font = Fonts.Body;
+        var pad = this.Px(8);
+        var lineGap = this.Px(2);
+        var sizes = lines.Select(l => Gfx.Measure(l, font)).ToList();
+        var width = sizes.Max(s => s.Width) + (2 * pad) + this.Px(2);
+        var height = sizes.Sum(s => s.Height) + (lineGap * (lines.Count - 1)) + (2 * pad);
+        var offset = this.Px(8);
+
+        var centre = plot.Left + (_hovered * slot) + (slot / 2f);
+        var barTop = plot.Bottom - (int)Math.Ceiling(BarHeight(_hovered, plot));
+        var x = (int)Math.Round(centre - (width / 2f));
+        x = Math.Clamp(x, 0, Math.Max(0, Width - width));
+
+        // Above the bar. When that would leave the control, inside the plot next to the bar (left of it in the right
+        // half, right of it in the left half), so the hovered bar stays visible.
+        var y = barTop - offset - height;
+        if (y < 0)
+        {
+            var half = (slot * 0.6f / 2f) + offset;
+            x = centre > plot.Left + (plot.Width / 2f)
+                ? (int)Math.Floor(centre - half - width)
+                : (int)Math.Ceiling(centre + half);
+            x = Math.Clamp(x, 0, Math.Max(0, Width - width));
+            y = plot.Top;
+        }
+
+        y = Math.Clamp(y, 0, Math.Max(0, Height - height));
+
+        var box = new Rectangle(x, y, width, height);
+        Gfx.FillAndBorder(g, Theme.Surface, Theme.Border, Math.Max(1f, this.PxF(1)), box, this.PxF(Theme.ChipRadius));
+        var top = y + pad;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var color = i == 0 ? Theme.InkSecondary : Theme.Ink;
+            Gfx.Text(g, lines[i], font, new Rectangle(x + pad, top, width - (2 * pad), sizes[i].Height), color, Gfx.SingleLine);
+            top += sizes[i].Height + lineGap;
         }
     }
 

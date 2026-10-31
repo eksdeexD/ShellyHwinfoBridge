@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Energy;
 using ShellyHwinfoBridge.Core.Polling;
@@ -45,8 +45,9 @@ public class ChartAndTrayTests
         Assert.Equal(12, chart.Bars.Count(b => b.Label is not null));
         Assert.All(chart.Bars.Where(b => b.Label is not null), b => Assert.Equal(0, int.Parse(b.Label!, CultureInfo.InvariantCulture) % 4));
         Assert.Equal("16", chart.Bars[^3].Label);
+        Assert.Equal(["Fri 18:00", "0.34 kWh", "PC est. 0.31 kWh"], chart.Bars[^1].TooltipLines);
         Assert.Equal("Fri 18:00 · 0.34 kWh · PC est. 0.31 kWh", chart.Bars[^1].Tooltip);
-        Assert.Equal("Fri 17:00 · no data", chart.Bars[^2].Tooltip);
+        Assert.Equal(["Fri 17:00", "no data"], chart.Bars[^2].TooltipLines);
         Assert.False(chart.Bars[^2].HasData);
         Assert.Equal(0.4, chart.YMax, 9);
         Assert.Equal(["0", "0.2", "0.4 kWh"], chart.YLabels);
@@ -60,7 +61,7 @@ public class ChartAndTrayTests
         Assert.Equal(9, days.Bars.Count(b => b.Label is not null));
         Assert.Equal("10/30", days.Bars[^1].Label);
         Assert.Equal("10/23", days.Bars[^8].Label);
-        Assert.Equal("Fri 10/30 · no data", days.Bars[^1].Tooltip);
+        Assert.Equal(["Fri Oct 30", "no data"], days.Bars[^1].TooltipLines);
         Assert.Equal(ChartScale.EmptyMax, days.YMax);
 
         var months = EnergyChartModel.Build(EnergyAggregator.Aggregate([], EnergyPeriod.Months, Now, TimeZoneInfo.Utc), EnergyPeriod.Months, EnUs);
@@ -68,7 +69,25 @@ public class ChartAndTrayTests
         Assert.Equal(8, months.Bars.Count(b => b.Label is not null));
         Assert.Equal("Oct", months.Bars[^1].Label);
         Assert.Equal("Jul", months.Bars[^4].Label);
-        Assert.Equal("October 2026 · no data", months.Bars[^1].Tooltip);
+        Assert.Equal(["Oct 2026", "no data"], months.Bars[^1].TooltipLines);
+    }
+
+    [Fact]
+    public void TooltipFollowsTheCultureAndSkipsMissingDcData()
+    {
+        var rows = new[]
+        {
+            new EnergyHourRecord(new DateTimeOffset(2026, 10, 30, 18, 0, 0, TimeSpan.Zero), 340, 310, 2400, 300, 400, 340),
+            new EnergyHourRecord(new DateTimeOffset(2026, 10, 29, 18, 0, 0, TimeSpan.Zero), 250, 0, 0, null, null, null),
+        };
+
+        var enGb = CultureInfo.GetCultureInfo("en-GB");
+        var days = EnergyChartModel.Build(EnergyAggregator.Aggregate(rows, EnergyPeriod.Days, Now, TimeZoneInfo.Utc), EnergyPeriod.Days, enGb);
+        Assert.Equal(["Fri 30 Oct", "0.34 kWh", "PC est. 0.31 kWh"], days.Bars[^1].TooltipLines);
+        Assert.Equal(["Thu 29 Oct", "0.25 kWh"], days.Bars[^2].TooltipLines);
+
+        var months = EnergyChartModel.Build(EnergyAggregator.Aggregate(rows, EnergyPeriod.Months, Now, TimeZoneInfo.Utc), EnergyPeriod.Months, CultureInfo.GetCultureInfo("da-DK"));
+        Assert.Equal("0,59 kWh", months.Bars[^1].TooltipLines[1]);
     }
 
     [Theory]
