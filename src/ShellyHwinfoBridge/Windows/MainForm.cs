@@ -7,10 +7,11 @@ namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
 /// The main window (design/final/main-window.png): header with logo, title and status pill; four live stat cards; the
-/// energy card (Hours/Days/Months, bar chart, today and this month); the configuration card and three buttons.
-/// When setup is not done, one "Not set up yet" card replaces the stats and the energy card.
-/// Passive: the tray context pushes <see cref="MainViewState"/> and <see cref="EnergyChartModel"/> in, and the window
-/// raises events for its buttons. Closing hides it.
+/// energy card (Hours/Days/Months, bar chart, today and this month); the configuration card and two buttons (Settings,
+/// Pause/Resume polling). When setup is not done, one "Not set up yet" card replaces the stats and the energy card.
+/// <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under the header; "Done" or Esc
+/// returns to the dashboard. Passive: the tray context pushes <see cref="MainViewState"/> and
+/// <see cref="EnergyChartModel"/> in, and the window raises events for its buttons. Closing hides it.
 /// </summary>
 internal sealed class MainForm : ThemedForm
 {
@@ -29,6 +30,7 @@ internal sealed class MainForm : ThemedForm
     private const int ChartTop = 72;
     private const int TotalsHeight = 84;
     private const int ConfigLabelWidth = 102;
+    private const int SettingsPageTop = HeaderTop + HeaderHeight;
 
     private static readonly EnergyPeriod[] Periods = [EnergyPeriod.Hours, EnergyPeriod.Days, EnergyPeriod.Months];
 
@@ -41,9 +43,9 @@ internal sealed class MainForm : ThemedForm
     private readonly CardPanel _setup = new() { Title = "Not set up yet", AccessibleName = "Not set up yet" };
     private readonly PillButton _runWizard = new() { Text = "Run setup wizard", Variant = PillVariant.Primary };
     private readonly PillButton _settings = new() { Text = "Settings" };
-    private readonly PillButton _wizard = new() { Text = "Setup wizard" };
     private readonly PillButton _pause = new() { Text = "Pause polling" };
     private MainViewState? _state;
+    private SettingsPage? _settingsPage;
 
     public MainForm()
     {
@@ -69,12 +71,10 @@ internal sealed class MainForm : ThemedForm
         _config.Paint += PaintConfig;
         Controls.Add(_config);
         Controls.Add(_settings);
-        Controls.Add(_wizard);
         Controls.Add(_pause);
         ResumeLayout(false);
 
         _settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
-        _wizard.Click += (_, _) => WizardRequested?.Invoke(this, EventArgs.Empty);
         _runWizard.Click += (_, _) => WizardRequested?.Invoke(this, EventArgs.Empty);
         _pause.Click += (_, _) => PauseToggleRequested?.Invoke(this, EventArgs.Empty);
         _period.SelectedIndexChanged += (_, _) => PeriodChanged?.Invoke(this, EventArgs.Empty);
@@ -86,7 +86,7 @@ internal sealed class MainForm : ThemedForm
     /// <summary>Raised when "Settings" is clicked.</summary>
     public event EventHandler? SettingsRequested;
 
-    /// <summary>Raised when "Setup wizard" or "Run setup wizard" is clicked.</summary>
+    /// <summary>Raised when "Run setup wizard" (on the "Not set up yet" card) is clicked.</summary>
     public event EventHandler? WizardRequested;
 
     /// <summary>Raised when "Pause polling" / "Resume polling" is clicked.</summary>
@@ -94,6 +94,41 @@ internal sealed class MainForm : ThemedForm
 
     /// <summary>Raised when the Hours/Days/Months selection changes; the owner pushes a new chart.</summary>
     public event EventHandler? PeriodChanged;
+
+    /// <summary>Raised after the settings page was closed ("Done", Esc, hiding the window, or <see cref="CloseSettings"/>).</summary>
+    public event EventHandler? SettingsClosed;
+
+    /// <summary>Gets the open settings page, or <c>null</c> while the dashboard is shown.</summary>
+    public SettingsPage? SettingsPage => _settingsPage;
+
+    /// <summary>
+    /// Shows <paramref name="page"/> in place of the dashboard (the header stays). The window owns the page from now on
+    /// and disposes it when it is closed.
+    /// </summary>
+    public void OpenSettings(SettingsPage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        if (ReferenceEquals(page, _settingsPage))
+        {
+            return;
+        }
+
+        CloseSettings(raise: false);
+        _settingsPage = page;
+        page.DoneRequested += OnSettingsDone;
+        SuspendLayout();
+        Controls.Add(page);
+        UpdateVisibility();
+        ResumeLayout(true);
+        Text = "Settings · ShellyHwinfoBridge";
+        if (Visible)
+        {
+            page.FocusFirstField();
+        }
+    }
+
+    /// <summary>Closes the settings page (applying a field still being edited) and shows the dashboard again.</summary>
+    public void CloseSettings() => CloseSettings(raise: true);
 
     /// <summary>Gets the selected chart period.</summary>
     public EnergyPeriod SelectedPeriod => Periods[Math.Clamp(_period.SelectedIndex, 0, Periods.Length - 1)];
@@ -104,11 +139,10 @@ internal sealed class MainForm : ThemedForm
     /// <summary>Selects a chart period without raising <see cref="PeriodChanged"/>.</summary>
     public void SelectPeriod(EnergyPeriod period) => _period.SetItems(["Hours", "Days", "Months"], Array.IndexOf(Periods, period));
 
-    /// <summary>Enables or disables the Settings and Setup wizard buttons (e.g. while the wizard is open).</summary>
+    /// <summary>Enables or disables the Settings and Run setup wizard buttons (e.g. while the wizard is open).</summary>
     public void SetWindowButtonsEnabled(bool enabled)
     {
         _settings.Enabled = enabled;
-        _wizard.Enabled = enabled;
         _runWizard.Enabled = enabled;
     }
 
@@ -128,14 +162,7 @@ internal sealed class MainForm : ThemedForm
 
         if (previous is null || previous.IsConfigured != state.IsConfigured || previous.Status.Text != state.Status.Text)
         {
-            var configured = state.IsConfigured;
-            foreach (var card in _stats)
-            {
-                card.Visible = configured;
-            }
-
-            _energy.Visible = configured;
-            _setup.Visible = !configured;
+            UpdateVisibility();
             PerformLayout();
         }
 
@@ -160,10 +187,19 @@ internal sealed class MainForm : ThemedForm
 
     protected override bool ProcessDialogKey(Keys keyData)
     {
-        // Esc hides the window like the close button; the app keeps running in the tray.
+        // Esc leaves the settings page; on the dashboard it hides the window like the close button.
         if (keyData == Keys.Escape)
         {
-            Hide();
+            if (_settingsPage is not null)
+            {
+                // Closing disposes the focused field: do it after this key has been handled.
+                BeginInvoke(new Action(CloseSettings));
+            }
+            else
+            {
+                Hide();
+            }
+
             return true;
         }
 
@@ -181,6 +217,29 @@ internal sealed class MainForm : ThemedForm
         }
 
         base.OnFormClosing(e);
+    }
+
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        // A hidden window shows the dashboard when it comes back.
+        if (!Visible && _settingsPage is not null && !_settingsPage.IsShowingDialog)
+        {
+            CloseSettings();
+        }
+
+        base.OnVisibleChanged(e);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && _settingsPage is { } page)
+        {
+            _settingsPage = null;
+            page.DoneRequested -= OnSettingsDone;
+            page.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 
     protected override void OnLayout(LayoutEventArgs levent)
@@ -221,8 +280,7 @@ internal sealed class MainForm : ThemedForm
         var buttonHeight = this.Px(ButtonHeight);
         var buttonStep = (this.Px(BottomHeight) - buttonHeight) / 2;
         _settings.Bounds = new Rectangle(buttonLeft, bottomTop, buttonWidth, buttonHeight);
-        _wizard.Bounds = new Rectangle(buttonLeft, bottomTop + buttonStep, buttonWidth, buttonHeight);
-        _pause.Bounds = new Rectangle(buttonLeft, bottomTop + (2 * buttonStep), buttonWidth, buttonHeight);
+        _pause.Bounds = new Rectangle(buttonLeft, bottomTop + buttonStep, buttonWidth, buttonHeight);
 
         // Energy card fills the space between the stats and the bottom row.
         var energyTop = statsTop + statsHeight + gap;
@@ -232,6 +290,13 @@ internal sealed class MainForm : ThemedForm
         _period.Bounds = new Rectangle(energy.Width - cardPad - this.Px(290), this.Px(14), this.Px(290), this.Px(40));
         var chartTop = this.Px(ChartTop);
         _chart.Bounds = new Rectangle(cardPad, chartTop, energy.Width - (2 * cardPad), Math.Max(this.Px(80), energy.Height - chartTop - this.Px(TotalsHeight)));
+
+        // Settings page: everything under the header.
+        if (_settingsPage is not null)
+        {
+            var pageTop = this.Px(SettingsPageTop);
+            _settingsPage.Bounds = new Rectangle(0, pageTop, w, Math.Max(0, h - pageTop));
+        }
 
         // Unconfigured: one card over the stats and energy area.
         _setup.Bounds = new Rectangle(pad, statsTop, right - pad, energy.Bottom - statsTop);
@@ -248,6 +313,48 @@ internal sealed class MainForm : ThemedForm
         var logoWidth = AppAssets.DrawLogo(g, new Point(this.Px(34), top), logoHeight);
         var titleLeft = this.Px(34) + logoWidth + this.Px(18);
         Gfx.Text(g, "ShellyHwinfoBridge", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop), Math.Max(0, _pill.Left - titleLeft - this.Px(16)), this.Px(HeaderHeight)), Theme.Ink);
+    }
+
+    private void CloseSettings(bool raise)
+    {
+        if (_settingsPage is not { } page)
+        {
+            return;
+        }
+
+        page.CommitPendingEdits();
+        _settingsPage = null;
+        page.DoneRequested -= OnSettingsDone;
+        SuspendLayout();
+        Controls.Remove(page);
+        UpdateVisibility();
+        ResumeLayout(true);
+        page.Dispose();
+        Text = "ShellyHwinfoBridge";
+        Invalidate();
+        if (raise)
+        {
+            SettingsClosed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void OnSettingsDone(object? sender, EventArgs e) => CloseSettings();
+
+    /// <summary>Shows either the settings page or the dashboard (stats and energy when configured, else the setup card).</summary>
+    private void UpdateVisibility()
+    {
+        var dashboard = _settingsPage is null;
+        var configured = _state?.IsConfigured ?? true;
+        foreach (var card in _stats)
+        {
+            card.Visible = dashboard && configured;
+        }
+
+        _energy.Visible = dashboard && configured;
+        _setup.Visible = dashboard && !configured;
+        _config.Visible = dashboard;
+        _settings.Visible = dashboard;
+        _pause.Visible = dashboard;
     }
 
     private static void ApplyCard(StatCard card, StatCardState state) =>

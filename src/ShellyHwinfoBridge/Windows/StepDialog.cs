@@ -5,7 +5,7 @@ using ShellyHwinfoBridge.Windows.Wizard;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// A modal dialog that hosts one wizard step view for the Settings window ("Change…" hosts the PSU step, "Edit…" the
+/// A modal dialog that hosts one wizard step view for the settings page ("Change…" hosts the PSU step, "Edit…" the
 /// sensor step): page title and subtitle, the step, and Cancel / Save. Save asks <c>validate</c> first and stays open
 /// with the reason when the step is not valid. Esc = Cancel.
 /// </summary>

@@ -13,7 +13,7 @@ namespace ShellyHwinfoBridge.Core.Presentation;
 /// <param name="Text">The text.</param>
 public sealed record ResultLine(Tone Tone, string Text);
 
-/// <summary>What the settings window shows.</summary>
+/// <summary>What the settings page shows.</summary>
 /// <param name="Host">The host field text.</param>
 /// <param name="HostError">The host validation error, or <c>null</c>.</param>
 /// <param name="HasPassword">Whether a password is stored.</param>
@@ -63,7 +63,7 @@ public sealed record SettingsViewState(
     bool IsBusy);
 
 /// <summary>
-/// Drives the settings window: every setter clones the current settings, changes one thing and applies it through
+/// Drives the settings page: every setter clones the current settings, changes one thing and applies it through
 /// the runtime immediately. Invalid input is reported in the state and not applied.
 /// </summary>
 /// <remarks>

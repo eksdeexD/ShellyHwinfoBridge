@@ -16,7 +16,7 @@ using ShellyHwinfoBridge.Windows.Wizard;
 namespace ShellyHwinfoBridge;
 
 /// <summary>
-/// The app's UI root: tray icon and menu, the main, settings and wizard windows, one 1 Hz
+/// The app's UI root: tray icon and menu, the main window (with its settings page) and the wizard, one 1 Hz
 /// refresh timer that pulls presenter state, and the exit sequence.
 /// </summary>
 /// <remarks>
@@ -43,7 +43,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private IconFactory _icons;
     private MainForm? _mainForm;
     private WizardForm? _wizardForm;
-    private SettingsForm? _settingsForm;
     private TrayIconState? _iconState;
     private bool _hideTrayIcon;
     private volatile bool _dirty = true;
@@ -134,7 +133,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _activation.Attach(() => _dispatcher.Post(ShowMainWindow));
     }
 
-    /// <summary>Gets the services (for the wizard and settings windows).</summary>
+    /// <summary>Gets the services (for the wizard and the settings page).</summary>
     public AppServices Services => _services;
 
     /// <summary>Shows, restores and activates the main window (created on first use).</summary>
@@ -153,6 +152,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _mainForm.PauseToggleRequested += (_, _) => TogglePause();
             _mainForm.PeriodChanged += (_, _) => RefreshMainForm(force: true);
             _mainForm.VisibleChanged += (_, _) => UpdateMonitorActivity();
+            _mainForm.SettingsClosed += (_, _) =>
+            {
+                if (!_exiting)
+                {
+                    RefreshNow();
+                }
+            };
         }
 
         _mainForm.SetWindowButtonsEnabled(_wizardForm is null);
@@ -172,8 +178,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
     }
 
     /// <summary>
-    /// Opens the settings window (or activates the open one). Closing it disposes it; the next call builds a fresh one
-    /// with a new presenter.
+    /// Opens the main window on the settings page (or activates it when the page is already open). Leaving the page
+    /// disposes it; the next call builds a fresh one with a new presenter.
     /// </summary>
     public void ShowSettings()
     {
@@ -182,57 +188,40 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        // The wizard and the settings window are mutually exclusive: while the wizard is open it takes the focus.
+        // The wizard and the settings page are mutually exclusive: while the wizard is open it takes the focus.
         if (_wizardForm is { IsDisposed: false })
         {
             ActivateWizard();
             return;
         }
 
-        if (_settingsForm is null || _settingsForm.IsDisposed)
+        ShowMainWindow();
+        if (_mainForm is null)
         {
-            var runtime = _services.Runtime;
-            var form = new SettingsForm(new SettingsPresenter(runtime), runtime, _services.SharedMemory.TryGetSnapshot);
-            form.WizardRequested += (_, _) => ShowWizard();
-            form.ExitRequested += async (_, _) => await ExitAsync();
-            form.SensorsRemoved += (_, _) =>
-            {
-                _logger.LogInformation("HWiNFO sensors removed from the settings window; polling paused.");
-                RefreshNow();
-            };
-            form.FormClosed += (_, _) =>
-            {
-                if (ReferenceEquals(_settingsForm, form))
-                {
-                    _settingsForm = null;
-                }
-
-                if (!_exiting)
-                {
-                    RefreshNow();
-                }
-            };
-            _settingsForm = form;
-            _logger.LogInformation("Settings window opened.");
-            form.Show();
-        }
-        else
-        {
-            _settingsForm.RefreshState();
+            return;
         }
 
-        if (_settingsForm.WindowState == FormWindowState.Minimized)
+        if (_mainForm.SettingsPage is { } open)
         {
-            _settingsForm.WindowState = FormWindowState.Normal;
+            open.RefreshState();
+            return;
         }
 
-        _settingsForm.Activate();
-        _settingsForm.BringToFront();
+        var runtime = _services.Runtime;
+        var page = new SettingsPage(new SettingsPresenter(runtime), runtime, _services.SharedMemory.TryGetSnapshot);
+        page.WizardRequested += (_, _) => ShowWizard();
+        page.ExitRequested += async (_, _) => await ExitAsync();
+        page.SensorsRemoved += (_, _) =>
+        {
+            _logger.LogInformation("HWiNFO sensors removed from the settings page; polling paused.");
+            RefreshNow();
+        };
+        _logger.LogInformation("Settings opened.");
+        _mainForm.OpenSettings(page);
     }
-
     /// <summary>
-    /// Opens the setup wizard (or activates the open one). While it is open the main window's Settings and Setup wizard
-    /// buttons and the tray's Settings… item are disabled. Closing it before Apply changes nothing; a first-run cancel
+    /// Opens the setup wizard (or activates the open one). While it is open the main window's Settings and Run setup
+    /// wizard buttons and the tray's Settings… item are disabled. Closing it before Apply changes nothing; a first-run cancel
     /// leaves the app unconfigured in the tray.
     /// </summary>
     public void ShowWizard()
@@ -248,17 +237,17 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        // Settings and the wizard are mutually exclusive. While Settings shows a dialog (PSU, sensors, a confirmation)
-        // it keeps the focus; otherwise it closes (its changes are already applied) and the wizard opens.
-        if (_settingsForm is { IsDisposed: false } settings)
+        // Settings and the wizard are mutually exclusive. While the settings page shows a dialog (PSU, sensors, a
+        // confirmation) it keeps the focus; otherwise the page closes (its changes are already applied) and the wizard opens.
+        if (_mainForm?.SettingsPage is { } settings)
         {
             if (settings.IsShowingDialog)
             {
-                settings.Activate();
+                _mainForm.Activate();
                 return;
             }
 
-            settings.Close();
+            _mainForm.CloseSettings();
         }
 
         var runtime = _services.Runtime;
@@ -327,7 +316,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _timer.Stop();
         _activation.Detach();
         _wizardForm?.Close();
-        _settingsForm?.Close();
         _mainForm?.Hide();
         Unsubscribe();
         _dispatcher.BeginShutdown();
@@ -351,7 +339,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _notifyIcon.Dispose();
             _menu.Dispose();
             _mainForm?.Dispose();
-            _settingsForm?.Dispose();
             _icons.Dispose();
             _dispatcher.Dispose();
         }
@@ -508,7 +495,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _pauseItem.Text = state == RuntimeState.Paused ? "Resume polling" : "Pause polling";
         _pauseItem.Enabled = state is RuntimeState.Running or RuntimeState.Paused;
         _settingsItem.Enabled = _wizardForm is null;
-        _wizardItem.Enabled = _settingsForm is not { IsShowingDialog: true };
+        _wizardItem.Enabled = _mainForm?.SettingsPage is not { IsShowingDialog: true };
     }
 
     private void TogglePause()
@@ -534,8 +521,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
     }
 
-    private IWin32Window? VisibleOwner() =>
-        _settingsForm is { IsDisposed: false, Visible: true } settings ? settings : _mainForm is { Visible: true } form ? form : null;
+    private IWin32Window? VisibleOwner() => _mainForm is { IsDisposed: false, Visible: true } form ? form : null;
 
     private void OpenFolder(string path)
     {

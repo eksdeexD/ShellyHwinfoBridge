@@ -13,29 +13,30 @@ using ShellyHwinfoBridge.Windows.Wizard;
 namespace ShellyHwinfoBridge.Windows;
 
 /// <summary>
-/// The settings window (design/final/settings.png): header with logo, "Settings" and "Re-run setup wizard"; two columns
-/// of cards (Shelly device, Power supply, Sensors and formula, Polling, Energy, Startup and tray, PSU database,
-/// Maintenance) and the footnote "Changes apply immediately.". Every change goes through <see cref="SettingsPresenter"/>
-/// and is applied at once; sliders apply when released, text fields on Enter or when focus leaves. "Change…" and
-/// "Edit…" open a <see cref="StepDialog"/> with the wizard's PSU or sensor step. The page scrolls when the window is
-/// shorter than its content. Closing (or Esc) closes and disposes the window.
+/// The settings page, shown inside the main window in place of the dashboard (layout after design/final/settings.png):
+/// a title row ("Settings", the footnote "Changes apply immediately." and "Done") and two columns of cards (Shelly
+/// device, Power supply, Sensors and formula, Polling, Energy, PSU database, Startup and tray, Maintenance). Every change goes
+/// through <see cref="SettingsPresenter"/> and is applied at once; sliders apply when released, text fields on Enter or
+/// when focus leaves. "Change…" and "Edit…" open a modal <see cref="StepDialog"/> owned by the main window. The page
+/// scrolls when the window is shorter than its content.
 /// </summary>
-internal sealed class SettingsForm : ThemedForm
+internal sealed class SettingsPage : ThemedPanel
 {
-    // Layout in DIP, measured from the 1536×1024 design image (client 1100×740).
+    // Layout in DIP, page coordinates. At the default 1100×740 main window the page starts under the header (y 68).
     private const float Pad = 24;
     private const float Gap = 16;
-    private const float RowGap = 14;
-    private const float HeaderTop = 24;
-    private const float HeaderHeight = 44;
-    private const float LogoHeight = 46;
-    private const float CardsTop = 84;
+    private const float RowGap = 12;
+    private const float TitleRowTop = 8;
+    private const float TitleRowHeight = 36;
+    private const float CardsTop = 54;
     private const float MinContentWidth = 880;
-    private const float Row1Height = 158;
-    private const float Row2MinHeight = 155;
-    private const float Row3Height = 144;
-    private const float Row4Height = 98;
-    private const float FormulaMinHeight = 96;
+    private const float Row1Height = 150;
+    private const float Row2MinHeight = 150;
+    private const float EnergyHeight = 134;
+    private const float SmallCardHeight = 90;
+    private const float FootnoteGap = 4;
+    private const float FootnoteHeight = 22;
+    private const float FormulaMinHeight = 88;
     private const int FormulaMaxLines = 10;
 
     private static readonly InputVoltageMode[] VoltageModes = [InputVoltageMode.Auto, InputVoltageMode.V115, InputVoltageMode.V230];
@@ -44,7 +45,7 @@ internal sealed class SettingsForm : ThemedForm
     private readonly IBridgeRuntime _runtime;
     private readonly Func<HwinfoSnapshot?> _readSharedMemory;
 
-    private readonly PillButton _rerun = new() { Text = "Re-run setup wizard" };
+    private readonly PillButton _done = new() { Text = "Done", AccessibleName = "Done" };
 
     // Shelly device.
     private readonly CardPanel _shellyCard = new() { Title = "Shelly device" };
@@ -88,20 +89,21 @@ internal sealed class SettingsForm : ThemedForm
     private readonly ThemedTextBox _currency = new() { Placeholder = "e.g. DKK", MaxLength = AppSettings.MaxCurrencyLength, AccessibleName = "Currency" };
     private readonly InfoLine _priceError = new() { Tone = InfoTone.Error, Visible = false };
 
-    // Startup and tray.
-    private readonly CardPanel _startupCard = new() { Title = "Startup and tray" };
-    private readonly ToggleSwitch _startWithWindows = new() { Text = "Start with Windows" };
-    private readonly ToggleSwitch _showTrayIcon = new() { Text = "Show tray icon" };
-
     // PSU database.
     private readonly CardPanel _databaseCard = new() { Title = "PSU database" };
     private readonly TextLabel _databaseText = new() { Tone = UiTone.Secondary };
     private readonly PillButton _checkUpdate = new() { Text = "Check for update" };
     private readonly InfoLine _databaseResult = new() { Visible = false };
 
+    // Startup and tray.
+    private readonly CardPanel _startupCard = new() { Title = "Startup and tray" };
+    private readonly ToggleSwitch _startWithWindows = new() { Text = "Start with Windows" };
+    private readonly ToggleSwitch _showTrayIcon = new() { Text = "Show tray icon" };
+
     // Maintenance.
     private readonly CardPanel _maintenanceCard = new() { Title = "Maintenance" };
     private readonly PillButton _openLog = new() { Text = "Open log folder" };
+    private readonly PillButton _rerun = new() { Text = "Re-run setup wizard" };
     private readonly TextLink _remove = new() { Text = "Remove HWiNFO sensors", Tone = LinkTone.Danger };
     private readonly TextLink _exit = new() { Text = "Exit ShellyHwinfoBridge", Tone = LinkTone.Danger };
 
@@ -110,41 +112,45 @@ internal sealed class SettingsForm : ThemedForm
     private bool _applying;
     private int _modalDepth;
     private int _formulaLines = 1;
-    private float _footnoteTop;
+    private float _footnoteLeft;
+    private bool _committed;
 
-    /// <summary>Creates the window.</summary>
+    /// <summary>Creates the page.</summary>
     /// <param name="presenter">The presenter that applies every change.</param>
     /// <param name="runtime">The runtime (PSU database and last reading for the PSU dialog).</param>
     /// <param name="readSharedMemory">Reads HWiNFO's shared memory for the sensor dialog (null when it is off).</param>
-    public SettingsForm(SettingsPresenter presenter, IBridgeRuntime runtime, Func<HwinfoSnapshot?> readSharedMemory)
+    public SettingsPage(SettingsPresenter presenter, IBridgeRuntime runtime, Func<HwinfoSnapshot?> readSharedMemory)
     {
         _presenter = presenter ?? throw new ArgumentNullException(nameof(presenter));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _readSharedMemory = readSharedMemory ?? throw new ArgumentNullException(nameof(readSharedMemory));
-        Text = "Settings · ShellyHwinfoBridge";
-        KeyPreview = true;
+        AccessibleName = "Settings";
+        AccessibleRole = AccessibleRole.Pane;
+        AutoScroll = true;
 
         SuspendLayout();
         _voltage.SetItems(["Auto", "115 V", "230 V"], 0);
+        _done.TabIndex = 0;
+        Controls.Add(_done);
         AddCard(_shellyCard, _hostLabel, _host, _passwordLabel, _password, _clearPassword, _test, _testResult);
         AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage);
         AddCard(_sensorsCard, _formula, _edit);
         AddCard(_pollingCard, _intervalLabel, _interval, _intervalValue, _smoothingLabel, _smoothing, _smoothingValue);
         AddCard(_energyCard, _logEnergy, _openEnergy, _priceLabel, _price, _currencyLabel, _currency, _priceError);
-        AddCard(_startupCard, _startWithWindows, _showTrayIcon);
         AddCard(_databaseCard, _databaseText, _checkUpdate, _databaseResult);
-        AddCard(_maintenanceCard, _openLog, _remove, _exit);
-        _rerun.TabIndex = Controls.Count;
-        _applyError.TabIndex = Controls.Count + 1;
-        Controls.Add(_rerun);
+        AddCard(_startupCard, _startWithWindows, _showTrayIcon);
+        AddCard(_maintenanceCard, _exit, _openLog, _rerun, _remove);
+        _applyError.TabIndex = Controls.Count;
         Controls.Add(_applyError);
         ResumeLayout(false);
 
         WireEvents();
         _presenter.Changed += OnPresenterChanged;
         ApplyState();
-        SetClientSizeDip(new Size(1100, 740), new Size(900, 480));
     }
+
+    /// <summary>Raised when "Done" is clicked.</summary>
+    public event EventHandler? DoneRequested;
 
     /// <summary>Raised when "Re-run setup wizard" is clicked.</summary>
     public event EventHandler? WizardRequested;
@@ -155,42 +161,27 @@ internal sealed class SettingsForm : ThemedForm
     /// <summary>Raised after "Remove HWiNFO sensors" (the tray and main window should refresh).</summary>
     public event EventHandler? SensorsRemoved;
 
-    /// <summary>Gets whether a dialog (step dialog or confirmation) is open over this window.</summary>
+    /// <summary>Gets whether a dialog (step dialog or confirmation) is open over the page.</summary>
     public bool IsShowingDialog => _modalDepth > 0;
 
     /// <summary>Re-reads the presenter state into the controls (fields being edited keep their text).</summary>
     public void RefreshState() => ApplyState();
 
-    protected override bool ProcessDialogKey(Keys keyData)
+    /// <summary>Puts the keyboard focus into the host field (when the page is opened).</summary>
+    public void FocusFirstField()
     {
-        if (keyData == Keys.Escape)
-        {
-            Close();
-            return true;
-        }
-
-        return base.ProcessDialogKey(keyData);
-    }
-
-    protected override void OnHandleCreated(EventArgs e)
-    {
-        // The base sizes the client area first; scrolling is switched on afterwards, because a scrollbar that is visible
-        // while the client size is set would make the window wider than intended once it disappears.
-        base.OnHandleCreated(e);
-        NativeMethods.UseDarkExplorerTheme(this);
-        AutoScroll = true;
-    }
-
-    protected override void OnShown(EventArgs e)
-    {
-        base.OnShown(e);
         _host.Focus();
         _host.InnerTextBox.Select(_host.Text.Length, 0);
     }
 
-    protected override void OnFormClosing(FormClosingEventArgs e)
+    /// <summary>Applies a field that is still being edited, so leaving the page never loses a typed change.</summary>
+    public void CommitPendingEdits()
     {
-        // Commit a field that is still being edited, so closing never loses a typed change.
+        if (_committed)
+        {
+            return;
+        }
+
         foreach (var box in new[] { _host, _password, _price, _currency })
         {
             if (box.ContainsFocus && box.IsModified)
@@ -198,14 +189,27 @@ internal sealed class SettingsForm : ThemedForm
                 CommitField(box);
             }
         }
+    }
 
-        base.OnFormClosing(e);
+    /// <summary>Scrolls the page to its end (screen renderer).</summary>
+    public void PreviewScrollToEnd()
+    {
+        PerformLayout();
+        AutoScrollPosition = new Point(0, short.MaxValue);
+        PerformLayout();
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        NativeMethods.UseDarkExplorerTheme(this);
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            _committed = true;
             _presenter.Changed -= OnPresenterChanged;
         }
 
@@ -215,13 +219,15 @@ internal sealed class SettingsForm : ThemedForm
     protected override void OnScroll(ScrollEventArgs se)
     {
         base.OnScroll(se);
-        Invalidate();
+
+        // The backdrop is the window's gradient, fixed to the window: repaint what the scroll blitted.
+        Invalidate(true);
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
-        Invalidate();
+        Invalidate(true);
     }
 
     protected override void OnLayout(LayoutEventArgs levent)
@@ -243,11 +249,13 @@ internal sealed class SettingsForm : ThemedForm
         Rectangle At(float x, float y, float width, float height) =>
             new(this.Px(x) + scroll.X, this.Px(y) + scroll.Y, this.Px(width), this.Px(height));
 
-        _rerun.Bounds = At(contentWidth - Pad - 200, 30, 200, 40);
+        var doneWidth = Math.Max(120, _done.GetPreferredSize(Size.Empty).Width * 96f / dpi);
+        _done.Bounds = At(contentWidth - Pad - doneWidth, TitleRowTop, doneWidth, TitleRowHeight);
 
-        // Row heights: the formula box grows with the number of lines; error lines add a row to their card.
-        var row2 = Math.Max(Row2MinHeight, 50 + FormulaHeight() + 18);
-        var row3 = Row3Height + (_priceError.Visible ? 30 : 0);
+        // Rows 1 and 2 pair the cards; below them the left column has Energy over PSU database and the right column
+        // Startup and tray over Maintenance, so both columns end at the same height.
+        var row2 = Math.Max(Row2MinHeight, 50 + FormulaHeight() + 16);
+        var energy = EnergyHeight + (_priceError.Visible ? 30 : 0);
         var y = CardsTop;
         _shellyCard.Bounds = At(left, y, column, Row1Height);
         _psuCard.Bounds = At(right, y, column, Row1Height);
@@ -255,22 +263,22 @@ internal sealed class SettingsForm : ThemedForm
         _sensorsCard.Bounds = At(left, y, column, row2);
         _pollingCard.Bounds = At(right, y, column, row2);
         y += row2 + RowGap;
-        _energyCard.Bounds = At(left, y, column, row3);
-        _startupCard.Bounds = At(right, y, column, row3);
-        y += row3 + RowGap;
-        _databaseCard.Bounds = At(left, y, column, Row4Height);
-        _maintenanceCard.Bounds = At(right, y, column, Row4Height);
-        y += Row4Height;
+        _energyCard.Bounds = At(left, y, column, energy);
+        _databaseCard.Bounds = At(left, y + energy + RowGap, column, SmallCardHeight);
+        _startupCard.Bounds = At(right, y, column, SmallCardHeight);
+        _maintenanceCard.Bounds = At(right, y + SmallCardHeight + RowGap, column, energy);
+        y += energy + RowGap + SmallCardHeight;
 
-        _footnoteTop = y + 10;
-        _applyError.Bounds = At(Pad, _footnoteTop - 2, contentWidth - (2 * Pad), 26);
-        var contentHeight = _footnoteTop + 30;
+        // The footnote (or an apply error) sits in the title row, after "Settings"; the bottom line is kept free.
+        _footnoteLeft = Pad + 2 + (Gfx.Measure("Settings", ThemeFonts.For(dpi).CardTitle).Width * 96f / dpi) + 16;
+        var footnoteWidth = Math.Max(0, contentWidth - Pad - doneWidth - 16 - _footnoteLeft);
+        _applyError.Bounds = At(_footnoteLeft, TitleRowTop + ((TitleRowHeight - 28) / 2), footnoteWidth, 28);
+        var contentHeight = y + FootnoteGap + FootnoteHeight;
 
         LayoutCards(column);
 
         var minSize = new Size(contentWidth > Dip(ClientSize.Width) + 0.5f ? this.Px(contentWidth) : 0, this.Px(contentHeight));
-        // Setting AutoScrollMinSize switches AutoScroll on, so wait until OnHandleCreated has done that.
-        if (AutoScroll && AutoScrollMinSize != minSize)
+        if (AutoScrollMinSize != minSize)
         {
             AutoScrollMinSize = minSize;
         }
@@ -283,15 +291,19 @@ internal sealed class SettingsForm : ThemedForm
         base.OnPaint(e);
         var g = e.Graphics;
         var scroll = AutoScrollPosition;
-        var logoHeight = this.Px(LogoHeight);
-        var top = this.Px(HeaderTop) + ((this.Px(HeaderHeight) - logoHeight) / 2) + scroll.Y;
-        var logoWidth = AppAssets.DrawLogo(g, new Point(this.Px(34) + scroll.X, top), logoHeight);
-        var titleLeft = this.Px(34) + logoWidth + this.Px(18) + scroll.X;
-        Gfx.Text(g, "Settings", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop) + scroll.Y, Math.Max(0, _rerun.Left - titleLeft - this.Px(16)), this.Px(HeaderHeight)), Theme.Ink);
+        var f = ThemeFonts.For(DeviceDpi);
+        var titleTop = this.Px(TitleRowTop) + scroll.Y;
+        var titleHeight = this.Px(TitleRowHeight);
+        Gfx.Text(g, "Settings", f.CardTitle, new Rectangle(this.Px(Pad + 2) + scroll.X, titleTop, Math.Max(0, _done.Left - this.Px(Pad + 18)), titleHeight), Theme.Ink);
 
         if (!_applyError.Visible)
         {
-            Gfx.Text(g, "Changes apply immediately.", Fonts.Small, new Rectangle(this.Px(Pad + 2) + scroll.X, this.Px(_footnoteTop) + scroll.Y, this.Px(400), this.Px(22)), Theme.InkSecondary);
+            // On the title's baseline: CardTitle and Small text share the bottom of a vertically centred line.
+            var titleText = Gfx.Measure("Settings", f.CardTitle).Height;
+            var smallText = Gfx.Measure("Ag", f.Small).Height;
+            var top = titleTop + ((titleHeight - titleText) / 2) + titleText - smallText - this.Px(3);
+            var footnote = new Rectangle(this.Px(_footnoteLeft) + scroll.X, top, Math.Max(0, _done.Left - this.Px(_footnoteLeft + 16) - scroll.X), smallText);
+            Gfx.Text(g, "Changes apply immediately.", f.Small, footnote, Theme.InkSecondary, Gfx.SingleLine);
         }
     }
 
@@ -333,7 +345,9 @@ internal sealed class SettingsForm : ThemedForm
 
     private void WireEvents()
     {
-        _rerun.Click += (_, _) => WizardRequested?.Invoke(this, EventArgs.Empty);
+        // Both close (and dispose) the page: raise them after the click has been handled.
+        _done.Click += (_, _) => Defer(() => DoneRequested?.Invoke(this, EventArgs.Empty));
+        _rerun.Click += (_, _) => Defer(() => WizardRequested?.Invoke(this, EventArgs.Empty));
 
         _host.TextCommitted += (_, _) => CommitField(_host);
         _password.TextCommitted += (_, _) => CommitField(_password);
@@ -367,11 +381,24 @@ internal sealed class SettingsForm : ThemedForm
         _remove.Click += (_, _) => RemoveSensors();
         _exit.Click += (_, _) =>
         {
-            if (ShowModal(() => ThemedDialog.Show(this, "Exit ShellyHwinfoBridge?", "Polling stops and the Shelly Power sensors in HWiNFO go offline until the app is started again.", "Exit", "Cancel")) == DialogResult.OK)
+            if (ShowModal(() => ThemedDialog.Show(FindForm(), "Exit ShellyHwinfoBridge?", "Polling stops and the Shelly Power sensors in HWiNFO go offline until the app is started again.", "Exit", "Cancel")) == DialogResult.OK)
             {
-                ExitRequested?.Invoke(this, EventArgs.Empty);
+                Defer(() => ExitRequested?.Invoke(this, EventArgs.Empty));
             }
         };
+    }
+
+    /// <summary>Runs <paramref name="action"/> once the current message is handled (on the window, which outlives the page).</summary>
+    private void Defer(Action action)
+    {
+        if (FindForm() is { IsHandleCreated: true, IsDisposed: false } form)
+        {
+            form.BeginInvoke(action);
+        }
+        else
+        {
+            action();
+        }
     }
 
     private void Guard(Action action)
@@ -486,7 +513,7 @@ internal sealed class SettingsForm : ThemedForm
     private float FormulaHeight()
     {
         var lineHeight = Gfx.Measure("Ag", ThemeFonts.For(DeviceDpi).Mono).Height * 96f / DeviceDpi;
-        return Math.Max(FormulaMinHeight, (_formulaLines * lineHeight) + 22);
+        return Math.Max(FormulaMinHeight, (_formulaLines * lineHeight) + 20);
     }
 
     private void LayoutCards(float column)
@@ -497,67 +524,70 @@ internal sealed class SettingsForm : ThemedForm
 
         // Shelly device: Host | Password, then Test connection with the result to its right.
         var half = (inner - 16) / 2;
-        _hostLabel.Bounds = R(20, 50, half, 22);
-        _passwordLabel.Bounds = R(36 + half, 50, half - 60, 22);
+        _hostLabel.Bounds = R(20, 48, half, 22);
+        _passwordLabel.Bounds = R(36 + half, 48, half - 60, 22);
         var clearWidth = PrefWidth(_clearPassword);
-        _clearPassword.Bounds = R(20 + inner - clearWidth, 48, clearWidth, 26);
-        _host.Bounds = R(20, 74, half, 36);
-        _password.Bounds = R(36 + half, 74, half, 36);
-        _test.Bounds = R(20, 116, 174, 36);
+        _clearPassword.Bounds = R(20 + inner - clearWidth, 46, clearWidth, 26);
+        _host.Bounds = R(20, 70, half, 34);
+        _password.Bounds = R(36 + half, 70, half, 34);
+        _test.Bounds = R(20, 110, 174, 34);
         var resultLeft = 20 + 174 + 16;
         var resultWidth = this.Px(inner - 174 - 16);
         // Centred on the button; two wrapped lines may extend a little above it.
         var resultHeight = Math.Min(this.Px(46), _testResult.GetPreferredHeight(resultWidth));
-        _testResult.Bounds = new Rectangle(this.Px(resultLeft), this.Px(116) + ((this.Px(36) - resultHeight) / 2), resultWidth, resultHeight);
+        _testResult.Bounds = new Rectangle(this.Px(resultLeft), this.Px(110) + ((this.Px(34) - resultHeight) / 2), resultWidth, resultHeight);
 
         // Power supply: model and details with Change…, then the input voltage segments.
         var changeWidth = PrefWidth(_change);
-        _change.Bounds = R(20 + inner - changeWidth, 50, changeWidth, 26);
-        _psuTitle.Bounds = R(20, 50, inner - changeWidth - 16, 26);
-        _psuSubtitle.Bounds = R(20, 78, inner, 22);
-        _voltageLabel.Bounds = R(20, 112, 110, 38);
-        _voltage.Bounds = R(134, 112, inner - 114, 38);
+        _change.Bounds = R(20 + inner - changeWidth, 48, changeWidth, 26);
+        _psuTitle.Bounds = R(20, 48, inner - changeWidth - 16, 26);
+        _psuSubtitle.Bounds = R(20, 74, inner, 22);
+        _voltageLabel.Bounds = R(20, 104, 110, 36);
+        _voltage.Bounds = R(134, 104, inner - 114, 36);
 
-        // Sensors and formula: the read-only formula box and Edit….
+        // Sensors and formula: Edit… in the title row, the read-only formula box under it.
         var editWidth = PrefWidth(_edit);
-        _edit.Bounds = R(20 + inner - editWidth, 50, editWidth, 26);
-        _formula.Bounds = R(20, 50, inner - editWidth - 36, FormulaHeight());
+        _edit.Bounds = R(20 + inner - editWidth, 21, editWidth, 26);
+        _formula.Bounds = R(20, 50, inner, FormulaHeight());
 
         // Polling: label, slider, value.
         var sliderWidth = inner - 92 - 104;
-        _intervalLabel.Bounds = R(20, 62, 90, 28);
-        _interval.Bounds = R(112, 62, sliderWidth, 28);
-        _intervalValue.Bounds = R(112 + sliderWidth + 16, 62, 88, 28);
-        _smoothingLabel.Bounds = R(20, 106, 90, 28);
-        _smoothing.Bounds = R(112, 106, sliderWidth, 28);
-        _smoothingValue.Bounds = R(112 + sliderWidth + 16, 106, 88, 28);
+        _intervalLabel.Bounds = R(20, 60, 90, 28);
+        _interval.Bounds = R(112, 60, sliderWidth, 28);
+        _intervalValue.Bounds = R(112 + sliderWidth + 16, 60, 88, 28);
+        _smoothingLabel.Bounds = R(20, 104, 90, 28);
+        _smoothing.Bounds = R(112, 104, sliderWidth, 28);
+        _smoothingValue.Bounds = R(112 + sliderWidth + 16, 104, 88, 28);
 
         // Energy: toggle and folder link, then price and currency (and a price error).
-        _logEnergy.Bounds = R(20, 52, Math.Min(inner - 160, PrefWidth(_logEnergy)), 28);
+        _logEnergy.Bounds = R(20, 50, Math.Min(inner - 160, PrefWidth(_logEnergy)), 28);
         var openWidth = PrefWidth(_openEnergy);
-        _openEnergy.Bounds = R(20 + inner - openWidth, 53, openWidth, 26);
+        _openEnergy.Bounds = R(20 + inner - openWidth, 51, openWidth, 26);
         var priceWidth = Math.Max(110, (inner - 114 - 16 - 70) * 0.6f);
-        _priceLabel.Bounds = R(20, 92, 110, 38);
-        _price.Bounds = R(134, 92, priceWidth, 38);
+        _priceLabel.Bounds = R(20, 86, 110, 36);
+        _price.Bounds = R(134, 86, priceWidth, 36);
         var currencyLabelLeft = 134 + priceWidth + 16;
-        _currencyLabel.Bounds = R(currencyLabelLeft, 92, 70, 38);
-        _currency.Bounds = R(currencyLabelLeft + 70, 92, 20 + inner - currencyLabelLeft - 70, 38);
-        _priceError.Bounds = R(20, 138, inner, 28);
-
-        // Startup and tray.
-        _startWithWindows.Bounds = R(20, 56, Math.Min(inner, PrefWidth(_startWithWindows)), 28);
-        _showTrayIcon.Bounds = R(20, 96, Math.Min(inner, PrefWidth(_showTrayIcon)), 28);
+        _currencyLabel.Bounds = R(currencyLabelLeft, 86, 70, 36);
+        _currency.Bounds = R(currencyLabelLeft + 70, 86, 20 + inner - currencyLabelLeft - 70, 36);
+        _priceError.Bounds = R(20, 130, inner, 28);
 
         // PSU database: text and result on the left, Check for update on the right.
-        _checkUpdate.Bounds = R(20 + inner - 180, 30, 180, 40);
-        _databaseText.Bounds = R(20, 48, inner - 196, 24);
-        _databaseResult.Bounds = R(20, 72, inner - 196, 26);
+        _checkUpdate.Bounds = R(20 + inner - 180, 26, 180, 38);
+        _databaseText.Bounds = R(20, 46, inner - 196, 22);
+        _databaseResult.Bounds = R(20, 66, inner - 196, 22);
 
-        // Maintenance: Exit in the title row (right), Open log folder and Remove HWiNFO sensors below.
+        // Startup and tray: the two switches side by side.
+        var startWidth = Math.Min(inner / 2, PrefWidth(_startWithWindows));
+        _startWithWindows.Bounds = R(20, 50, startWidth, 28);
+        _showTrayIcon.Bounds = R(20 + Math.Max(startWidth + 32, inner / 2), 50, Math.Min(inner / 2, PrefWidth(_showTrayIcon)), 28);
+
+        // Maintenance: Exit in the title row (right); Open log folder and Re-run setup wizard; Remove HWiNFO sensors.
         var exitWidth = PrefWidth(_exit);
         _exit.Bounds = R(20 + inner - exitWidth, 21, exitWidth, 26);
-        _openLog.Bounds = R(20, 50, 168, 36);
-        _remove.Bounds = R(206, 55, PrefWidth(_remove), 26);
+        var openLogWidth = Math.Max(150, PrefWidth(_openLog) - 16);
+        _openLog.Bounds = R(20, 50, openLogWidth, 36);
+        _rerun.Bounds = R(20 + openLogWidth + 12, 50, Math.Max(180, PrefWidth(_rerun) - 16), 36);
+        _remove.Bounds = R(20, 96, PrefWidth(_remove), 26);
     }
 
     private DialogResult ShowModal(Func<DialogResult> show)
@@ -584,7 +614,7 @@ internal sealed class SettingsForm : ThemedForm
             "Pick it from the database for the most accurate curve. If it is missing, use a generic curve by rating or enter your own.",
             new PsuStepView(model),
             () => model.IsValid ? null : model.ValidationMessage);
-        if (ShowModal(() => dialog.ShowDialog(this)) == DialogResult.OK)
+        if (ShowModal(() => dialog.ShowDialog(FindForm())) == DialogResult.OK)
         {
             _presenter.Update(model.ApplyTo);
         }
@@ -608,7 +638,7 @@ internal sealed class SettingsForm : ThemedForm
             () => model.IsValid ? null
                 : model.InvalidNames.Count > 0 ? "A selected sensor name contains a double quote. Rename it in HWiNFO or untick it."
                 : "Select at least one sensor or enter a formula.");
-        if (ShowModal(() => dialog.ShowDialog(this)) == DialogResult.OK)
+        if (ShowModal(() => dialog.ShowDialog(FindForm())) == DialogResult.OK)
         {
             _presenter.Update(model.ApplyTo);
         }
@@ -617,7 +647,7 @@ internal sealed class SettingsForm : ThemedForm
     private void RemoveSensors()
     {
         var answer = ShowModal(() => ThemedDialog.Show(
-            this,
+            FindForm(),
             "Remove HWiNFO sensors?",
             "This deletes the Shelly Power sensors from HWiNFO and pauses polling, because the next poll would create them again. Use this before uninstalling. Resume polling (main window or tray) to create them again.",
             "Remove",
@@ -640,7 +670,7 @@ internal sealed class SettingsForm : ThemedForm
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
-            ShowModal(() => ThemedDialog.Show(this, "Could not open the folder", ex.Message));
+            ShowModal(() => ThemedDialog.Show(FindForm(), "Could not open the folder", ex.Message));
         }
     }
 }

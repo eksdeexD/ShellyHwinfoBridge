@@ -105,8 +105,7 @@ internal sealed class ControlGalleryForm : ThemedForm
         _layout.Place(config, new InfoLine { Text = "HWiNFO  running · sensors visible" }, 24, 100, 700, 26);
 
         _layout.Place(this, new PillButton { Text = "Settings" }, 800, 552, 276, 40);
-        _layout.Place(this, new PillButton { Text = "Setup wizard" }, 800, 607, 276, 40);
-        _layout.Place(this, new PillButton { Text = "Pause polling" }, 800, 662, 276, 40);
+        _layout.Place(this, new PillButton { Text = "Pause polling" }, 800, 607, 276, 40);
     }
 
     private void BuildPage2()

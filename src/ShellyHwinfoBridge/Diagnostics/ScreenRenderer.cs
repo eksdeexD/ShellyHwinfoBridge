@@ -102,8 +102,8 @@ internal static class ScreenRenderer
             s.GoNextAsync().GetAwaiter().GetResult();
             s.Apply.StartVerify();
         })),
-        ("settings", () => Settings()),
-        ("settings-results", () =>
+        ("main-settings", () => Settings()),
+        ("main-settings-results", () =>
         {
             var form = Settings(out var presenter);
             presenter.TestConnectionAsync("192.168.1.42", null).GetAwaiter().GetResult();
@@ -111,10 +111,17 @@ internal static class ScreenRenderer
             presenter.SetPrice("abc");
             return form;
         }),
-        ("settings-short", () =>
+        ("main-settings-short", () =>
         {
             var form = Settings();
-            form.SetClientSizeDip(new Size(1000, 560), new Size(900, 480));
+            form.SetClientSizeDip(new Size(980, 600), new Size(980, 600));
+            return form;
+        }),
+        ("main-settings-short-scrolled", () =>
+        {
+            var form = Settings();
+            form.SetClientSizeDip(new Size(980, 600), new Size(980, 600));
+            form.Tag = new Action(() => form.SettingsPage?.PreviewScrollToEnd());
             return form;
         }),
         ("step-dialog-psu", () =>
@@ -133,10 +140,10 @@ internal static class ScreenRenderer
         }),
     ];
 
-    private static SettingsForm Settings() => Settings(out _);
+    private static MainForm Settings() => Settings(out _);
 
-    /// <summary>A settings window over the sample settings (price 0.32 DKK, autostart on, a stored password).</summary>
-    private static SettingsForm Settings(out SettingsPresenter presenter)
+    /// <summary>The main window on its settings page, over the sample settings (price 0.32 DKK, autostart on, a stored password).</summary>
+    private static MainForm Settings(out SettingsPresenter presenter)
     {
         var settings = SampleData.Settings();
         settings.EnergyPricePerKwh = 0.32m;
@@ -144,7 +151,9 @@ internal static class ScreenRenderer
         settings.StartWithWindows = true;
         var runtime = new PreviewRuntime(settings, hasPassword: true);
         presenter = new SettingsPresenter(runtime, SampleData.Culture);
-        return new SettingsForm(presenter, runtime, () => WizardPreview.Sensors(withBridge: false));
+        var form = MainWindow(SampleData.MainView(settings: settings), EnergyPeriod.Hours);
+        form.OpenSettings(new SettingsPage(presenter, runtime, () => WizardPreview.Sensors(withBridge: false)));
+        return form;
     }
 
     /// <summary>Builds a main window showing <paramref name="state"/> and the sample chart for <paramref name="period"/>.</summary>
@@ -212,6 +221,13 @@ internal static class ScreenRenderer
         form.Show();
         Application.DoEvents();
         form.PerformLayout();
+        if (form.Tag is Action afterShow)
+        {
+            // Screens that need a shown window (scrolling) set their last step as the form's Tag.
+            afterShow();
+            Application.DoEvents();
+        }
+
         var client = form.ClientSize;
         using var whole = new Bitmap(form.Width, form.Height);
         form.DrawToBitmap(whole, new Rectangle(Point.Empty, form.Size));
