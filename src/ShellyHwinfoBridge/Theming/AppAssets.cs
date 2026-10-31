@@ -12,6 +12,12 @@ internal static class AppAssets
     /// <summary>Loads the optional HWiNFO shared-memory screenshot, or <c>null</c> when it was not embedded. The caller owns the image.</summary>
     public static Image? TryLoadHwinfoScreenshot() => Load("ShellyHwinfoBridge.hwinfo-shared-memory.png");
 
+    /// <summary>
+    /// Loads the optional screenshot of HWiNFO's "HWiNFO Gadget" settings tab (<c>Assets/hwinfo-gadget.png</c>, embedded
+    /// only when the file exists), or <c>null</c>. The caller owns the image.
+    /// </summary>
+    public static Image? TryLoadHwinfoGadgetScreenshot() => Load("ShellyHwinfoBridge.hwinfo-gadget.png");
+
     /// <summary>Draws the logo fitted to <paramref name="height"/> pixels at <paramref name="location"/>; returns the drawn width.</summary>
     public static int DrawLogo(Graphics g, Point location, int height)
     {

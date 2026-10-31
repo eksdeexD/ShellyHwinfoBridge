@@ -6,14 +6,16 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Windows.Wizard;
 
 /// <summary>
-/// Step 6 (after Apply): the "HWiNFO" card (status or restart advice; Restart / Start / Retry and Verify; a restart runs
-/// in the background with the buttons hidden) and the "Verify" card (four-sensor checklist, AC/DC/Loss/Other tiles,
-/// the status line and the gadget export tip). Verify is disabled once all four sensors are confirmed.
+/// Step 6 (after Apply): side by side, the "HWiNFO" card (status or restart advice; Restart / Start / Retry and Verify;
+/// a restart runs in the background with the buttons hidden) and the "Verify" card (four-sensor checklist, AC/DC/Loss/
+/// Other tiles, the status line); under them the gadget export tip and, when <c>Assets/hwinfo-gadget.png</c> was
+/// embedded, its screenshot. Verify is disabled once all four sensors are confirmed.
 /// </summary>
 internal sealed class VerifyStepView : WizardStepView
 {
-    private const float HwinfoHeight = 150;
-    private const float ChecksWidth = 250;
+    private const float TopHeight = 236;
+    private const float HwinfoWidth = 400;
+    private const float ChecksWidth = 220;
 
     private readonly ApplyStepModel _model;
     private readonly CardPanel _hwinfo = new() { Title = "HWiNFO" };
@@ -27,6 +29,7 @@ internal sealed class VerifyStepView : WizardStepView
     private readonly ValueTile[] _tiles = [new() { Caption = "AC" }, new() { Caption = "DC" }, new() { Caption = "Loss" }, new() { Caption = "Other" }];
     private readonly InfoLine _verifyStatus = new();
     private readonly TextLabel _tip = new() { Text = HwinfoTips.GadgetExport, Role = FontRole.Small, Tone = UiTone.Secondary, WordWrap = true };
+    private readonly ScreenshotFrame _gadgetScreenshot = new(GadgetScreenshotSource(), "Screenshot: HWiNFO Settings, HWiNFO Gadget tab");
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = (int)ApplyStepModel.VerifyInterval.TotalMilliseconds };
     private readonly CancellationTokenSource _cts = new();
     private RestartAction? _primaryAction;
@@ -37,8 +40,9 @@ internal sealed class VerifyStepView : WizardStepView
         ArgumentNullException.ThrowIfNull(session);
         _model = session.Apply;
         _hwinfo.Controls.AddRange([_hwinfoText, _primary, _secondary, _verifyButton, _restarting]);
-        _verify.Controls.AddRange([.. _checks, .. _tiles, _verifyStatus, _tip]);
-        Controls.AddRange([_hwinfo, _verify]);
+        _verify.Controls.AddRange([.. _checks, .. _tiles, _verifyStatus]);
+        _gadgetScreenshot.Visible = _gadgetScreenshot.HasImage;
+        Controls.AddRange([_hwinfo, _verify, _tip, _gadgetScreenshot]);
 
         _primary.Click += async (_, _) => await RunAsync(_primaryAction);
         _secondary.Click += async (_, _) => await RunAsync(_secondaryAction);
@@ -61,6 +65,9 @@ internal sealed class VerifyStepView : WizardStepView
         _model.Changed += OnModelChanged;
         RefreshView();
     }
+
+    /// <summary>Loads the optional gadget screenshot (the screen renderer swaps in a stand-in to preview the layout).</summary>
+    internal static Func<Image?> GadgetScreenshotSource { get; set; } = AppAssets.TryLoadHwinfoGadgetScreenshot;
 
     protected override void OnRefreshView()
     {
@@ -114,11 +121,11 @@ internal sealed class VerifyStepView : WizardStepView
         var h = HeightDip;
         const float gap = 16;
 
-        // HWiNFO card across the top: the text, then the buttons.
-        _hwinfo.Bounds = Dip(0, 0, w, HwinfoHeight);
+        // HWiNFO card at the left: the text, then the buttons at the bottom of the card.
+        _hwinfo.Bounds = Dip(0, 0, HwinfoWidth, TopHeight);
         var inner = _hwinfo.Width - Px(40);
-        _hwinfoText.Bounds = new Rectangle(Px(20), Px(50), inner, Math.Min(Px(40), Math.Max(Px(28), _hwinfoText.GetPreferredHeight(inner))));
-        var buttonTop = Px(HwinfoHeight - 20 - 40);
+        _hwinfoText.Bounds = new Rectangle(Px(20), Px(50), inner, Math.Min(Px(100), Math.Max(Px(28), _hwinfoText.GetPreferredHeight(inner))));
+        var buttonTop = Px(TopHeight - 20 - 40);
         var x = Px(20);
         foreach (var button in new[] { _primary, _secondary, _verifyButton }.Where(b => b.Visible))
         {
@@ -129,33 +136,35 @@ internal sealed class VerifyStepView : WizardStepView
 
         _restarting.Bounds = new Rectangle(Px(20), buttonTop, inner, Px(40));
 
-        // Verify card: the four sensors as one list (tick when found, neutral ring while pending), the tiles in a row
-        // with the status line under them, and the gadget tip at the bottom.
-        _verify.Bounds = Dip(0, HwinfoHeight + gap, w, h - HwinfoHeight - gap);
+        // Verify card at the right: the four sensors as one list (tick when found, neutral ring while pending), the
+        // tiles 2 × 2 and the status line under them.
+        _verify.Bounds = Dip(HwinfoWidth + gap, 0, w - HwinfoWidth - gap, TopHeight);
         var verifyInner = _verify.Width - Px(40);
         var listWidth = Px(ChecksWidth);
         for (var i = 0; i < _checks.Length; i++)
         {
-            _checks[i].Bounds = new Rectangle(Px(20), Px(50 + (i * 28)), listWidth, Px(26));
+            _checks[i].Bounds = new Rectangle(Px(20), Px(52 + (i * 28)), listWidth, Px(26));
         }
 
         var tilesLeft = Px(20) + listWidth + Px(16);
         var tilesWidth = Px(20) + verifyInner - tilesLeft;
-        var tileWidth = (tilesWidth - (3 * Px(10))) / 4;
+        var tileWidth = (tilesWidth - Px(10)) / 2;
         for (var i = 0; i < _tiles.Length; i++)
         {
-            _tiles[i].Bounds = new Rectangle(tilesLeft + (i * (tileWidth + Px(10))), Px(48), tileWidth, Px(56));
+            _tiles[i].Bounds = new Rectangle(tilesLeft + ((i % 2) * (tileWidth + Px(10))), Px(48 + ((i / 2) * 64)), tileWidth, Px(56));
         }
 
-        var tipHeight = _tip.GetPreferredHeight(verifyInner);
-        var tipTop = _verify.Height - Px(16) - tipHeight;
-        _tip.Bounds = new Rectangle(Px(20), tipTop, verifyInner, tipHeight);
+        var statusTop = Px(48 + 64 + 56 + 10);
+        _verifyStatus.Bounds = new Rectangle(Px(20), statusTop, verifyInner, Math.Max(Px(28), Math.Min(_verify.Height - statusTop - Px(8), _verifyStatus.GetPreferredHeight(verifyInner))));
 
-        var statusTop = Px(48 + 56 + 14);
-        var statusHeight = Math.Max(Px(28), Math.Min(_verifyStatus.GetPreferredHeight(tilesWidth), tipTop - statusTop - Px(8)));
-        _verifyStatus.Bounds = new Rectangle(tilesLeft, statusTop, tilesWidth, statusHeight);
+        // Under the cards: the gadget tip, then its optional screenshot fitted to the rest of the page.
+        var tipTop = Px(TopHeight + gap);
+        var tipHeight = _tip.GetPreferredHeight(Width);
+        _tip.Bounds = new Rectangle(0, tipTop, Width, tipHeight);
+        var imageTop = tipTop + tipHeight + Px(10);
+        var image = _gadgetScreenshot.FitInto(new Size(Width, Math.Max(0, Height - imageTop)));
+        _gadgetScreenshot.Bounds = new Rectangle(new Point(0, imageTop), image);
     }
-
     public override void OnStepHidden()
     {
         // Step 6 is only left by closing the wizard; the form stops the verification.

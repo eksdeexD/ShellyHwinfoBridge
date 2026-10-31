@@ -20,7 +20,10 @@ internal sealed class HwinfoStepView : WizardStepView
     private readonly InfoLine _freeNote = new() { Text = HwinfoStepModel.FreeVersionNote };
     private readonly CardPanel _howTo = new() { Title = "Turn on Shared Memory" };
     private readonly List<(TextLabel Number, TextLabel Text)> _steps = [];
-    private readonly ScreenshotSlot _screenshot = new();
+    private readonly ScreenshotFrame _screenshot = new(
+        AppAssets.TryLoadHwinfoScreenshot(),
+        "Screenshot: HWiNFO Settings, General tab, with Shared Memory Support ticked",
+        "Screenshot: HWiNFO Shared Memory Support setting");
 
     public HwinfoStepView(HwinfoStepModel model)
     {
@@ -110,11 +113,8 @@ internal sealed class HwinfoStepView : WizardStepView
         }
 
         var slotTop = stepTop + Px(12);
-        var available = new Size(inner, Math.Max(Px(80), _howTo.Height - slotTop - Px(20)));
-        var aspect = _screenshot.AspectRatio;
-        var slotWidth = Math.Min(available.Width, (int)(available.Height * aspect));
-        var slotHeight = (int)Math.Round(slotWidth / aspect);
-        _screenshot.Bounds = new Rectangle(Px(20), slotTop, slotWidth, slotHeight);
+        var slot = _screenshot.FitInto(new Size(inner, Math.Max(Px(80), _howTo.Height - slotTop - Px(20))));
+        _screenshot.Bounds = new Rectangle(new Point(Px(20), slotTop), slot);
     }
 
     internal static InfoTone ToInfoTone(Tone tone) => tone switch
@@ -137,63 +137,4 @@ internal sealed class HwinfoStepView : WizardStepView
     }
 
     private void OnModelChanged(object? sender, EventArgs e) => RefreshView();
-
-    /// <summary>The screenshot (embedded <c>Assets/hwinfo-shared-memory.png</c>) in a 1 px Border frame, or a bordered placeholder.</summary>
-    private sealed class ScreenshotSlot : ThemedControl
-    {
-        private readonly Image? _image = AppAssets.TryLoadHwinfoScreenshot();
-
-        public ScreenshotSlot()
-        {
-            AccessibleRole = AccessibleRole.Graphic;
-            AccessibleName = "Screenshot: HWiNFO Settings, General / User Interface tab, with Shared Memory Support ticked";
-        }
-
-        /// <summary>Gets the width/height ratio to lay the slot out with (the image's, else 16:9).</summary>
-        public float AspectRatio => _image is { Width: > 0, Height: > 0 } image ? image.Width / (float)image.Height : 16f / 9f;
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            var g = e.Graphics;
-            var line = Math.Max(1, this.Px(1));
-            if (_image is not null)
-            {
-                // The slot has the image's aspect ratio: draw it inside the 1 px frame.
-                var state = g.Save();
-                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
-                var inner = new Rectangle(line, line, Math.Max(1, Width - (2 * line)), Math.Max(1, Height - (2 * line)));
-                var scale = Math.Min(inner.Width / (float)_image.Width, inner.Height / (float)_image.Height);
-                var size = new SizeF(_image.Width * scale, _image.Height * scale);
-                g.DrawImage(_image, new RectangleF(inner.X + ((inner.Width - size.Width) / 2), inner.Y + ((inner.Height - size.Height) / 2), size.Width, size.Height));
-                g.Restore(state);
-                using var border = new SolidBrush(Theme.Border);
-                g.FillRectangle(border, 0, 0, Width, line);
-                g.FillRectangle(border, 0, Height - line, Width, line);
-                g.FillRectangle(border, 0, 0, line, Height);
-                g.FillRectangle(border, Width - line, 0, line, Height);
-                return;
-            }
-
-            var r = new RectangleF(0, 0, Width, Height);
-            Gfx.FillAndBorder(g, Theme.Field, Theme.Border, Math.Max(1f, this.PxF(1)), r, this.PxF(Theme.ChipRadius));
-            Gfx.Text(
-                g,
-                "Screenshot: HWiNFO Shared Memory Support setting",
-                Fonts.Body,
-                new Rectangle(Point.Empty, Size),
-                Theme.InkDisabled,
-                Gfx.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _image?.Dispose();
-            }
-
-            base.Dispose(disposing);
-        }
-    }
 }

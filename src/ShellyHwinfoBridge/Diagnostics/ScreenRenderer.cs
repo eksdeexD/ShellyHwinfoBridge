@@ -113,6 +113,21 @@ internal static class ScreenRenderer
         })),
         ("wizard-6-verify-verified", () => WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: s =>
             s.GoNextAsync().GetAwaiter().GetResult())),
+        ("wizard-6-verify-with-gadget-image", () =>
+        {
+            // Until Assets/hwinfo-gadget.png exists, preview the layout with the shared-memory screenshot as a stand-in.
+            var source = VerifyStepView.GadgetScreenshotSource;
+            VerifyStepView.GadgetScreenshotSource = () => source() ?? Theming.AppAssets.TryLoadHwinfoScreenshot();
+            try
+            {
+                return WizardPreview.At(WizardStep.Apply, snapshot: WizardPreview.Snapshot.WithBridge, tweak: s =>
+                    s.GoNextAsync().GetAwaiter().GetResult());
+            }
+            finally
+            {
+                VerifyStepView.GadgetScreenshotSource = source;
+            }
+        }),
         ("main-settings", () => Settings()),
         ("main-settings-results", () =>
         {

@@ -253,16 +253,19 @@ internal sealed class SettingsPage : ThemedPanel
         var doneWidth = Math.Max(120, _done.GetPreferredSize(Size.Empty).Width * 96f / dpi);
         _done.Bounds = At(contentWidth - Pad - doneWidth, TitleRowTop, doneWidth, TitleRowHeight);
 
-        // Rows 1 and 2 pair the cards; below them the left column has Energy over PSU database and the right column
-        // Startup and tray over Maintenance, so both columns end at the same height.
-        var row2 = Math.Max(Row2MinHeight, 50 + Math.Max(FormulaHeight(), TipHeight(column)) + 16);
+        // Rows 1 and 2 pair the cards (row 2 gives Sensors and formula more room for the formula and the gadget tip);
+        // below them the left column has Energy over PSU database and the right column Startup and tray over
+        // Maintenance, so both columns end at the same height.
+        var sensorsWidth = (float)Math.Round(2 * column * SensorsShare);
+        var pollingWidth = (2 * column) - sensorsWidth;
+        var row2 = Math.Max(Row2MinHeight, 50 + Math.Max(FormulaHeight(), TipHeight(sensorsWidth)) + 16);
         var energy = EnergyHeight + (_priceError.Visible ? 30 : 0);
         var y = CardsTop;
         _shellyCard.Bounds = At(left, y, column, Row1Height);
         _psuCard.Bounds = At(right, y, column, Row1Height);
         y += Row1Height + RowGap;
-        _sensorsCard.Bounds = At(left, y, column, row2);
-        _pollingCard.Bounds = At(right, y, column, row2);
+        _sensorsCard.Bounds = At(left, y, sensorsWidth, row2);
+        _pollingCard.Bounds = At(left + sensorsWidth + Gap, y, pollingWidth, row2);
         y += row2 + RowGap;
         _energyCard.Bounds = At(left, y, column, energy);
         _databaseCard.Bounds = At(left, y + energy + RowGap, column, SmallCardHeight);
@@ -276,7 +279,7 @@ internal sealed class SettingsPage : ThemedPanel
         _applyError.Bounds = At(_footnoteLeft, TitleRowTop + ((TitleRowHeight - 28) / 2), footnoteWidth, 28);
         var contentHeight = y + FootnoteGap + FootnoteHeight;
 
-        LayoutCards(column);
+        LayoutCards(column, sensorsWidth, pollingWidth);
 
         var minSize = new Size(contentWidth > Dip(ClientSize.Width) + 0.5f ? this.Px(contentWidth) : 0, this.Px(contentHeight));
         if (AutoScrollMinSize != minSize)
@@ -517,15 +520,16 @@ internal sealed class SettingsPage : ThemedPanel
         return Math.Max(FormulaMinHeight, (_formulaLines * lineHeight) + 20);
     }
 
-    private static float FormulaWidth(float column) => (float)Math.Round(Math.Max(200, (column - 40) * 0.44f));
+    private const float FormulaWidth = 240;
+    private const float SensorsShare = 0.62f;
 
-    private float TipHeight(float column)
+    private float TipHeight(float cardWidth)
     {
-        var width = this.Px(column - 40 - FormulaWidth(column) - 16);
+        var width = this.Px(cardWidth - 40 - FormulaWidth - 16);
         return _gadgetTip.GetPreferredHeight(width) * 96f / DeviceDpi;
     }
 
-    private void LayoutCards(float column)
+    private void LayoutCards(float column, float sensorsWidth, float pollingWidth)
     {
         var inner = column - 40;
         Rectangle R(float x, float y, float width, float height) => new(this.Px(x), this.Px(y), this.Px(width), this.Px(height));
@@ -555,14 +559,14 @@ internal sealed class SettingsPage : ThemedPanel
         _voltage.Bounds = R(134, 104, inner - 114, 36);
 
         // Sensors and formula: Edit… in the title row, the read-only formula box and the gadget tip beside it.
+        var sensorsInner = sensorsWidth - 40;
         var editWidth = PrefWidth(_edit);
-        _edit.Bounds = R(20 + inner - editWidth, 21, editWidth, 26);
-        var formulaWidth = FormulaWidth(column);
-        _formula.Bounds = R(20, 50, formulaWidth, FormulaHeight());
-        _gadgetTip.Bounds = R(20 + formulaWidth + 16, 50, inner - formulaWidth - 16, TipHeight(column));
+        _edit.Bounds = R(20 + sensorsInner - editWidth, 21, editWidth, 26);
+        _formula.Bounds = R(20, 50, FormulaWidth, FormulaHeight());
+        _gadgetTip.Bounds = R(20 + FormulaWidth + 16, 50, sensorsInner - FormulaWidth - 16, TipHeight(sensorsWidth));
 
         // Polling: label, slider, value.
-        var sliderWidth = inner - 92 - 104;
+        var sliderWidth = pollingWidth - 40 - 92 - 104;
         _intervalLabel.Bounds = R(20, 60, 90, 28);
         _interval.Bounds = R(112, 60, sliderWidth, 28);
         _intervalValue.Bounds = R(112 + sliderWidth + 16, 60, 88, 28);
