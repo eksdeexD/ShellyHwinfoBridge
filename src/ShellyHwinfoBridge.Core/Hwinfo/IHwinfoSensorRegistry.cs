@@ -41,7 +41,7 @@ public interface IHwinfoSensorRegistry
     /// <param name="monthKwh">Energy used this month.</param>
     void WriteEnergy(double todayKwh, double monthKwh);
 
-    /// <summary>Writes 0 to every power sensor and every online flag of the layout whose key exists (never creates keys). Keys and the energy totals are kept.</summary>
+    /// <summary>Writes 0 to every power sensor of the layout (PC AC, DC, Loss, Other, each device AC, Total) whose key exists (never creates keys). Keys and the energy totals are kept.</summary>
     void SetOffline();
 
     /// <summary>Deletes the whole base key (used when uninstalling).</summary>

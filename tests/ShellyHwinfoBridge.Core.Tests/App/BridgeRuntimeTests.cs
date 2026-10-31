@@ -160,7 +160,7 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.Equal(312.4, reading.Power.AcWatts, 6);
         Assert.Same(reading, runtime.LastReading);
         Assert.Equal("312.4", Value("Power0"));
-        Assert.Equal("1", Value("Other2"));
+        Assert.False(_backend.KeyExists(Base + "\\Other2"));
         Assert.Equal(SensorValueFormatter.FormatWatts(reading.Power.DcWatts - 250), Value("Power3"));
         Assert.Equal(OtherSource.SharedMemory, runtime.Other.Source);
         Assert.Equal("PC Power (AC)", Name("Power0"));
@@ -234,7 +234,7 @@ public sealed class BridgeRuntimeTests : IDisposable
         runtime.Pause();
         Assert.Equal(RuntimeState.Paused, runtime.State);
         Assert.Null(runtime.LastReading);
-        Assert.Equal("0", Value("Other2"));
+        Assert.Equal("0.0", Value("Power0"));
 
         await NextReading(runtime, () =>
         {
@@ -242,7 +242,7 @@ public sealed class BridgeRuntimeTests : IDisposable
             _time.Advance(TimeSpan.FromSeconds(1));
         });
         Assert.Equal(RuntimeState.Running, runtime.State);
-        Assert.Equal("1", Value("Other2"));
+        Assert.Equal("312.4", Value("Power0"));
     }
 
     [Fact]
@@ -364,10 +364,36 @@ public sealed class BridgeRuntimeTests : IDisposable
 
         await runtime.StopAsync();
 
-        Assert.Equal("0", Value("Other2"));
         Assert.Equal("0.0", Value("Power0"));
         Assert.True(_clients[0].Disposed);
         Assert.True(File.Exists(Path.Combine(_dir, "energy", EnergyCsvStore.StateFileName)));
+    }
+
+    [Fact]
+    public async Task FirstStartAfterUpgradeDeletesTheFormerOnlineSensorsAndReportsTheChange()
+    {
+        // The previous version's layout: Other2 "Shelly Online", Other3 "Monitor Online", Other4 "Lamp Online".
+        var settings = MultiSettings();
+        _registry.ApplyLayout(SensorLayout.Build(settings));
+        foreach (var (subkey, name) in new[] { ("Other2", "Shelly Online"), ("Other3", "Monitor Online"), ("Other4", "Lamp Online") })
+        {
+            _backend.SetString(Base + "\\" + subkey, "Name", name);
+            _backend.SetString(Base + "\\" + subkey, "Unit", string.Empty);
+            _backend.SetString(Base + "\\" + subkey, "Value", "1");
+        }
+
+        // Program.Main's start sequence: the runtime sets the layout, EnsureKeys repairs the keys (true = restart notice).
+        _registry.SetLayout(SensorLayout.Default);
+        var runtime = Create(settings);
+        Assert.True(_registry.EnsureKeys());
+        await NextReadingFrom(runtime, AppSettings.PrimaryDeviceId, runtime.Start);
+
+        Assert.False(_registry.EnsureKeys());
+        Assert.Equal(
+            ["Other0", "Other1"],
+            _backend.GetSubKeyNames(Base).Where(k => k.StartsWith("Other", StringComparison.Ordinal)).Order(StringComparer.Ordinal));
+        Assert.Equal("Energy This Month", Name("Other1"));
+        Assert.Equal("312.4", Value("Power0"));
     }
 
     private const string MonitorId = "11111111-1111-1111-1111-111111111111";
@@ -420,11 +446,11 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.Equal(3, _clients.Count);
 
         // Three devices on a 1000 ms interval: the monitor starts at 333 ms, the lamp at 666 ms.
-        Assert.Equal("0", Value("Other3"));
+        Assert.Equal("0.0", Value("Power4"));
         await Task.Delay(50);
         var monitor = NextReadingFrom(runtime, MonitorId, () => _time.Advance(TimeSpan.FromMilliseconds(340)));
         await monitor;
-        Assert.Equal("0", Value("Other4"));
+        Assert.Equal("0.0", Value("Power5"));
         await Task.Delay(50);
         await NextReadingFrom(runtime, LampId, () => _time.Advance(TimeSpan.FromMilliseconds(340)));
 
@@ -433,8 +459,6 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.Equal("10.0", Value("Power5"));
         Assert.Equal("Total Power (AC)", Name("Power6"));
         Assert.Equal("343.6", Value("Power6"));
-        Assert.Equal("1", Value("Other3"));
-        Assert.Equal("1", Value("Other4"));
         Assert.Equal(343.6, runtime.TotalWatts!.Value, 6);
         Assert.Equal([AppSettings.PrimaryDeviceId, MonitorId, LampId], runtime.Devices.Select(d => d.Id));
         Assert.Equal(31.2, runtime.Devices[1].AcWatts!.Value, 6);
@@ -458,12 +482,10 @@ public sealed class BridgeRuntimeTests : IDisposable
         }
 
         await WaitUntil(() => runtime.Devices[1].State == OnlineState.Offline);
-        await WaitUntil(() => Value("Other3") == "0");
-        Assert.Equal("0.0", Value("Power4"));
+        await WaitUntil(() => Value("Power4") == "0.0");
         Assert.Equal(OnlineState.Online, runtime.OnlineState);
         Assert.Equal(RuntimeState.Running, runtime.State);
-        await WaitUntil(() => Value("Other2") == "1");
-        Assert.Equal("312.4", Value("Power0"));
+        await WaitUntil(() => Value("Power0") == "312.4");
     }
 
     [Fact]
@@ -478,7 +500,8 @@ public sealed class BridgeRuntimeTests : IDisposable
         var outcome = runtime.Apply(MultiSettings());
         Assert.Contains("AdditionalDevices", outcome.ChangedKeys);
         Assert.Equal(1, notices);
-        Assert.Equal("Lamp Online", Name("Other4"));
+        Assert.Equal("Lamp Power (AC)", Name("Power5"));
+        Assert.False(_backend.KeyExists(Base + "\\Other2"));
         Assert.Equal(3, _clients.Count);
 
         var fewer = runtime.Settings!.Clone();
@@ -488,7 +511,6 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.Equal("Lamp Power (AC)", Name("Power4"));
         Assert.Equal("Total Power (AC)", Name("Power5"));
         Assert.Null(Name("Power6"));
-        Assert.Null(Name("Other4"));
         await WaitUntil(() => _clients.Single(c => c.Host == "192.168.1.50").Disposed);
 
         // Changing nothing that affects the layout raises no notice.

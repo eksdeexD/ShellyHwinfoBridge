@@ -34,11 +34,9 @@ public class HwinfoSensorRegistryTests
         Assert.Equal("PC PSU Loss", Value("Power2", "Name"));
         Assert.Equal("PC Other Components", Value("Power3", "Name"));
         Assert.Null(Value("Power4", "Name"));
-        Assert.Equal("Shelly Online", Value("Other2", "Name"));
+        Assert.False(_backend.KeyExists(Base + "\\Other2"));
         Assert.Equal("W", Value("Power0", "Unit"));
-        Assert.Equal(string.Empty, Value("Other2", "Unit"));
         Assert.Equal("0.0", Value("Power1"));
-        Assert.Equal("0", Value("Other2"));
         Assert.Equal("Energy Today", Value("Other0", "Name"));
         Assert.Equal("Energy This Month", Value("Other1", "Name"));
         Assert.Equal("kWh", Value("Other0", "Unit"));
@@ -81,12 +79,10 @@ public class HwinfoSensorRegistryTests
         Assert.Equal("Monitor Power (AC)", map["Power4"]);
         Assert.Equal("Lamp Power (AC)", map["Power5"]);
         Assert.Equal("Total Power (AC)", map["Power6"]);
-        Assert.Equal("Shelly Online", map["Other2"]);
         Assert.Equal("Energy Today", map["Other0"]);
         Assert.Equal("Energy This Month", map["Other1"]);
-        Assert.Equal("Monitor Online", map["Other3"]);
-        Assert.Equal("Lamp Online", map["Other4"]);
-        Assert.Equal(12, layout.Slots.Count);
+        Assert.Equal(9, layout.Slots.Count);
+        Assert.Equal(["Other0", "Other1"], layout.Slots.Where(s => !s.Key.IsPower).Select(s => s.Subkey));
         Assert.Equal("Power4", layout[SensorKey.DeviceAc(MonitorId)]!.Subkey);
         Assert.Empty(layout.DuplicateNames());
     }
@@ -95,7 +91,51 @@ public class HwinfoSensorRegistryTests
     public void LayoutWithoutAdditionalDevicesHasNoTotal()
     {
         Assert.False(SensorLayout.Default.Contains(SensorKey.Total));
-        Assert.Equal(7, SensorLayout.Default.Slots.Count);
+        Assert.Equal(6, SensorLayout.Default.Slots.Count);
+    }
+
+    [Fact]
+    public void EnsureKeysDeletesThePreviousVersionsOnlineSlotsOnFirstStart()
+    {
+        // A previous version's layout with one additional device: Other2 "Shelly Online", Other3 "Monitor Online".
+        var settings = WithDevices((MonitorId, "Monitor", true));
+        foreach (var slot in SensorLayout.Build(settings).Slots)
+        {
+            _backend.SetString(Base + "\\" + slot.Subkey, "Name", slot.Name);
+            _backend.SetString(Base + "\\" + slot.Subkey, "Unit", slot.Unit);
+            _backend.SetString(Base + "\\" + slot.Subkey, "Value", slot.DefaultValue);
+        }
+
+        _backend.SetString(Base + "\\Other2", "Name", "Shelly Online");
+        _backend.SetString(Base + "\\Other2", "Unit", string.Empty);
+        _backend.SetString(Base + "\\Other2", "Value", "1");
+        _backend.SetString(Base + "\\Other3", "Name", "Monitor Online");
+        _backend.SetString(Base + "\\Other3", "Unit", string.Empty);
+        _backend.SetString(Base + "\\Other3", "Value", "1");
+        _backend.SetString(Base + "\\Other1", "Value", "48.70");
+
+        var registry = Registry;
+        Assert.True(registry.ApplyLayout(SensorLayout.Build(settings)));
+
+        Assert.False(_backend.KeyExists(Base + "\\Other2"));
+        Assert.False(_backend.KeyExists(Base + "\\Other3"));
+        Assert.Equal("Energy Today", Value("Other0", "Name"));
+        Assert.Equal("48.70", Value("Other1"));
+        Assert.Equal("Monitor Power (AC)", Value("Power4", "Name"));
+        Assert.False(registry.ApplyLayout(SensorLayout.Build(settings)));
+    }
+
+    [Fact]
+    public void StoredCustomNamesOfTheRemovedOnlineSensorsAreDropped()
+    {
+        var settings = WithDevices((MonitorId, "Monitor", true));
+        settings.SensorNames["PcOnline"] = "Plug Up";
+        settings.SensorNames["DeviceOnline:" + MonitorId] = "Screen Up";
+        settings.SensorNames[SensorKey.PcAc.Id] = "Wall";
+        settings.Normalize();
+
+        Assert.Equal([SensorKey.PcAc.Id], settings.SensorNames.Keys);
+        Assert.DoesNotContain(SensorLayout.Build(settings).Slots, s => s.Name.Contains("Up", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -118,20 +158,18 @@ public class HwinfoSensorRegistryTests
         var registry = Registry;
         Assert.True(registry.ApplyLayout(SensorLayout.Build(WithDevices((MonitorId, "Monitor", true), (LampId, "Lamp", true)))));
         Assert.Equal("Total Power (AC)", Value("Power6", "Name"));
-        Assert.Equal("Lamp Online", Value("Other4", "Name"));
+        Assert.False(_backend.KeyExists(Base + "\\Other2"));
 
-        // Remove the monitor: the lamp moves to Power4/Other3, Total to Power5; Power6 and Other4 go away.
+        // Remove the monitor: the lamp moves to Power4, Total to Power5; Power6 goes away.
         Assert.True(registry.ApplyLayout(SensorLayout.Build(WithDevices((LampId, "Lamp", true)))));
         Assert.Equal("Lamp Power (AC)", Value("Power4", "Name"));
         Assert.Equal("Total Power (AC)", Value("Power5", "Name"));
-        Assert.Equal("Lamp Online", Value("Other3", "Name"));
         Assert.False(_backend.KeyExists(Base + "\\Power6"));
-        Assert.False(_backend.KeyExists(Base + "\\Other4"));
 
         // Back to the PC only.
         Assert.True(registry.ApplyLayout(SensorLayout.Default));
         Assert.False(_backend.KeyExists(Base + "\\Power4"));
-        Assert.False(_backend.KeyExists(Base + "\\Other3"));
+        Assert.False(_backend.KeyExists(Base + "\\Power5"));
         Assert.False(registry.ApplyLayout(SensorLayout.Default));
     }
 
@@ -150,15 +188,14 @@ public class HwinfoSensorRegistryTests
         registry.ApplyLayout(SensorLayout.Build(WithDevices((MonitorId, "Monitor", true))));
         Assert.True(registry.ApplyLayout(SensorLayout.Build(WithDevices((MonitorId, "Screen", true)))));
         Assert.Equal("Screen Power (AC)", Value("Power4", "Name"));
-        Assert.Equal("Screen Online", Value("Other3", "Name"));
     }
 
     [Fact]
     public void EnsureKeysAddsEnergySensorsToAnExistingInstallAndKeepsTheirValues()
     {
         Registry.EnsureKeys();
+        _backend.DeleteTree(Base + "\\Other0");
         _backend.DeleteTree(Base + "\\Other1");
-        _backend.DeleteTree(Base + "\\Other2");
 
         Assert.True(Registry.EnsureKeys());
         Registry.WriteEnergy(2.414, 48.7);
@@ -207,9 +244,7 @@ public class HwinfoSensorRegistryTests
             [SensorKey.PcDc] = 141.727,
             [SensorKey.PcLoss] = 10.173,
             [SensorKey.PcOther] = 48.06,
-            [SensorKey.PcOnline] = 1,
             [SensorKey.DeviceAc(MonitorId)] = 31.25,
-            [SensorKey.DeviceOnline(MonitorId)] = 1,
             [SensorKey.Total] = 183.15,
         });
 
@@ -219,8 +254,6 @@ public class HwinfoSensorRegistryTests
         Assert.Equal("48.1", Value("Power3"));
         Assert.Equal("31.3", Value("Power4"));
         Assert.Equal("183.2", Value("Power5"));
-        Assert.Equal("1", Value("Other2"));
-        Assert.Equal("1", Value("Other3"));
     }
 
     [Fact]
@@ -245,7 +278,7 @@ public class HwinfoSensorRegistryTests
     }
 
     [Fact]
-    public void SetOfflineZeroesEveryPowerAndOnlineValueAndKeepsKeysAndEnergy()
+    public void SetOfflineZeroesEveryPowerValueAndKeepsKeysAndEnergy()
     {
         var registry = Registry;
         registry.ApplyLayout(SensorLayout.Build(WithDevices((MonitorId, "Monitor", true))));
@@ -255,9 +288,7 @@ public class HwinfoSensorRegistryTests
             [SensorKey.PcDc] = 90,
             [SensorKey.PcLoss] = 10,
             [SensorKey.PcOther] = 20,
-            [SensorKey.PcOnline] = 1,
             [SensorKey.DeviceAc(MonitorId)] = 30,
-            [SensorKey.DeviceOnline(MonitorId)] = 1,
             [SensorKey.Total] = 130,
         });
         registry.WriteEnergy(2.41, 48.7);
@@ -270,8 +301,6 @@ public class HwinfoSensorRegistryTests
             Assert.Equal("0.0", Value(subkey));
         }
 
-        Assert.Equal("0", Value("Other2"));
-        Assert.Equal("0", Value("Other3"));
         Assert.Equal("PC Power (AC)", Value("Power0", "Name"));
     }
 
@@ -291,6 +320,8 @@ public class HwinfoSensorRegistryTests
     [InlineData("DeviceAc:abc", true)]
     [InlineData("DeviceAc", false)]
     [InlineData("PcAc:abc", false)]
+    [InlineData("PcOnline", false)]
+    [InlineData("DeviceOnline:abc", false)]
     [InlineData("Nope", false)]
     [InlineData("0", false)]
     [InlineData("", false)]

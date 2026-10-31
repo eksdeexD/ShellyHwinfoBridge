@@ -26,7 +26,7 @@ public class SettingsPresenterTests
         Assert.Equal("PC · 192.168.1.42", state.DevicesText);
         Assert.Equal("1000 ms", state.IntervalText);
         Assert.Equal("1 sample", state.SmoothingText);
-        Assert.Equal("Last updated 2026-10-29 · 1 entry", state.DatabaseText);
+        Assert.Equal("Last updated 2026-10-29 · 1 entry · shipped", state.DatabaseText);
         Assert.Equal("leave empty if not set", state.PasswordPlaceholder);
         Assert.True(state.ShowTrayIcon);
         Assert.True(state.EnergyEnabled);
@@ -58,7 +58,18 @@ public class SettingsPresenterTests
     public void DatabaseTextUsesThePluralForSeveralEntries()
     {
         _runtime.Database = SyntheticDatabase("2026-10-31", 6);
-        Assert.Equal("Last updated 2026-10-31 · 6 entries", new SettingsPresenter(_runtime, EnUs).State.DatabaseText);
+        Assert.Equal("Last updated 2026-10-31 · 6 entries · shipped", new SettingsPresenter(_runtime, EnUs).State.DatabaseText);
+    }
+
+    [Theory]
+    [InlineData(DatabaseOrigin.Downloaded, "Last updated 2026-11-15 · 6 entries · downloaded")]
+    [InlineData(DatabaseOrigin.Shipped, "Last updated 2026-11-15 · 6 entries · shipped")]
+    [InlineData(DatabaseOrigin.Embedded, "Last updated 2026-11-15 · 6 entries · built-in")]
+    public void DatabaseTextNamesTheCopyInUse(DatabaseOrigin origin, string expected)
+    {
+        _runtime.Database = SyntheticDatabase("2026-11-15", 6);
+        _runtime.DatabaseOrigin = origin;
+        Assert.Equal(expected, new SettingsPresenter(_runtime, EnUs).State.DatabaseText);
     }
 
     /// <summary>The TX-700 entry first, then copies with other ids, so the count is exact whatever the shipped database holds.</summary>

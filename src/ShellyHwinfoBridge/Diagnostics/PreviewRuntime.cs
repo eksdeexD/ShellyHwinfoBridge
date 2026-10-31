@@ -55,6 +55,8 @@ internal sealed class PreviewRuntime : IBridgeRuntime
 
     public PsuDatabase Database { get; }
 
+    public DatabaseOrigin DatabaseOrigin { get; set; } = DatabaseOrigin.Shipped;
+
     public RuntimeState State => Settings is null ? RuntimeState.Unconfigured : RuntimeState.Running;
 
     public OnlineState OnlineState => OnlineState.Online;

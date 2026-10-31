@@ -141,7 +141,7 @@ public sealed class PsuDatabaseTests : IDisposable
         Assert.False(result.Replaced);
         Assert.NotEmpty(result.Errors);
         Assert.Equal(ValidJson, File.ReadAllText(DbPath));
-        Assert.Equal(DatabaseOrigin.LocalFile, loader.Load().Origin);
+        Assert.Equal(DatabaseOrigin.Shipped, loader.Load().Origin);
         Assert.False(File.Exists(DbPath + ".tmp"));
     }
 

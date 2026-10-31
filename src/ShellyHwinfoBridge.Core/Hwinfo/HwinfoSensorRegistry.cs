@@ -134,12 +134,8 @@ public sealed class HwinfoSensorRegistry : IHwinfoSensorRegistry
         }
     }
 
-    private static string Format(SensorKey key, double value) => key.ValueKind switch
-    {
-        SensorValueKind.Flag => SensorValueFormatter.FormatFlag(value != 0),
-        SensorValueKind.Kwh => SensorValueFormatter.FormatKwh(value),
-        _ => SensorValueFormatter.FormatWatts(value),
-    };
+    private static string Format(SensorKey key, double value) =>
+        key.ValueKind == SensorValueKind.Kwh ? SensorValueFormatter.FormatKwh(value) : SensorValueFormatter.FormatWatts(value);
 
     private static bool IsNumber(string? value) =>
         value is not null && double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) && double.IsFinite(number);

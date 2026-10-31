@@ -4,8 +4,13 @@
 
 .DESCRIPTION
     Used by the release and CI workflows and for local builds (Windows PowerShell 5.1 or PowerShell 7).
-    Run `dotnet publish src/ShellyHwinfoBridge/ShellyHwinfoBridge.csproj -c Release -o publish` first.
-    Prints the path of the produced setup.exe as the last line of output.
+    Run the self-contained publish first (the exe carries the .NET 8 runtime, so the installer has no runtime check
+    and winget no runtime dependency):
+      dotnet publish src/ShellyHwinfoBridge/ShellyHwinfoBridge.csproj -c Release -r win-x64 --self-contained true
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+        -p:DebugType=None -p:GenerateDocumentationFile=false -o publish
+    Produces ShellyHwinfoBridge-v<Version>-setup.exe (the release asset name, "v" + Version = the git tag) and
+    prints its path as the last line of output.
 
 .PARAMETER Version
     Product version without a leading "v", e.g. 1.0.0 or 1.1.0-beta.1.
@@ -77,6 +82,6 @@ $script = Join-Path $PSScriptRoot 'ShellyHwinfoBridge.iss'
 & $iscc "/DAppVersion=$Version" "/DPublishDir=$PublishDir" "/DOutputDir=$OutputDir" $script | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE." }
 
-$setup = Join-Path $OutputDir "ShellyHwinfoBridge-$Version-setup.exe"
+$setup = Join-Path $OutputDir "ShellyHwinfoBridge-v$Version-setup.exe"
 if (-not (Test-Path $setup)) { throw "ISCC succeeded but $setup was not produced." }
 Write-Output $setup

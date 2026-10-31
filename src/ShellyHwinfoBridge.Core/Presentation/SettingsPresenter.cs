@@ -33,7 +33,7 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// <param name="Currency">The currency text.</param>
 /// <param name="StartWithWindows">Autostart.</param>
 /// <param name="ShowTrayIcon">Whether the tray icon is shown.</param>
-/// <param name="DatabaseText">"Last updated 2026-10-29 · 1 entry".</param>
+/// <param name="DatabaseText">"Last updated 2026-10-29 · 1 entry · shipped" (or "downloaded", "built-in").</param>
 /// <param name="TestResult">The last connection test result, or <c>null</c>.</param>
 /// <param name="DatabaseResult">The last database check result, or <c>null</c>.</param>
 /// <param name="ApplyError">The last apply error, or <c>null</c>.</param>
@@ -367,7 +367,7 @@ public sealed class SettingsPresenter
             s.EnergyCurrency ?? string.Empty,
             s.StartWithWindows,
             !s.HideTrayIcon,
-            DatabaseText(db),
+            DatabaseText(db, _runtime.DatabaseOrigin),
             _testResult,
             _databaseResult,
             _applyError,
@@ -440,11 +440,21 @@ public sealed class SettingsPresenter
         }
     }
 
-    private string DatabaseText(PsuDatabase db)
+    /// <summary>The source word of <see cref="SettingsViewState.DatabaseText"/> ("downloaded", "shipped", "built-in").</summary>
+    /// <param name="origin">Where the database was loaded from.</param>
+    public static string DatabaseSourceText(DatabaseOrigin origin) => origin switch
+    {
+        DatabaseOrigin.Downloaded => "downloaded",
+        DatabaseOrigin.Shipped => "shipped",
+        _ => "built-in",
+    };
+
+    private string DatabaseText(PsuDatabase db, DatabaseOrigin origin)
     {
         var count = db.Psus.Count;
         var entries = count == 1 ? "1 entry" : count.ToString(_culture) + " entries";
-        return string.IsNullOrWhiteSpace(db.Updated) ? entries : $"Last updated {db.Updated} · {entries}";
+        var text = string.IsNullOrWhiteSpace(db.Updated) ? entries : $"Last updated {db.Updated} · {entries}";
+        return text + " · " + DatabaseSourceText(origin);
     }
 
     private void OnChanged() => Changed?.Invoke(this, EventArgs.Empty);

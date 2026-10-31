@@ -82,7 +82,7 @@ internal sealed class AppServices : IDisposable
         var store = SettingsStore.CreateDefault();
         var (settings, invalid) = LoadSettings(store, logger);
 
-        var databaseLoader = new PsuDatabaseLoader(PsuDatabaseLoader.DefaultLocalPath, loggerFactory.CreateLogger<PsuDatabaseLoader>());
+        var databaseLoader = new PsuDatabaseLoader(PsuDatabaseLoader.DefaultLocalPath, PsuDatabaseLoader.DefaultDownloadedPath, loggerFactory.CreateLogger<PsuDatabaseLoader>());
         var databaseUpdater = new DatabaseUpdater(databaseLoader, logger: loggerFactory.CreateLogger<DatabaseUpdater>());
         var backend = new WindowsRegistryBackend();
         var registry = new HwinfoSensorRegistry(backend);

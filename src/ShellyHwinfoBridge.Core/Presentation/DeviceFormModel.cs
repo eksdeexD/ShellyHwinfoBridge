@@ -154,8 +154,8 @@ public sealed class DeviceFormModel
         Mode == DeviceFormMode.Edit && !IsPrimary && !string.Equals(_originalLabel?.Trim(), _label.Trim(), StringComparison.Ordinal);
 
     /// <summary>
-    /// Gets the "Update the names in HWiNFO" help for the pending relabel (the device's AC and Online sensors, old label →
-    /// new label), opened by "Show me how" next to <see cref="RenameWarningText"/>. Empty while
+    /// Gets the "Update the names in HWiNFO" help for the pending relabel (the device's AC sensor, old label → new
+    /// label), opened by "Show me how" next to <see cref="RenameWarningText"/>. Empty while
     /// <see cref="ShowRenameWarning"/> is false.
     /// </summary>
     public HwinfoRenameHelp RenameHelp => ShowRenameWarning

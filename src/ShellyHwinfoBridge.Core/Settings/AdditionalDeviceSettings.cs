@@ -4,7 +4,7 @@ namespace ShellyHwinfoBridge.Core.Settings;
 
 /// <summary>
 /// An additional Shelly device ("Add a Shelly for your monitor or another device"): measured on the AC side only,
-/// published to HWiNFO as <c>&lt;Label&gt; Power (AC)</c> and <c>&lt;Label&gt; Online</c>, logged to
+/// published to HWiNFO as <c>&lt;Label&gt; Power (AC)</c>, logged to
 /// <c>energy\&lt;Id&gt;\YYYY-MM.csv</c>.
 /// </summary>
 public sealed class AdditionalDeviceSettings : ShellyDeviceSettings
@@ -92,7 +92,7 @@ public static class DeviceLabelRules
             return "Another device already has this label.";
         }
 
-        var own = new[] { SensorNaming.DefaultDeviceAcName(text), SensorNaming.DefaultDeviceOnlineName(text) };
+        var own = new[] { SensorNaming.DefaultDeviceAcName(text) };
         var fixedNames = SensorNaming.FixedDefaultNames;
         if (own.Any(n => fixedNames.Contains(n, StringComparer.OrdinalIgnoreCase)))
         {

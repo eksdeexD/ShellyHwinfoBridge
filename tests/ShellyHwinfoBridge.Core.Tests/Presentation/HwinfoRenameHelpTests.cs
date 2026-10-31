@@ -29,14 +29,14 @@ public class HwinfoRenameHelpTests
     }
 
     [Fact]
-    public void DeviceRelabelListsTheAcAndOnlineSensors()
+    public void DeviceRelabelListsOnlyTheAcSensor()
     {
         var help = HwinfoRenameHelp.ForDeviceRelabel(MonitorId, "Monitor", " Desk ");
 
         Assert.Equal(
-            [new SensorRename("Monitor Power (AC)", "Desk Power (AC)"), new SensorRename("Monitor Online", "Desk Online")],
+            [new SensorRename("Monitor Power (AC)", "Desk Power (AC)")],
             help.Renames);
-        Assert.Equal(["Monitor Power (AC) → Desk Power (AC)", "Monitor Online → Desk Online"], help.RenameLines);
+        Assert.Equal(["Monitor Power (AC) → Desk Power (AC)"], help.RenameLines);
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public class HwinfoRenameHelpTests
 
         var help = HwinfoRenameHelp.ForDeviceRelabel(MonitorId, "Monitor", "Desk", names);
 
-        Assert.Equal([new SensorRename("Monitor Online", "Desk Online")], help.Renames);
+        Assert.Empty(help.Renames);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class HwinfoRenameHelpTests
     [Fact]
     public void DeviceFormBuildsTheHelpForAPendingRelabel()
     {
-        AddMonitor(new Dictionary<string, string> { ["DeviceOnline:" + MonitorId] = "Screen Up" });
+        AddMonitor(new Dictionary<string, string> { ["PcDc"] = "DC Est" });
         var form = new ManageShellysModel(_runtime, Discover, EnUs).BeginEdit(MonitorId)!;
         Assert.Empty(form.RenameHelp.Renames);
 

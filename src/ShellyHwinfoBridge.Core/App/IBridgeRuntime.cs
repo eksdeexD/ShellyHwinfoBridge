@@ -90,6 +90,9 @@ public interface IBridgeRuntime
     /// <summary>Gets the PSU database in use.</summary>
     PsuDatabase Database { get; }
 
+    /// <summary>Gets where <see cref="Database"/> was loaded from (downloaded, shipped or embedded copy).</summary>
+    DatabaseOrigin DatabaseOrigin { get; }
+
     /// <summary>Gets the runtime state.</summary>
     RuntimeState State { get; }
 

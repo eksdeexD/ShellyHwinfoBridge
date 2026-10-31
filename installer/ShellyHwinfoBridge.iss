@@ -1,6 +1,7 @@
 ; Shelly HWiNFO Bridge installer (Inno Setup 6.3 or newer).
 ;
-; Build (from the repository root, after `dotnet publish ... -o publish`):
+; Build (from the repository root, after the self-contained `dotnet publish ... -o publish`; the exe carries the .NET
+; runtime, so the installer needs no runtime check):
 ;   ISCC.exe /DAppVersion=1.0.0 installer\ShellyHwinfoBridge.iss
 ; or use installer\Build-Installer.ps1, which the release and CI workflows call.
 ;
@@ -68,7 +69,8 @@ WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=ShellyHwinfoBridge-{#AppVersion}-setup
+; Same name as the release asset: ShellyHwinfoBridge-<tag>-setup.exe, <tag> = "v" + AppVersion (like the zip).
+OutputBaseFilename=ShellyHwinfoBridge-v{#AppVersion}-setup
 ; Only one setup at a time. The [Code] section asks the running app to exit first; the Restart Manager
 ; (CloseApplications) is the fallback for anything that still holds the files. Never restart the app from the
 ; elevated installer: it must run as the user (HKCU sensors, per-user settings).

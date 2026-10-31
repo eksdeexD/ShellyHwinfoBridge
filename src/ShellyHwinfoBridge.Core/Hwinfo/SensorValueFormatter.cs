@@ -28,8 +28,4 @@ public static class SensorValueFormatter
 
         return value.ToString("0.00", CultureInfo.InvariantCulture);
     }
-
-    /// <summary>Formats a boolean flag as <c>1</c> or <c>0</c>.</summary>
-    /// <param name="value">The flag.</param>
-    public static string FormatFlag(bool value) => value ? "1" : "0";
 }

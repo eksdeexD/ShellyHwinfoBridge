@@ -27,9 +27,6 @@ public static class SensorNaming
     /// <summary>Default name of <see cref="SensorKind.Total"/>.</summary>
     public const string TotalName = "Total Power (AC)";
 
-    /// <summary>Default name of <see cref="SensorKind.PcOnline"/>.</summary>
-    public const string PcOnlineName = "Shelly Online";
-
     /// <summary>Default name of <see cref="SensorKind.EnergyToday"/>.</summary>
     public const string EnergyTodayName = "Energy Today";
 
@@ -41,15 +38,11 @@ public static class SensorNaming
 
     /// <summary>Gets the default names of the sensors that do not depend on a device label.</summary>
     public static IReadOnlyList<string> FixedDefaultNames { get; } =
-        [PcAcName, PcDcName, PcLossName, PcOtherName, TotalName, PcOnlineName, EnergyTodayName, EnergyMonthName];
+        [PcAcName, PcDcName, PcLossName, PcOtherName, TotalName, EnergyTodayName, EnergyMonthName];
 
     /// <summary>Returns the default AC sensor name of an additional device ("Monitor Power (AC)").</summary>
     /// <param name="label">The device label.</param>
     public static string DefaultDeviceAcName(string label) => (label ?? string.Empty).Trim() + " Power (AC)";
-
-    /// <summary>Returns the default online sensor name of an additional device ("Monitor Online").</summary>
-    /// <param name="label">The device label.</param>
-    public static string DefaultDeviceOnlineName(string label) => (label ?? string.Empty).Trim() + " Online";
 
     /// <summary>
     /// Returns whether a name can be used for a sensor (or be referenced by name in a HWiNFO formula): not blank, at most
@@ -72,11 +65,9 @@ public static class SensorNaming
             SensorKind.PcLoss => PcLossName,
             SensorKind.PcOther => PcOtherName,
             SensorKind.Total => TotalName,
-            SensorKind.PcOnline => PcOnlineName,
             SensorKind.EnergyToday => EnergyTodayName,
             SensorKind.EnergyMonth => EnergyMonthName,
-            SensorKind.DeviceAc => DefaultDeviceAcName(settings.GetDeviceLabel(key.DeviceId) ?? key.DeviceId ?? string.Empty),
-            _ => DefaultDeviceOnlineName(settings.GetDeviceLabel(key.DeviceId) ?? key.DeviceId ?? string.Empty),
+            _ => DefaultDeviceAcName(settings.GetDeviceLabel(key.DeviceId) ?? key.DeviceId ?? string.Empty),
         };
     }
 
@@ -100,19 +91,15 @@ public static class SensorNaming
 public sealed record SensorSlot(SensorKey Key, string Subkey, string Name, string Unit)
 {
     /// <summary>Gets the value written when the key is created (and while there is no reading).</summary>
-    public string DefaultValue => Key.ValueKind switch
-    {
-        SensorValueKind.Flag => SensorValueFormatter.FormatFlag(false),
-        SensorValueKind.Kwh => SensorValueFormatter.FormatKwh(0),
-        _ => SensorValueFormatter.FormatWatts(0),
-    };
+    public string DefaultValue => Key.ValueKind == SensorValueKind.Kwh ? SensorValueFormatter.FormatKwh(0) : SensorValueFormatter.FormatWatts(0);
 }
 
 /// <summary>
 /// The set of published sensors and their subkeys. Order (SPEC "HWiNFO sensors with additional devices"):
 /// Power0 PC AC, Power1 PC DC, Power2 PC loss, Power3 PC Other, Power4… one AC sensor per additional device in list
 /// order, then Total Power (AC) only when at least one additional device exists; Other0 Energy Today, Other1 Energy
-/// This Month, Other2 Shelly Online, Other3… one online sensor per additional device. Subkeys are reassigned when the
+/// This Month (no other Other slots: the former "Shelly Online" / "&lt;Label&gt; Online" sensors were removed on
+/// 2026-10-31, and a previous version's Other2… subkeys are deleted as stale). Power subkeys are reassigned when the
 /// device list changes.
 /// </summary>
 public sealed class SensorLayout : IEquatable<SensorLayout>
@@ -145,7 +132,7 @@ public sealed class SensorLayout : IEquatable<SensorLayout>
     {
         ArgumentNullException.ThrowIfNull(settings);
         var power = new List<SensorKey> { SensorKey.PcAc, SensorKey.PcDc, SensorKey.PcLoss, SensorKey.PcOther };
-        var other = new List<SensorKey> { SensorKey.EnergyToday, SensorKey.EnergyMonth, SensorKey.PcOnline };
+        var other = new List<SensorKey> { SensorKey.EnergyToday, SensorKey.EnergyMonth };
         var devices = settings.AdditionalDevices ?? [];
         foreach (var device in devices)
         {
@@ -155,11 +142,6 @@ public sealed class SensorLayout : IEquatable<SensorLayout>
         if (devices.Count > 0)
         {
             power.Add(SensorKey.Total);
-        }
-
-        foreach (var device in devices)
-        {
-            other.Add(SensorKey.DeviceOnline(device.Id));
         }
 
         var slots = new List<SensorSlot>(power.Count + other.Count);

@@ -217,12 +217,13 @@ public class DevicePresenterTests
         AddMonitor();
         var model = new SensorNamesModel(_runtime);
 
-        Assert.Equal(10, model.Rows.Count);
+        Assert.Equal(8, model.Rows.Count);
         Assert.Equal("PC Power (AC)", model.Rows[0].DefaultName);
         Assert.Equal("Power0", model.Rows[0].Subkey);
         Assert.Contains(model.Rows, r => r.DefaultName == "Monitor Power (AC)");
         Assert.Contains(model.Rows, r => r.DefaultName == "Total Power (AC)");
-        Assert.Contains(model.Rows, r => r.DefaultName == "Monitor Online");
+        Assert.DoesNotContain(model.Rows, r => r.DefaultName.EndsWith(" Online", StringComparison.Ordinal));
+        Assert.Equal(["Other0", "Other1"], model.Rows.Where(r => r.Subkey.StartsWith("Other", StringComparison.Ordinal)).Select(r => r.Subkey));
         Assert.False(model.HasChanges);
         Assert.False(model.ShowRenameWarning);
 

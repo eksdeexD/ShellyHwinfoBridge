@@ -89,6 +89,15 @@ if ($parsed.Count -eq 3) {
     $installerText = $parsed['installer'].Text
     if ($installerText -notmatch '(?m)^- Architecture: x64$') { $problems.Add('Installers[0].Architecture must be x64.') }
     if ($installerText -notmatch '(?m)^  InstallerUrl: https://\S+-setup\.exe$') { $problems.Add('InstallerUrl must be an https URL of the setup.exe.') }
+    # The release asset is ShellyHwinfoBridge-<tag>-setup.exe with <tag> = "v" + PackageVersion (like the zip).
+    $assetName = "ShellyHwinfoBridge-v$($v['PackageVersion'])-setup.exe"
+    if ($installerText -notmatch ('(?m)^  InstallerUrl: https://\S+/' + [regex]::Escape($assetName) + '$')) {
+        $problems.Add("InstallerUrl must point at the release asset $assetName.")
+    }
+    # The app is published self-contained: no .NET runtime dependency.
+    if ($installerText -match '(?m)^Dependencies:' -or $installerText.Contains('Microsoft.DotNet.')) {
+        $problems.Add('The installer manifest must not declare a .NET runtime dependency (the app is self-contained).')
+    }
     if ($installerText -notmatch '(?m)^  InstallerSha256: [0-9A-F]{64}$') { $problems.Add('InstallerSha256 must be 64 upper-case hex digits.') }
 
     foreach ($key in 'Publisher', 'PackageName', 'License', 'ShortDescription', 'PublisherSupportUrl', 'PackageUrl') {

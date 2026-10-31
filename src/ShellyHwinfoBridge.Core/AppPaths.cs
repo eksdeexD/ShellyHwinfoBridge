@@ -27,4 +27,10 @@ public static class AppPaths
 
     /// <summary>Gets <c>%APPDATA%\ShellyHwinfoBridge\energy</c> (hourly CSV files and the counter state).</summary>
     public static string EnergyDirectory => Path.Combine(DataDirectory, "energy");
+
+    /// <summary>
+    /// Gets <c>%APPDATA%\ShellyHwinfoBridge\psu-database.json</c>: the database downloaded by "Check for database update"
+    /// (the shipped copy next to the exe is read-only under Program Files).
+    /// </summary>
+    public static string DownloadedDatabaseFile => Path.Combine(DataDirectory, "psu-database.json");
 }

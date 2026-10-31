@@ -7,7 +7,7 @@ namespace ShellyHwinfoBridge.Core.Database;
 /// <summary>The outcome of a database update check.</summary>
 public enum DatabaseUpdateStatus
 {
-    /// <summary>A newer, valid database was downloaded and replaced the local file.</summary>
+    /// <summary>A newer, valid database was downloaded and written to the downloaded copy (<see cref="PsuDatabaseLoader.WritePath"/>).</summary>
     Updated,
 
     /// <summary>The downloaded database is not newer than the current one (by its <c>updated</c> date); nothing changed.</summary>
@@ -33,8 +33,9 @@ public sealed record DatabaseUpdateResult(
 
 /// <summary>
 /// Implements "Check for database update": downloads <c>psu-database.json</c> from a URL, validates it and, only if it
-/// is valid and newer than the current database, replaces the local file through
-/// <see cref="PsuDatabaseLoader.TryReplace"/>. Runs only on demand; there are no background updates.
+/// is valid and newer than the current database, writes it to
+/// <c>%APPDATA%\ShellyHwinfoBridge\psu-database.json</c> through <see cref="PsuDatabaseLoader.TryReplace"/>. Runs only
+/// on demand; there are no background updates.
 /// </summary>
 public sealed class DatabaseUpdater : IDisposable
 {
@@ -46,7 +47,7 @@ public sealed class DatabaseUpdater : IDisposable
     private readonly ILogger _logger;
 
     /// <summary>Creates an updater.</summary>
-    /// <param name="loader">The loader that owns the local database file.</param>
+    /// <param name="loader">The loader that owns the database files.</param>
     /// <param name="handler">Optional HTTP handler (tests inject canned responses); a default handler otherwise.</param>
     /// <param name="logger">Optional logger.</param>
     public DatabaseUpdater(PsuDatabaseLoader loader, HttpMessageHandler? handler = null, ILogger? logger = null)

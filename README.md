@@ -117,7 +117,6 @@ Development hardware: Shelly Plug M Gen3.
 ## Requirements
 
 - Windows 10 or 11, x64
-- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (the app is framework-dependent)
 - HWiNFO64
 - A Gen2 or Gen3 Shelly device with a `Switch` component (e.g. Plug S Gen3, Plug M Gen3, Plus Plug S) or a
   `PM1` component (e.g. PM Mini). Gen1 devices are not supported.

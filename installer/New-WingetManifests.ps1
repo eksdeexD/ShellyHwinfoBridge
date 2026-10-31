@@ -6,6 +6,7 @@
     Output: <OutputRoot>\manifests\z\Zapador\ShellyHwinfoBridge\<Version>\, the layout of microsoft/winget-pkgs.
     The ProductCode is read from the AppId in installer\ShellyHwinfoBridge.iss ("{GUID}_is1", the uninstall key
     Inno Setup registers), so the script and the manifests cannot drift apart.
+    The app is published self-contained, so the installer manifest declares no .NET runtime dependency.
     Works in Windows PowerShell 5.1 and PowerShell 7. Prints the manifest folder as the last line of output.
 
 .PARAMETER Version
@@ -13,7 +14,8 @@
     (betas are not published to winget; the switch exists for dry runs).
 
 .PARAMETER InstallerUrl
-    Public download URL of the setup.exe (the GitHub release asset).
+    Public download URL of the setup.exe (the GitHub release asset). Its file name must be
+    ShellyHwinfoBridge-v<Version>-setup.exe (the asset name: "v" + Version = the git tag, like the zip).
 
 .PARAMETER InstallerPath
     Local path of the same setup.exe, used to compute InstallerSha256.
@@ -56,6 +58,10 @@ if ($Version.Contains('-') -and -not $AllowPrerelease) {
     throw "Version $Version is a pre-release; betas are not published to winget."
 }
 if (-not (Test-Path $InstallerPath)) { throw "Installer not found: $InstallerPath" }
+$setupName = "ShellyHwinfoBridge-v$Version-setup.exe"
+if (-not $InstallerUrl.EndsWith("/$setupName", [System.StringComparison]::Ordinal)) {
+    throw "InstallerUrl must end with /$setupName (the release asset name): $InstallerUrl"
+}
 
 $iss = Get-Content -Raw -Path (Join-Path $PSScriptRoot 'ShellyHwinfoBridge.iss')
 $match = [regex]::Match($iss, '(?m)^AppId=\{\{([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})\}\s*$')
@@ -98,9 +104,6 @@ $installerManifest = (Header 'installer') + @(
     'ElevationRequirement: elevatesSelf',
     "ProductCode: $(Quote $productCode)",
     "ReleaseDate: $releaseDate",
-    'Dependencies:',
-    '  PackageDependencies:',
-    '  - PackageIdentifier: Microsoft.DotNet.DesktopRuntime.8',
     'Installers:',
     '- Architecture: x64',
     "  InstallerUrl: $InstallerUrl",

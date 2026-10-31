@@ -22,7 +22,7 @@ namespace ShellyHwinfoBridge.Core.App;
 /// <para>Every device is polled on the shared interval by its own poller (own request pipeline and offline counter);
 /// device i of n starts i × interval / n after the first, so requests do not fire at the same instant. One device's
 /// failure never affects the others. The PC's readings drive the PSU curve, Other Components, the status and the tray.</para>
-/// <para>After every poll of any device (success or failure) every power and online value of the
+/// <para>After every poll of any device (success or failure) every power value of the
 /// <see cref="SensorLayout"/> is written to HWiNFO; the energy logger writes the energy totals after each reading.</para>
 /// <para>Settings changes rebuild only what changed. A replaced Shelly client is disposed immediately; an in-flight
 /// request on it fails and counts as one poll failure (never enough to go offline).</para>
@@ -52,6 +52,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
     private AppSettings? _settings;
     private string? _password;
     private PsuDatabase _database;
+    private DatabaseOrigin _databaseOrigin;
     private PowerReadingEventArgs? _last;
     private OtherComponentsState _otherState = OtherComponentsState.Unknown;
     private bool _started;
@@ -94,7 +95,9 @@ public sealed class BridgeRuntime : IBridgeRuntime
         _time = timeProvider ?? TimeProvider.System;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<BridgeRuntime>();
-        _database = _databaseLoader.Load().Database;
+        var loaded = _databaseLoader.Load();
+        _database = loaded.Database;
+        _databaseOrigin = loaded.Origin;
         if (settings is not null)
         {
             settings.Normalize();
@@ -161,6 +164,18 @@ public sealed class BridgeRuntime : IBridgeRuntime
             lock (_gate)
             {
                 return _database;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public DatabaseOrigin DatabaseOrigin
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _databaseOrigin;
             }
         }
     }
@@ -501,6 +516,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
             lock (_gate)
             {
                 _database = updated;
+                _databaseOrigin = _databaseLoader.WriteOrigin;
                 Reconcile(rebuildCalculator: true);
             }
 
@@ -963,7 +979,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
         return total;
     }
 
-    /// <summary>Writes every power and online value of the layout. Caller holds the lock.</summary>
+    /// <summary>Writes every power value of the layout. Caller holds the lock.</summary>
     private void WriteAllLocked()
     {
         var values = new Dictionary<SensorKey, double>
@@ -972,14 +988,12 @@ public sealed class BridgeRuntime : IBridgeRuntime
             [SensorKey.PcDc] = _last?.Power.DcWatts ?? 0,
             [SensorKey.PcLoss] = _last?.Power.LossWatts ?? 0,
             [SensorKey.PcOther] = _last is null ? 0 : _other.Value,
-            [SensorKey.PcOnline] = Primary?.Poller.State == OnlineState.Online && _last is not null ? 1 : 0,
         };
         foreach (var device in _settings?.AdditionalDevices ?? [])
         {
             var entry = _pollers.GetValueOrDefault(device.Id);
             var online = entry is not null && entry.Poller.State == OnlineState.Online && entry.LastAc is not null;
             values[SensorKey.DeviceAc(device.Id)] = online ? entry!.LastAc!.Value : 0;
-            values[SensorKey.DeviceOnline(device.Id)] = online ? 1 : 0;
         }
 
         if (_settings?.HasAdditionalDevices == true)

@@ -134,7 +134,8 @@ public sealed class SettingsV2Tests : IDisposable
     [InlineData("My \"big\" screen", "The label can't contain a double quote.")]
     [InlineData("monitor", "Another device already has this label.")]
     [InlineData("Total", "This label would give a HWiNFO sensor the same name as another one. Choose another label.")]
-    [InlineData("Shelly", "This label would give a HWiNFO sensor the same name as another one. Choose another label.")]
+    [InlineData("Energy Today", null)]
+    [InlineData("Shelly", null)]
     public void LabelRules(string label, string? error)
     {
         var others = label.Trim() == "monitor" ? new[] { "Monitor" } : Array.Empty<string>();

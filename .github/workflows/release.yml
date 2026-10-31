@@ -9,9 +9,12 @@ permissions:
 
 # Release assets (in release/):
 #   ShellyHwinfoBridge-<tag>-win-x64.zip      portable exe + psu-database.json
-#   ShellyHwinfoBridge-<version>-setup.exe    Inno Setup installer (<version> = tag without the leading "v")
+#   ShellyHwinfoBridge-<tag>-setup.exe        Inno Setup installer (same <tag> as the zip, e.g. v1.0.0)
 #   winget-manifests.zip                      winget manifests (non-pre-release tags only)
 #   SHA256SUMS.txt                            SHA-256 of the files above (sha256sum format)
+#
+# The exe is published self-contained (it carries the .NET 8 runtime): no runtime check in the installer, no
+# runtime dependency in the winget manifests.
 #
 # Code signing (SignPath Foundation) is scaffolded but disabled. To enable it once the project is approved, add:
 #   variable SIGNPATH_ENABLED              = true
@@ -53,8 +56,9 @@ jobs:
       - name: Publish
         run: >
           dotnet publish src/ShellyHwinfoBridge/ShellyHwinfoBridge.csproj
-          -c Release -r win-x64 --self-contained false
-          -p:PublishSingleFile=true -p:DebugType=None -p:GenerateDocumentationFile=false
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -p:DebugType=None -p:GenerateDocumentationFile=false
           -o publish
 
       # --- Signing of the exe (disabled until SIGNPATH_ENABLED is 'true') ---
@@ -104,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-setup
-          path: installer-out/ShellyHwinfoBridge-${{ steps.version.outputs.version }}-setup.exe
+          path: installer-out/ShellyHwinfoBridge-${{ github.ref_name }}-setup.exe
           if-no-files-found: error
 
       - name: Sign installer (SignPath)
@@ -126,7 +130,7 @@ jobs:
 
       - name: Stage installer
         shell: pwsh
-        run: Copy-Item "installer-out/ShellyHwinfoBridge-${{ steps.version.outputs.version }}-setup.exe" release/
+        run: Copy-Item "installer-out/ShellyHwinfoBridge-${{ github.ref_name }}-setup.exe" release/
 
       # --- winget manifests (stable tags only; betas are not published to winget) ---
       - name: Generate winget manifests
@@ -134,7 +138,7 @@ jobs:
         shell: pwsh
         run: |
           $version = '${{ steps.version.outputs.version }}'
-          $setupName = "ShellyHwinfoBridge-$version-setup.exe"
+          $setupName = "ShellyHwinfoBridge-$env:TAG-setup.exe"
           $releaseUrl = "${{ github.server_url }}/${{ github.repository }}/releases"
           ./installer/New-WingetManifests.ps1 -Version $version `
             -InstallerUrl "$releaseUrl/download/$env:TAG/$setupName" `

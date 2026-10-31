@@ -99,6 +99,8 @@ internal sealed class FakeRuntime : IBridgeRuntime
 
     public PsuDatabase Database { get; set; } = BriefExample.Database();
 
+    public DatabaseOrigin DatabaseOrigin { get; set; } = DatabaseOrigin.Shipped;
+
     public RuntimeState State { get; set; } = RuntimeState.Running;
 
     public OnlineState OnlineState { get; set; } = OnlineState.Online;

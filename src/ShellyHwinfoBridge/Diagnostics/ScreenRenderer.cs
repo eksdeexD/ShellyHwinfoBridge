@@ -259,7 +259,6 @@ internal static class ScreenRenderer
             new SensorRename("PC Other Components", "Rest of PC"),
             new SensorRename("Monitor Power (AC)", "Screen Power"),
             new SensorRename("Total Power (AC)", "Desk Total"),
-            new SensorRename("Monitor Online", "Screen Online"),
         ]))),
         ("m4-settings-2-devices", () => Settings(out _, SampleData.TwoDeviceSettings())),
         ("about-window", () => new AboutWindow()),
@@ -343,6 +342,14 @@ internal static class ScreenRenderer
         ("m4-sensor-names-dialog", () => SensorNames()),
         ("m4-wizard-2-add-device-card", () => WizardAddDevice(formOpen: false)),
         ("m4-wizard-2-device-form", () => WizardAddDevice(formOpen: true)),
+
+        // Pass 4 (2026-11-01): the database source line (a downloaded update in use).
+        ("pass4-settings-bottom-downloaded", () =>
+        {
+            var form = Settings(out _, origin: DatabaseOrigin.Downloaded);
+            form.Tag = new Action(() => form.SettingsPage?.PreviewScrollToEnd());
+            return form;
+        }),
     ];
 
     private static MainForm Settings() => Settings(out _);
@@ -368,13 +375,13 @@ internal static class ScreenRenderer
     }
 
     /// <summary>The main window on its settings page, over the sample settings (price 0.32 DKK, autostart on, a stored password).</summary>
-    private static MainForm Settings(out SettingsPresenter presenter, AppSettings? sample = null, PsuDatabase? database = null)
+    private static MainForm Settings(out SettingsPresenter presenter, AppSettings? sample = null, PsuDatabase? database = null, DatabaseOrigin origin = DatabaseOrigin.Shipped)
     {
         var settings = sample ?? SampleData.Settings();
         settings.EnergyPricePerKwh = 0.32m;
         settings.EnergyCurrency = "DKK";
         settings.StartWithWindows = true;
-        var runtime = new PreviewRuntime(settings, hasPassword: true, database);
+        var runtime = new PreviewRuntime(settings, hasPassword: true, database) { DatabaseOrigin = origin };
         presenter = new SettingsPresenter(runtime, SampleData.Culture);
         var form = MainWindow(SampleData.MainView(settings: settings, database: database), EnergyPeriod.Hours, settings.HasAdditionalDevices ? SampleData.TwoDeviceChart(EnergyPeriod.Hours, settings) : null);
         form.OpenSettings(new SettingsPage(presenter, runtime, () => WizardPreview.Sensors(withBridge: false), WizardPreview.Discover, () => GadgetModel()));

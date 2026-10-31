@@ -80,8 +80,8 @@ public sealed class HwinfoRenameHelp
     public IReadOnlyList<string> RenameLines => Renames.Select(r => r.OldName + " → " + r.NewName).ToList();
 
     /// <summary>
-    /// Builds the help for relabelling an additional device: its AC and Online sensors change from the old label's
-    /// default names to the new label's. A sensor with a valid custom name keeps it and is not listed.
+    /// Builds the help for relabelling an additional device: its AC sensor changes from the old label's default
+    /// name to the new label's. A sensor with a valid custom name keeps it and is not listed.
     /// </summary>
     /// <param name="deviceId">The device id.</param>
     /// <param name="oldLabel">The label before the change.</param>
@@ -94,11 +94,6 @@ public sealed class HwinfoRenameHelp
         if (!HasCustomName(customNames, SensorKey.DeviceAc(deviceId)))
         {
             renames.Add(new SensorRename(SensorNaming.DefaultDeviceAcName(oldLabel), SensorNaming.DefaultDeviceAcName(newLabel)));
-        }
-
-        if (!HasCustomName(customNames, SensorKey.DeviceOnline(deviceId)))
-        {
-            renames.Add(new SensorRename(SensorNaming.DefaultDeviceOnlineName(oldLabel), SensorNaming.DefaultDeviceOnlineName(newLabel)));
         }
 
         return new HwinfoRenameHelp(renames);
