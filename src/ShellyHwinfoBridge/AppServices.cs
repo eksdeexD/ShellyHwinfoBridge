@@ -92,7 +92,7 @@ internal sealed class AppServices : IDisposable
         var discovery = new ShellyDiscovery(logger: loggerFactory.CreateLogger<ShellyDiscovery>());
         var energy = new EnergyLogger(new EnergyCsvStore(AppPaths.EnergyDirectory), registry, TimeProvider.System, TimeZoneInfo.Local, loggerFactory.CreateLogger<EnergyLogger>());
         var runtime = new BridgeRuntime(settings, store, databaseLoader, databaseUpdater, registry, autostart, energy, loggerFactory: loggerFactory);
-        var monitor = new HwinfoMonitor(locator, sharedMemory, TimeProvider.System, loggerFactory.CreateLogger<HwinfoMonitor>(), new HwinfoGadgetRegistryReader(backend));
+        var monitor = new HwinfoMonitor(locator, sharedMemory, TimeProvider.System, loggerFactory.CreateLogger<HwinfoMonitor>(), new HwinfoGadgetRegistryReader(backend, WindowsRegistryBackend.LocalMachine()));
         return new AppServices(loggerFactory, store, databaseLoader, databaseUpdater, registry, autostart, locator, sharedMemory, discovery, energy, runtime, monitor, invalid);
     }
 

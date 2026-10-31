@@ -108,6 +108,34 @@ public class HwinfoGadgetRegistryReaderTests
         Assert.False(HwinfoGadgetRegistryReader.TryParseValue(raw, value, out _));
 
     [Fact]
+    public void FallsBackToTheSecondRegistryWhenTheFirstHasNoExport()
+    {
+        var machine = new InMemoryRegistryBackend();
+        machine.SetString(Key, "Sensor0", "Shelly Power");
+        machine.SetString(Key, "Label0", "Other Components");
+        machine.SetString(Key, "ValueRaw0", "21.5");
+
+        Assert.Equal(21.5, new HwinfoGadgetRegistryReader(_registry, machine).TryReadOtherComponents()!.Value, 6);
+
+        Export(9, "Shelly Power", "Other Components", "48.1 W", "48.1");
+        Assert.Equal(48.1, new HwinfoGadgetRegistryReader(_registry, machine).TryReadOtherComponents()!.Value, 6);
+    }
+
+    [Fact]
+    public void MatchesByLabelWhenIndexesMove()
+    {
+        Export(0, "Shelly Power", "Other Components", "48.1 W", "48.1");
+        var reader = new HwinfoGadgetRegistryReader(_registry);
+        Assert.Equal(48.1, reader.TryReadOtherComponents()!.Value, 6);
+
+        // The user exports another value first: HWiNFO renumbers.
+        _registry.DeleteTree(Key);
+        Export(0, "GPU [#0]", "GPU Power", "88.6 W", "88.6");
+        Export(1, "Shelly Power", "Other Components", "50.2 W", "50.2");
+        Assert.Equal(50.2, reader.TryReadOtherComponents()!.Value, 6);
+    }
+
+    [Fact]
     public void ParsingDoesNotDependOnTheCurrentCulture()
     {
         using var _ = new CultureScope("da-DK");

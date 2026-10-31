@@ -13,8 +13,10 @@ public sealed record GadgetReading(int Index, string? Sensor, string Label, doub
 /// <summary>
 /// Reads values HWiNFO writes to the registry for its gadget: when "Report value in Gadget" is ticked for a reading,
 /// HWiNFO keeps <c>Sensor&lt;N&gt;</c>, <c>Label&lt;N&gt;</c>, <c>Value&lt;N&gt;</c> (with unit) and <c>ValueRaw&lt;N&gt;</c>
-/// string values under <c>HKCU\Software\HWiNFO64\VSB</c>, N starting at 0 and possibly sparse. Unlike shared memory this
-/// export is not limited to 12-hour sessions in the free version (to be confirmed on a real installation).
+/// string values under <c>HKCU\Software\HWiNFO64\VSB</c> (on some installations <c>HKLM\Software\HWiNFO64\VSB</c>),
+/// N starting at 0 and possibly sparse, rewritten every HWiNFO poll. Indexes change when the user adds or removes
+/// exported values, so readings are always matched by label (and sensor), never by a stored index. Unlike shared memory
+/// this export is not limited to 12-hour sessions in the free version (to be confirmed on a real installation).
 /// </summary>
 public sealed partial class HwinfoGadgetRegistryReader
 {
@@ -25,27 +27,36 @@ public sealed partial class HwinfoGadgetRegistryReader
     public const int MaxIndex = 512;
 
     private readonly IRegistryBackend _backend;
+    private readonly IRegistryBackend? _fallback;
     private readonly string _keyPath;
 
     /// <summary>Creates a reader.</summary>
-    /// <param name="backend">The registry.</param>
+    /// <param name="backend">The registry (HKEY_CURRENT_USER).</param>
+    /// <param name="fallback">A registry read when <paramref name="backend"/> has no export (HKEY_LOCAL_MACHINE), or <c>null</c>.</param>
     /// <param name="keyPath">The export key; defaults to <see cref="DefaultKeyPath"/>.</param>
-    public HwinfoGadgetRegistryReader(IRegistryBackend backend, string keyPath = DefaultKeyPath)
+    public HwinfoGadgetRegistryReader(IRegistryBackend backend, IRegistryBackend? fallback = null, string keyPath = DefaultKeyPath)
     {
         _backend = backend ?? throw new ArgumentNullException(nameof(backend));
+        _fallback = fallback;
         _keyPath = keyPath ?? throw new ArgumentNullException(nameof(keyPath));
     }
 
     /// <summary>
-    /// Reads every exported value with a label and a parsable number, by index. Returns an empty list when the key is
-    /// missing or cannot be read.
+    /// Reads every exported value with a label and a parsable number, by index: from the primary registry, or from the
+    /// fallback when the primary has none. Returns an empty list when neither key exists or can be read.
     /// </summary>
     public IReadOnlyList<GadgetReading> ReadAll()
+    {
+        var readings = ReadFrom(_backend);
+        return readings.Count == 0 && _fallback is not null ? ReadFrom(_fallback) : readings;
+    }
+
+    private IReadOnlyList<GadgetReading> ReadFrom(IRegistryBackend registry)
     {
         IReadOnlyDictionary<string, string> values;
         try
         {
-            values = _backend.GetStringValues(_keyPath);
+            values = registry.GetStringValues(_keyPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {

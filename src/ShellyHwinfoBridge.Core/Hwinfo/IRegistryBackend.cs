@@ -2,7 +2,7 @@ namespace ShellyHwinfoBridge.Core.Hwinfo;
 
 /// <summary>
 /// Minimal string-value registry access, so registry logic can be tested without the Windows registry.
-/// Paths are relative to HKEY_CURRENT_USER.
+/// Paths are relative to the backend's root key (HKEY_CURRENT_USER for the app's own keys).
 /// </summary>
 public interface IRegistryBackend
 {
