@@ -45,6 +45,9 @@ internal enum FontRole
 
     /// <summary>Title of a list row or option card ("Prime Fanless TX-700", "From database").</summary>
     ItemTitle,
+
+    /// <summary>The smallest text (the app version in the main window's corner).</summary>
+    Tiny,
 }
 
 /// <summary>
@@ -140,6 +143,7 @@ internal static class ThemeFonts
         FontRole.Caption => (RegularFamily, 9.5f, FontStyle.Regular),
         FontRole.Mono => (MonoFamily, 10f, FontStyle.Regular),
         FontRole.ItemTitle => (DisplayFamily, 13f, FontStyle.Bold),
+        FontRole.Tiny => (RegularFamily, 8f, FontStyle.Regular),
         _ => (RegularFamily, 11f, FontStyle.Regular),
     };
 

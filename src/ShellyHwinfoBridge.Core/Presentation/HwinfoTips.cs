@@ -15,7 +15,7 @@ public static class HwinfoTips
     /// memory is off. Shown in the "How to enable?" dialog, wizard step 6 and Settings › Sensors.
     /// </summary>
     public const string GadgetExport =
-        "To compute Other Components without Shared Memory, HWiNFO must report your selected component sensors: in HWiNFO's sensor **Settings**, open the **HWiNFO Gadget** tab and tick **Enable reporting to Gadget**. Then select each of your selected sensors in the list and tick **Report value in Gadget** below the list so its Sidebar column shows Yes. Click **OK**.";
+        "To compute Other Components without Shared Memory, HWiNFO must report your selected component sensors: in HWiNFO's sensor **Settings**, open the **HWiNFO Gadget** tab and tick **Enable reporting to Gadget**. Then select each of your selected sensors in the list and tick **Report value in Gadget** below the list so its Sidebar column shows Yes. Click **OK**. The screenshot shows this for one sensor; repeat the step for each of your selected sensors.";
 
     /// <summary>Builds the gadget how-to with the user's selected sensor names inserted.</summary>
     /// <param name="sensorNames">The selected component sensor names (blank and duplicate names are skipped).</param>
@@ -31,6 +31,6 @@ public static class HwinfoTips
         var list = string.Join(", ", names.Select(n => "**" + n + "**"));
         return "To compute Other Components without Shared Memory, HWiNFO must report your selected component sensors: in HWiNFO's sensor **Settings**, open the **HWiNFO Gadget** tab and tick **Enable reporting to Gadget**. Then select each of these sensors in the list: "
             + list
-            + ", and tick **Report value in Gadget** below the list so its Sidebar column shows Yes. Click **OK**.";
+            + ", and tick **Report value in Gadget** below the list so its Sidebar column shows Yes. Click **OK**. The screenshot shows this for one sensor; repeat the step for every sensor listed above.";
     }
 }

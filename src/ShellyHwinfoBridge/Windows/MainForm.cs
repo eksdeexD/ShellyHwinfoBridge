@@ -467,6 +467,12 @@ internal sealed class MainForm : ThemedForm
         var logoWidth = AppAssets.DrawLogo(g, new Point(this.Px(34), top), logoHeight);
         var titleLeft = this.Px(34) + logoWidth + this.Px(18);
         Gfx.Text(g, "ShellyHwinfoBridge", Fonts.AppTitle, new Rectangle(titleLeft, this.Px(HeaderTop), Math.Max(0, _pill.Left - titleLeft - this.Px(16)), this.Px(HeaderHeight)), Theme.Ink);
+
+        // The app version, very small, in the bottom margin under the button column (clear of the cards and buttons).
+        var tiny = Fonts.Get(FontRole.Tiny);
+        var versionHeight = Gfx.Measure("Ag", tiny).Height;
+        var version = new Rectangle(0, ClientSize.Height - this.Px(BottomMargin / 2) - (versionHeight / 2), ClientSize.Width - this.Px(Pad), versionHeight);
+        Gfx.Text(g, SettingsPage.VersionText, tiny, version, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.Right);
     }
 
     private void CloseSettings(bool raise)
