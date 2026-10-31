@@ -31,6 +31,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private readonly AppServices _services;
     private readonly ActivationLatch _activation;
+    private readonly ActivationLatch _exitRequest;
     private readonly ILogger _logger;
     private readonly UiDispatcher _dispatcher;
     private readonly NotifyIcon _notifyIcon;
@@ -50,10 +51,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private volatile bool _dirty = true;
     private bool _exiting;
 
-    public TrayApplicationContext(AppServices services, ActivationLatch activation, StartupArguments startup, ILogger logger, IReadOnlyList<string> startupNotices)
+    public TrayApplicationContext(AppServices services, ActivationLatch activation, ActivationLatch exitRequest, StartupArguments startup, ILogger logger, IReadOnlyList<string> startupNotices)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _activation = activation ?? throw new ArgumentNullException(nameof(activation));
+        _exitRequest = exitRequest ?? throw new ArgumentNullException(nameof(exitRequest));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         ArgumentNullException.ThrowIfNull(startup);
         _dispatcher = new UiDispatcher();
@@ -137,6 +139,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         // A second launch (also one that arrived while starting up) opens the main window.
         _activation.Attach(() => _dispatcher.Post(ShowMainWindow));
+
+        // "--exit", "--remove-sensors" and the installer ask for the same clean exit as the Exit menu item.
+        _exitRequest.Attach(() => _dispatcher.Post(() => _ = ExitAsync()));
     }
 
     /// <summary>Gets the services (for the wizard and the settings page).</summary>
@@ -379,6 +384,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _logger.LogInformation("Exiting.");
         _timer.Stop();
         _activation.Detach();
+        _exitRequest.Detach();
         _wizardForm?.Close();
         _aboutWindow?.Close();
         _mainForm?.Hide();
@@ -485,6 +491,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _logger.LogInformation("Session ending ({Reason}); stopping.", e.Reason);
         _timer.Stop();
         _activation.Detach();
+        _exitRequest.Detach();
         Unsubscribe();
         _dispatcher.BeginShutdown();
         try

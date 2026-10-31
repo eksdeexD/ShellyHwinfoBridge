@@ -41,7 +41,7 @@ public sealed class AutostartManager
 
     /// <summary>
     /// Gets whether the Run entry exists but points to another executable (e.g. the exe was moved);
-    /// calling <see cref="Enable"/> repairs it.
+    /// calling <see cref="Enable"/> or <see cref="EnsureCurrent"/> repairs it.
     /// </summary>
     public bool IsStale
     {
@@ -51,6 +51,27 @@ public sealed class AutostartManager
             return !string.IsNullOrWhiteSpace(current) &&
                    !string.Equals(ExtractExecutable(current), ExecutablePath, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>Gets whether the Run entry is exactly <see cref="CommandLine"/> (this exe, with the autostart switch).</summary>
+    public bool IsCurrent =>
+        string.Equals(_registry.GetString(RunKeyPath, ValueName)?.Trim(), CommandLine, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Writes the current executable path to the Run entry unless it is already <see cref="CommandLine"/>.
+    /// Called on every start while "Start with Windows" is on, so the entry follows the exe when it moves
+    /// (for example from a portable folder into Program Files by the installer) or when the entry went missing.
+    /// </summary>
+    /// <returns><c>true</c> if the entry was written.</returns>
+    public bool EnsureCurrent()
+    {
+        if (IsCurrent)
+        {
+            return false;
+        }
+
+        Enable();
+        return true;
     }
 
     /// <summary>Writes (or rewrites) the Run entry.</summary>

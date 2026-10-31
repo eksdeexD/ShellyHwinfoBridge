@@ -9,6 +9,12 @@ public static class AppPaths
     /// <summary>Name of the per-session mutex that enforces a single instance.</summary>
     public const string SingleInstanceMutexName = @"Local\ShellyHwinfoBridge.SingleInstance";
 
+    /// <summary>
+    /// Name of the per-session event that asks the running instance to exit cleanly. The installer
+    /// (<c>installer/ShellyHwinfoBridge.iss</c>) sets it by this exact name; keep both in sync.
+    /// </summary>
+    public const string ExitEventName = @"Local\ShellyHwinfoBridge.Exit";
+
     /// <summary>Gets <c>%APPDATA%\ShellyHwinfoBridge</c>.</summary>
     public static string DataDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppName);

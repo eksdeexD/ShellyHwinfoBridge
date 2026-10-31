@@ -7,15 +7,45 @@ on:
 permissions:
   contents: write
 
+# Release assets (in release/):
+#   ShellyHwinfoBridge-<tag>-win-x64.zip      portable exe + psu-database.json
+#   ShellyHwinfoBridge-<version>-setup.exe    Inno Setup installer (<version> = tag without the leading "v")
+#   winget-manifests.zip                      winget manifests (non-pre-release tags only)
+#   SHA256SUMS.txt                            SHA-256 of the files above (sha256sum format)
+#
+# Code signing (SignPath Foundation) is scaffolded but disabled. To enable it once the project is approved, add:
+#   variable SIGNPATH_ENABLED              = true
+#   secret   SIGNPATH_API_TOKEN            API token of the SignPath CI user (submitter on the project)
+#   variable SIGNPATH_ORGANIZATION_ID      SignPath organization id (GUID)
+#   variable SIGNPATH_PROJECT_SLUG         SignPath project slug
+#   variable SIGNPATH_SIGNING_POLICY_SLUG  signing policy slug (e.g. release-signing)
+# The project's default artifact configuration must accept a single .exe as the artifact root. The exe is signed
+# before the zip and the installer are built; the setup.exe is signed after it is compiled.
+
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 8.0.x
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $version = $env:TAG -replace '^v', ''
+          [xml]$props = Get-Content -Raw Directory.Build.props
+          $declared = @($props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ })[0]
+          if ($declared -ne $version) {
+            Write-Error "Tag $env:TAG does not match <Version>$declared</Version> in Directory.Build.props."
+            exit 1
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Test
         run: dotnet test -c Release
@@ -27,16 +57,113 @@ jobs:
           -p:PublishSingleFile=true -p:DebugType=None -p:GenerateDocumentationFile=false
           -o publish
 
-      - name: Package
+      # --- Signing of the exe (disabled until SIGNPATH_ENABLED is 'true') ---
+      - name: Upload unsigned exe for signing
+        id: upload-unsigned-exe
+        if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-exe
+          path: publish/ShellyHwinfoBridge.exe
+          if-no-files-found: error
+
+      - name: Sign exe (SignPath)
+        if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-exe.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-exe
+
+      - name: Use signed exe
+        if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+        shell: pwsh
+        run: Copy-Item signed-exe/ShellyHwinfoBridge.exe publish/ShellyHwinfoBridge.exe -Force
+
+      - name: Package zip
         shell: pwsh
         run: |
-          $zip = "ShellyHwinfoBridge-${{ github.ref_name }}-win-x64.zip"
+          New-Item -ItemType Directory -Force release | Out-Null
+          $zip = "release/ShellyHwinfoBridge-$env:TAG-win-x64.zip"
           Compress-Archive -Path publish/ShellyHwinfoBridge.exe, publish/psu-database.json -DestinationPath $zip
-          "ZIP_NAME=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $setup = ./installer/Build-Installer.ps1 -Version '${{ steps.version.outputs.version }}' -PublishDir publish -OutputDir installer-out -InstallInnoSetup
+          Write-Host "Built $setup"
+
+      # --- Signing of the setup.exe (disabled until SIGNPATH_ENABLED is 'true') ---
+      - name: Upload unsigned installer for signing
+        id: upload-unsigned-setup
+        if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-setup
+          path: installer-out/ShellyHwinfoBridge-${{ steps.version.outputs.version }}-setup.exe
+          if-no-files-found: error
+
+      - name: Sign installer (SignPath)
+        if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-setup.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-setup
+
+      - name: Use signed installer
+        if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+        shell: pwsh
+        run: Copy-Item signed-setup/*.exe installer-out/ -Force
+
+      - name: Stage installer
+        shell: pwsh
+        run: Copy-Item "installer-out/ShellyHwinfoBridge-${{ steps.version.outputs.version }}-setup.exe" release/
+
+      # --- winget manifests (stable tags only; betas are not published to winget) ---
+      - name: Generate winget manifests
+        if: ${{ !contains(github.ref_name, '-') }}
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $setupName = "ShellyHwinfoBridge-$version-setup.exe"
+          $releaseUrl = "${{ github.server_url }}/${{ github.repository }}/releases"
+          ./installer/New-WingetManifests.ps1 -Version $version `
+            -InstallerUrl "$releaseUrl/download/$env:TAG/$setupName" `
+            -InstallerPath "release/$setupName" `
+            -ReleaseNotesUrl "$releaseUrl/tag/$env:TAG" `
+            -OutputRoot winget
+
+      - name: Validate winget manifests
+        if: ${{ !contains(github.ref_name, '-') }}
+        shell: pwsh
+        run: |
+          try { Install-Module powershell-yaml -Scope CurrentUser -Force -ErrorAction Stop; Import-Module powershell-yaml }
+          catch { Write-Warning "powershell-yaml unavailable; structural check only. $_" }
+          ./installer/Test-WingetManifests.ps1 -ManifestDir 'winget/manifests/z/Zapador/ShellyHwinfoBridge/${{ steps.version.outputs.version }}'
+          Compress-Archive -Path winget/manifests -DestinationPath release/winget-manifests.zip
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem release -File | Sort-Object Name | ForEach-Object {
+            '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          }
+          $lines | Set-Content -Path release/SHA256SUMS.txt -Encoding ascii
+          $lines
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ZIP_NAME }}
+          files: release/*
+          fail_on_unmatched_files: true
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}

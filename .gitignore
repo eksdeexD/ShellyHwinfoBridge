@@ -5,6 +5,8 @@
 [Ll]ogs/
 artifacts/
 publish/
+installer-out/
+winget/
 *.tmp
 
 # Test results

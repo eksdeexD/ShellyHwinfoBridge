@@ -2,6 +2,7 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using ShellyHwinfoBridge.Core;
+using ShellyHwinfoBridge.Core.Hwinfo;
 using ShellyHwinfoBridge.Core.Logging;
 using ShellyHwinfoBridge.Core.Startup;
 using ShellyHwinfoBridge.Theming;
@@ -23,11 +24,21 @@ internal static class Program
             return diagnosticsExit;
         }
 
+        // --exit and --remove-sensors are one-shot commands: they never start the tray app or create the mutex.
+        var startup = StartupArguments.Parse(args);
+        if (startup.Command != StartupCommand.None)
+        {
+            return RunCommand(startup.Command);
+        }
+
         using var instance = new SingleInstanceCoordinator();
 
-        // Latch a second launch at once, so one that arrives while we start up is not lost.
+        // Latch a second launch (and an exit request from --exit or the installer) at once, so one that arrives
+        // while we start up is not lost.
         var activation = new ActivationLatch();
         instance.ActivationRequested += (_, _) => activation.Signal();
+        var exitRequest = new ActivationLatch();
+        instance.ExitRequested += (_, _) => exitRequest.Signal();
 
         using var loggerFactory = LoggerFactory.Create(builder => builder
             .SetMinimumLevel(LogLevel.Information)
@@ -50,7 +61,6 @@ internal static class Program
         Application.ThreadException += OnThreadException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
-        var startup = StartupArguments.Parse(args);
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         logger.LogInformation("ShellyHwinfoBridge {Version} starting (autostart: {Autostart}, minimized: {Minimized}).", version, startup.Autostart, startup.Minimized);
 
@@ -79,7 +89,7 @@ internal static class Program
         }
 
         // The context subscribes to the runtime before polling starts, so the first reading is not missed.
-        using var context = new TrayApplicationContext(services, activation, startup, logger, notices);
+        using var context = new TrayApplicationContext(services, activation, exitRequest, startup, logger, notices);
         services.Runtime.Start();
         services.Monitor.Start();
         RepairAutostart(services, logger);
@@ -89,14 +99,23 @@ internal static class Program
         return 0;
     }
 
+    /// <summary>Runs a maintenance command for the current user (see <see cref="MaintenanceCommandRunner"/>).</summary>
+    private static int RunCommand(StartupCommand command)
+    {
+        var sensors = new HwinfoSensorRegistry(new WindowsRegistryBackend());
+        var runner = new MaintenanceCommandRunner(timeout => SingleInstanceCoordinator.RequestExit(timeout), sensors);
+        return runner.Run(command);
+    }
+
     private static void RepairAutostart(AppServices services, ILogger logger)
     {
         try
         {
-            if (services.Runtime.Settings is { StartWithWindows: true } && services.Autostart.IsStale)
+            // SPEC "Installer": write the current exe path on every start while autostart is on, so the entry follows
+            // the exe (e.g. from a portable folder into Program Files) and is restored if it went missing.
+            if (services.Runtime.Settings is { StartWithWindows: true } && services.Autostart.EnsureCurrent())
             {
-                services.Autostart.Enable();
-                logger.LogInformation("Repaired the Windows startup entry (the executable moved).");
+                logger.LogInformation("Updated the Windows startup entry to {Path}.", services.Autostart.ExecutablePath);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)

@@ -27,3 +27,36 @@ jobs:
 
       - name: Test
         run: dotnet test -c Release --no-build --verbosity normal
+
+  # Compiles the installer with a dummy version on pushes to main, so a broken .iss or packaging script is caught
+  # before a release tag. Nothing is published.
+  installer:
+    if: github.event_name == 'push'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish
+        run: >
+          dotnet publish src/ShellyHwinfoBridge/ShellyHwinfoBridge.csproj
+          -c Release -r win-x64 --self-contained false
+          -p:PublishSingleFile=true -p:DebugType=None -p:GenerateDocumentationFile=false
+          -o publish
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $setup = ./installer/Build-Installer.ps1 -Version 0.0.0-ci -PublishDir publish -OutputDir installer-out -InstallInnoSetup
+          Write-Host "Built $setup"
+
+      - name: Check winget manifest generation
+        shell: pwsh
+        run: |
+          $dir = ./installer/New-WingetManifests.ps1 -Version 0.0.0-ci -AllowPrerelease `
+            -InstallerUrl 'https://example.invalid/ShellyHwinfoBridge-0.0.0-ci-setup.exe' `
+            -InstallerPath installer-out/ShellyHwinfoBridge-0.0.0-ci-setup.exe -OutputRoot winget-check
+          ./installer/Test-WingetManifests.ps1 -ManifestDir $dir
