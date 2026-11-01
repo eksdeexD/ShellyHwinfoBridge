@@ -96,7 +96,8 @@ public sealed class BridgeRuntimeTests : IDisposable
                 return client;
             },
             _time,
-            components: _components);
+            components: _components,
+            diagnosticsDirectory: Path.Combine(_dir, "diagnostics"));
         _runtimes.Add(runtime);
         return runtime;
     }
@@ -573,6 +574,43 @@ public sealed class BridgeRuntimeTests : IDisposable
         Assert.Equal("0.0", Value("Power3"));
         Assert.Equal(OtherSource.None, runtime.Other.Source);
         Assert.False(runtime.Other.HasValue);
+    }
+
+    [Fact]
+    public async Task DiagnosticTraceRecordsOneRowPerPrimaryPoll()
+    {
+        _registry.EnsureKeys();
+        var runtime = Create(ExampleSettings());
+        var changes = 0;
+        runtime.StateChanged += (_, _) => Interlocked.Increment(ref changes);
+        Assert.False(runtime.IsDiagnosticTraceRunning);
+
+        Assert.True(runtime.StartDiagnosticTrace());
+        Assert.True(runtime.IsDiagnosticTraceRunning);
+        var path = runtime.DiagnosticTraceFile!;
+        Assert.Equal(Path.Combine(_dir, "diagnostics"), Path.GetDirectoryName(path));
+        Assert.True(Volatile.Read(ref changes) >= 1);
+
+        var first = await NextReading(runtime, runtime.Start);
+        _components.Values["GPU Power"] = 900;
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        runtime.StopDiagnosticTrace();
+
+        Assert.False(runtime.IsDiagnosticTraceRunning);
+        Assert.Null(runtime.DiagnosticTraceFile);
+        var lines = File.ReadAllLines(path);
+        Assert.Equal(3, lines.Length);
+        Assert.Contains(",CPU Package Power,GPU Power,component_sum_w,", lines[0], StringComparison.Ordinal);
+        var accepted = lines[1].Split(',');
+        Assert.Equal("SharedMemory", accepted[5]);
+        Assert.Equal(["100.00", "150.00", "250.00"], accepted[8..11]);
+        Assert.Equal((first.Power.DcWatts - 250).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), accepted[11]);
+        Assert.Equal(accepted[11], accepted[12]);
+        Assert.Equal("true", accepted[13]);
+        var discarded = lines[2].Split(',');
+        Assert.Equal("false", discarded[13]);
+        Assert.StartsWith("-", discarded[11], StringComparison.Ordinal);
+        Assert.Equal(accepted[12], discarded[12]);
     }
 
     [Fact]

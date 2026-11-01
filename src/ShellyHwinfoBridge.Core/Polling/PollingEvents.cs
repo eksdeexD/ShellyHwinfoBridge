@@ -24,12 +24,17 @@ public sealed class PowerReadingEventArgs : EventArgs
     /// <param name="raw">The raw Shelly reading.</param>
     /// <param name="power">The converted values (an additional device has DC and loss 0).</param>
     /// <param name="deviceId">The device id (<see cref="AppSettings.PrimaryDeviceId"/> for the PC's plug).</param>
-    public PowerReadingEventArgs(ShellyReading raw, PowerReading power, string deviceId = AppSettings.PrimaryDeviceId)
+    /// <param name="requestDuration">How long the Shelly HTTP request took, when measured.</param>
+    public PowerReadingEventArgs(ShellyReading raw, PowerReading power, string deviceId = AppSettings.PrimaryDeviceId, TimeSpan? requestDuration = null)
     {
         Raw = raw;
         Power = power;
         DeviceId = deviceId ?? AppSettings.PrimaryDeviceId;
+        RequestDuration = requestDuration;
     }
+
+    /// <summary>Gets how long the Shelly HTTP request took, or <c>null</c> when not measured.</summary>
+    public TimeSpan? RequestDuration { get; }
 
     /// <summary>Gets the raw Shelly reading (power, voltage, current).</summary>
     public ShellyReading Raw { get; }

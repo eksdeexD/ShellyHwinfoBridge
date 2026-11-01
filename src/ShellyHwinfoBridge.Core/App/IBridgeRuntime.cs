@@ -65,7 +65,10 @@ public interface IBridgeRuntime
     /// <summary>Raised after settings (or the PSU database) changed. Do not mutate <see cref="Settings"/>; clone it.</summary>
     event EventHandler? SettingsChanged;
 
-    /// <summary>Raised when <see cref="State"/>, <see cref="OnlineState"/> or a device's online state changes.</summary>
+    /// <summary>
+    /// Raised when <see cref="State"/>, <see cref="OnlineState"/>, a device's online state or the diagnostic trace
+    /// (<see cref="IsDiagnosticTraceRunning"/>) changes.
+    /// </summary>
     event EventHandler? StateChanged;
 
     /// <summary>Raised after each successful poll of any device (<see cref="PowerReadingEventArgs.DeviceId"/>).</summary>
@@ -113,6 +116,22 @@ public interface IBridgeRuntime
 
     /// <summary>Gets the app-computed Other Components value and where its component readings came from.</summary>
     OtherComponentsState Other { get; }
+
+    /// <summary>Gets whether the diagnostic trace (see <see cref="DiagnosticTrace"/>) is recording.</summary>
+    bool IsDiagnosticTraceRunning { get; }
+
+    /// <summary>Gets the full path of the diagnostic trace file being recorded, or <c>null</c> while idle.</summary>
+    string? DiagnosticTraceFile { get; }
+
+    /// <summary>
+    /// Starts the diagnostic trace (one CSV row per primary-device poll) with the selected sensors as columns; a no-op
+    /// while it runs. Not persisted: the trace never survives a restart. Raises <see cref="StateChanged"/>.
+    /// </summary>
+    /// <returns>Whether the trace is running afterwards (<c>false</c> when the file could not be created).</returns>
+    bool StartDiagnosticTrace();
+
+    /// <summary>Stops the diagnostic trace and closes its file; a no-op while idle. Raises <see cref="StateChanged"/>.</summary>
+    void StopDiagnosticTrace();
 
     /// <summary>Returns a device's decrypted password (primary or additional), or <c>null</c>. Never log or display it.</summary>
     /// <param name="deviceId">The device id.</param>

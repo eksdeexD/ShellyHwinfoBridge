@@ -48,6 +48,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
     private readonly Dictionary<string, DevicePoller> _pollers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string?> _devicePasswords = new(StringComparer.OrdinalIgnoreCase);
     private readonly OtherComponentsCalculator _other = new();
+    private readonly DiagnosticTrace _trace;
 
     private AppSettings? _settings;
     private string? _password;
@@ -71,6 +72,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
     /// <param name="timeProvider">The clock; defaults to the system clock.</param>
     /// <param name="loggerFactory">Optional logger factory.</param>
     /// <param name="components">Reads the selected component sensors (e.g. <see cref="HwinfoMonitor"/>); <c>null</c> = no source, Other stays 0.</param>
+    /// <param name="diagnosticsDirectory">The folder of the diagnostic trace files; defaults to <see cref="AppPaths.DiagnosticsDirectory"/>.</param>
     public BridgeRuntime(
         AppSettings? settings,
         SettingsStore store,
@@ -82,7 +84,8 @@ public sealed class BridgeRuntime : IBridgeRuntime
         Func<string, string?, IShellyClient>? clientFactory = null,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        IComponentSensorSource? components = null)
+        IComponentSensorSource? components = null,
+        string? diagnosticsDirectory = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _databaseLoader = databaseLoader ?? throw new ArgumentNullException(nameof(databaseLoader));
@@ -95,6 +98,8 @@ public sealed class BridgeRuntime : IBridgeRuntime
         _time = timeProvider ?? TimeProvider.System;
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<BridgeRuntime>();
+        _trace = new DiagnosticTrace(diagnosticsDirectory ?? AppPaths.DiagnosticsDirectory, _time, _loggerFactory.CreateLogger<DiagnosticTrace>());
+        _trace.StateChanged += (_, _) => RaiseStateChanged();
         var loaded = _databaseLoader.Load();
         _database = loaded.Database;
         _databaseOrigin = loaded.Origin;
@@ -260,6 +265,27 @@ public sealed class BridgeRuntime : IBridgeRuntime
         }
     }
 
+    /// <inheritdoc />
+    public bool IsDiagnosticTraceRunning => _trace.IsRunning;
+
+    /// <inheritdoc />
+    public string? DiagnosticTraceFile => _trace.CurrentFile;
+
+    /// <inheritdoc />
+    public bool StartDiagnosticTrace()
+    {
+        IReadOnlyList<SensorSelection> sensors;
+        lock (_gate)
+        {
+            sensors = [.. _settings?.Sensors ?? []];
+        }
+
+        return _trace.Start(sensors);
+    }
+
+    /// <inheritdoc />
+    public void StopDiagnosticTrace() => _trace.Stop();
+
     private DevicePoller? Primary => _pollers.TryGetValue(AppSettings.PrimaryDeviceId, out var p) ? p : null;
 
     /// <summary>Gets whether settings describe a device (a host is set).</summary>
@@ -328,6 +354,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
         }
 
         _energy.Flush();
+        _trace.Stop();
         RaiseStateChanged();
     }
 
@@ -1032,6 +1059,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
             }
         }
 
+        DiagnosticTraceRow? traceRow = null;
         lock (_gate)
         {
             if (!IsCurrent(sender, out var entry))
@@ -1045,9 +1073,16 @@ public sealed class BridgeRuntime : IBridgeRuntime
                 _last = e;
                 var other = _other.Update(e.Power.DcWatts, components!);
                 _otherState = new OtherComponentsState(other, components!.Source, components.HwinfoRunning, components.MissingGadgetSensors, _other.HasValue);
+                traceRow = new DiagnosticTraceRow(e, components, _other.LastTick, _other.Value);
             }
 
             WriteAllLocked();
+        }
+
+        // The diagnostic trace (a no-op while idle; never throws).
+        if (traceRow is not null)
+        {
+            _trace.Append(traceRow);
         }
 
         // Never let a subscriber break the polling loop.

@@ -29,6 +29,12 @@ public static class AppPaths
     public static string EnergyDirectory => Path.Combine(DataDirectory, "energy");
 
     /// <summary>
+    /// Gets <c>%APPDATA%\ShellyHwinfoBridge\energy\diagnostics</c>: the diagnostic trace files (inside the folder that
+    /// "Open data folder" opens, so the user finds them).
+    /// </summary>
+    public static string DiagnosticsDirectory => Path.Combine(EnergyDirectory, "diagnostics");
+
+    /// <summary>
     /// Gets <c>%APPDATA%\ShellyHwinfoBridge\psu-database.json</c>: the database downloaded by "Check for database update"
     /// (the shipped copy next to the exe is read-only under Program Files).
     /// </summary>

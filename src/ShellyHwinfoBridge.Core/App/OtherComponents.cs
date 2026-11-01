@@ -26,6 +26,12 @@ public enum OtherSource
 /// </param>
 public sealed record ComponentReadings(OtherSource Source, IReadOnlyList<double?> Values, bool HwinfoRunning, IReadOnlyList<string> MissingGadgetSensors)
 {
+    /// <summary>
+    /// Gets HWiNFO's last poll time from the shared-memory snapshot the values were read from (whole seconds), or
+    /// <c>null</c> when unknown (the gadget export has no timestamp). Used by the <see cref="DiagnosticTrace"/>.
+    /// </summary>
+    public DateTimeOffset? HwinfoPollTime { get; init; }
+
     /// <summary>HWiNFO is not running.</summary>
     public static ComponentReadings NotRunning { get; } = new(OtherSource.None, [], false, []);
 
@@ -53,6 +59,32 @@ public sealed record OtherComponentsState(double Watts, OtherSource Source, bool
     public static OtherComponentsState Unknown { get; } = new(0, OtherSource.None, false, [], false);
 }
 
+/// <summary>How one <see cref="OtherComponentsCalculator.Update"/> tick went (for the <see cref="DiagnosticTrace"/>).</summary>
+public enum OtherTickOutcome
+{
+    /// <summary>No component source: nothing computed, the value is reset to 0.</summary>
+    NoSource,
+
+    /// <summary>The result was valid and is now the published value.</summary>
+    Accepted,
+
+    /// <summary>The result was discarded (missing component, negative or non-finite): the previous value is held.</summary>
+    Discarded,
+}
+
+/// <summary>The details of the last <see cref="OtherComponentsCalculator.Update"/> tick, before any discarding.</summary>
+/// <param name="Outcome">Whether the result was published, discarded or there was no source.</param>
+/// <param name="ComponentSum">This tick's (unsmoothed) component sum, or <c>null</c> when a component was missing.</param>
+/// <param name="Raw">
+/// DC − the (smoothed, when smoothing is on) component sum before any clamp; <c>null</c> when a component was missing,
+/// DC was not finite or there was no source.
+/// </param>
+public sealed record OtherComponentsTick(OtherTickOutcome Outcome, double? ComponentSum, double? Raw)
+{
+    /// <summary>No tick yet, or no source.</summary>
+    public static OtherComponentsTick NoSource { get; } = new(OtherTickOutcome.NoSource, null, null);
+}
+
 /// <summary>
 /// Computes Other Components = DC − sum(selected component readings). A negative or non-finite result, or a missing
 /// component reading, is discarded and the previous value is held; the first value is 0 until a valid reading
@@ -75,6 +107,9 @@ public sealed class OtherComponentsCalculator
 
     /// <summary>Gets whether a valid value exists.</summary>
     public bool HasValue => _hasValue;
+
+    /// <summary>Gets the details of the last <see cref="Update"/> tick (the unclamped result; never changes the published value).</summary>
+    public OtherComponentsTick LastTick { get; private set; } = OtherComponentsTick.NoSource;
 
     /// <summary>Gets the smoothing window.</summary>
     public int SmoothingSamples => _smoother.Samples;
@@ -108,6 +143,7 @@ public sealed class OtherComponentsCalculator
         {
             if (value is not double v || !double.IsFinite(v))
             {
+                LastTick = new OtherComponentsTick(OtherTickOutcome.Discarded, null, null);
                 return _value;
             }
 
@@ -116,15 +152,18 @@ public sealed class OtherComponentsCalculator
 
         if (!double.IsFinite(dcWatts))
         {
+            LastTick = new OtherComponentsTick(OtherTickOutcome.Discarded, sum, null);
             return _value;
         }
 
         var other = dcWatts - _smoother.Add(sum);
         if (!double.IsFinite(other) || other < 0)
         {
+            LastTick = new OtherComponentsTick(OtherTickOutcome.Discarded, sum, other);
             return _value;
         }
 
+        LastTick = new OtherComponentsTick(OtherTickOutcome.Accepted, sum, other);
         _value = other;
         _hasValue = true;
         return _value;
@@ -136,5 +175,6 @@ public sealed class OtherComponentsCalculator
         _value = 0;
         _hasValue = false;
         _smoother.Reset();
+        LastTick = OtherComponentsTick.NoSource;
     }
 }

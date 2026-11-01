@@ -19,7 +19,8 @@ namespace ShellyHwinfoBridge.Windows;
 /// and Power supply ("Change", input voltage); Sensors across the page (the calculation, a one-line gadget explainer with
 /// "How to enable?", "Customize HWiNFO sensor names" and "Edit sensors" in its lower-right corner); Polling and Energy;
 /// PSU database ("Check for update" in its lower-right corner) and Startup and tray; Maintenance (Open log folder,
-/// Re-run setup wizard; "Remove HWiNFO sensors" right-aligned, with a confirmation). Every change goes through
+/// Re-run setup wizard, Start/Stop diagnostic trace with "Recording to …" under it; "Remove HWiNFO sensors"
+/// right-aligned, with a confirmation). Every change goes through
 /// <see cref="SettingsPresenter"/> and is applied at once; sliders apply when released, text fields on Enter or when
 /// focus leaves. "Change", "Edit sensors" and the sensor names open a modal <see cref="StepDialog"/> owned by the main
 /// window; "How to enable?" the <see cref="GadgetHelpDialog"/>; "Manage Shellys" asks the main window to open
@@ -117,6 +118,8 @@ internal sealed class SettingsPage : ScrollPanel
     private readonly CardPanel _maintenanceCard = new() { Title = "Maintenance" };
     private readonly TextLink _openLog = new() { Text = "Open log folder", Semibold = true };
     private readonly TextLink _rerun = new() { Text = "Re-run setup wizard", Semibold = true };
+    private readonly TextLink _trace = new() { Text = SettingsPresenter.StartTraceText, Semibold = true };
+    private readonly TextLabel _traceCaption = new() { Role = FontRole.Small, Tone = UiTone.Secondary, Visible = false };
     private readonly TextLink _remove = new() { Text = "Remove HWiNFO sensors", Semibold = true };
 
     private readonly Func<GadgetStepModel> _createGadgetModel;
@@ -153,7 +156,7 @@ internal sealed class SettingsPage : ScrollPanel
         AddCard(_energyCard, _logEnergy, _openEnergy, _priceLabel, _price, _currencyLabel, _currency, _priceError);
         AddCard(_databaseCard, _checkUpdate, _databaseText, _databaseResult);
         AddCard(_startupCard, _startWithWindows, _showTrayIcon);
-        AddCard(_maintenanceCard, _openLog, _rerun, _remove);
+        AddCard(_maintenanceCard, _openLog, _rerun, _trace, _traceCaption, _remove);
         _applyError.TabIndex = Controls.Count;
         Controls.Add(_applyError);
         ResumeLayout(false);
@@ -278,7 +281,7 @@ internal sealed class SettingsPage : ScrollPanel
         _databaseCard.Bounds = At(left, y, column, row4);
         _startupCard.Bounds = At(right, y, column, row4);
         y += row4 + Gap;
-        var maintenance = t + Line + BottomPad;
+        var maintenance = t + Line + (_traceCaption.Visible ? TextLine : 0) + BottomPad;
         _maintenanceCard.Bounds = At(left, y, full, maintenance);
         y += maintenance;
         var contentHeight = y + BottomMargin;
@@ -363,6 +366,7 @@ internal sealed class SettingsPage : ScrollPanel
         _checkUpdate.Click += async (_, _) => await _presenter.CheckDatabaseUpdateAsync();
 
         _openLog.Click += (_, _) => OpenFolder(AppPaths.LogDirectory);
+        _trace.Click += (_, _) => _presenter.ToggleDiagnosticTrace();
         _remove.Click += (_, _) => RemoveSensors();
         _howToEnable.Click += (_, _) => ShowModal(() =>
         {
@@ -468,6 +472,11 @@ internal sealed class SettingsPage : ScrollPanel
             _databaseText.Text = s.DatabaseText;
             ShowResult(_databaseResult, s.DatabaseResult);
             _checkUpdate.Enabled = !s.IsBusy;
+
+            // Maintenance: the diagnostic trace's text action and its caption.
+            _trace.Text = s.DiagnosticTraceText;
+            _traceCaption.Visible = s.DiagnosticTraceCaption is not null;
+            _traceCaption.Text = s.DiagnosticTraceCaption ?? string.Empty;
 
             _applyError.Visible = s.ApplyError is not null;
             _applyError.Text = s.ApplyError is null ? string.Empty : "Could not apply the change: " + s.ApplyError;
@@ -607,10 +616,15 @@ internal sealed class SettingsPage : ScrollPanel
         _startWithWindows.Bounds = R(P, t, Math.Min(inner, PrefWidth(_startWithWindows)), Line);
         _showTrayIcon.Bounds = R(P, t + Line + 6, Math.Min(inner, PrefWidth(_showTrayIcon)), Line);
 
-        // Maintenance: Open log folder and Re-run setup wizard on the left; Remove HWiNFO sensors right-aligned.
+        // Maintenance: Open log folder, Re-run setup wizard and the diagnostic trace on the left (its caption on the
+        // line under it while recording); Remove HWiNFO sensors right-aligned.
         const float commandGap = 20;
         Command(_openLog, P, t, Line);
-        Command(_rerun, P + PrefWidth(_openLog) + commandGap, t, Line);
+        var rerunLeft = P + PrefWidth(_openLog) + commandGap;
+        Command(_rerun, rerunLeft, t, Line);
+        var traceLeft = rerunLeft + PrefWidth(_rerun) + commandGap;
+        Command(_trace, traceLeft, t, Line);
+        _traceCaption.Bounds = R(traceLeft, t + Line, Math.Max(0, full - P - traceLeft), TextLine);
         Command(_remove, -1, t, Line, full);
     }
 

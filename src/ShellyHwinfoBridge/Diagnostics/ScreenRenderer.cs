@@ -174,6 +174,13 @@ internal static class ScreenRenderer
             form.Tag = new Action(() => form.SettingsPage?.PreviewScrollToEnd());
             return form;
         }),
+        ("main-settings-trace-bottom", () =>
+        {
+            var form = Settings(out var presenter);
+            presenter.ToggleDiagnosticTrace();
+            form.Tag = new Action(() => form.SettingsPage?.PreviewScrollToEnd());
+            return form;
+        }),
         ("main-settings-bottom", () =>
         {
             var form = Settings();

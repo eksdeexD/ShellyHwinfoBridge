@@ -48,6 +48,12 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// <param name="GadgetTip">The gadget how-to with the selected sensor names (<see cref="HwinfoTips.GadgetExportFor"/>).</param>
 /// <param name="SmoothComponents">Whether the component sum uses the AC smoothing window.</param>
 /// <param name="DevicesText">The Manage Shellys summary ("PC · 192.168.1.42", "PC + 1 more device").</param>
+/// <param name="DiagnosticTraceRunning">Whether the diagnostic trace is recording.</param>
+/// <param name="DiagnosticTraceText">The Maintenance text action: "Start diagnostic trace" or "Stop diagnostic trace".</param>
+/// <param name="DiagnosticTraceCaption">
+/// The caption after it: "Recording to trace-YYYYMMDD-HHmmss.csv" while recording, the start error after a failed
+/// start, otherwise <c>null</c>.
+/// </param>
 public sealed record SettingsViewState(
     string Host,
     string? HostError,
@@ -76,7 +82,10 @@ public sealed record SettingsViewState(
     string? RetiredFormulaNote = null,
     string GadgetTip = "",
     bool SmoothComponents = false,
-    string DevicesText = "");
+    string DevicesText = "",
+    bool DiagnosticTraceRunning = false,
+    string DiagnosticTraceText = SettingsPresenter.StartTraceText,
+    string? DiagnosticTraceCaption = null);
 
 /// <summary>
 /// Drives the settings page: every setter clones the current settings, changes one thing and applies it through
@@ -98,6 +107,15 @@ public sealed class SettingsPresenter
     /// <summary>The note shown when a retired custom formula is still stored.</summary>
     public const string RetiredFormulaText = "A custom formula from an earlier version is stored but no longer applied: Other Components is now computed by the app from the selected sensors.";
 
+    /// <summary>The Maintenance text action while the diagnostic trace is idle.</summary>
+    public const string StartTraceText = "Start diagnostic trace";
+
+    /// <summary>The Maintenance text action while the diagnostic trace is recording.</summary>
+    public const string StopTraceText = "Stop diagnostic trace";
+
+    /// <summary>The caption after a failed start of the diagnostic trace.</summary>
+    public const string TraceStartFailedText = "Could not create the trace file. See the log.";
+
     private readonly IBridgeRuntime _runtime;
     private readonly CultureInfo _culture;
     private string? _hostText;
@@ -108,6 +126,7 @@ public sealed class SettingsPresenter
     private ResultLine? _databaseResult;
     private string? _applyError;
     private bool _busy;
+    private bool _traceFailed;
 
     /// <summary>Creates a presenter.</summary>
     /// <param name="runtime">The runtime.</param>
@@ -282,6 +301,31 @@ public sealed class SettingsPresenter
         }
     }
 
+    /// <summary>Starts the diagnostic trace while idle, stops it while recording.</summary>
+    public void ToggleDiagnosticTrace()
+    {
+        if (_runtime.IsDiagnosticTraceRunning)
+        {
+            _runtime.StopDiagnosticTrace();
+            _traceFailed = false;
+        }
+        else
+        {
+            _traceFailed = !_runtime.StartDiagnosticTrace();
+        }
+
+        OnChanged();
+    }
+
+    /// <summary>Returns the diagnostic trace text action for the trace state.</summary>
+    /// <param name="running">Whether the trace is recording.</param>
+    public static string TraceLinkText(bool running) => running ? StopTraceText : StartTraceText;
+
+    /// <summary>Returns the caption while recording: "Recording to trace-YYYYMMDD-HHmmss.csv" (file name only).</summary>
+    /// <param name="path">The trace file's path, or <c>null</c>.</param>
+    public static string TraceCaption(string? path) =>
+        "Recording to " + (string.IsNullOrEmpty(path) ? "a trace file" : Path.GetFileName(path));
+
     /// <summary>Removes the HWiNFO sensors (polling pauses).</summary>
     public void RemoveSensors()
     {
@@ -347,6 +391,7 @@ public sealed class SettingsPresenter
         var (psuTitle, psuSubtitle) = PsuText(s, db);
         var hasPassword = _runtime.HasPassword;
         var formula = BreakFormula(CalculationText(s));
+        var traceRunning = _runtime.IsDiagnosticTraceRunning;
 
         return new SettingsViewState(
             _hostText ?? s.Device.Host,
@@ -376,7 +421,10 @@ public sealed class SettingsPresenter
             string.IsNullOrWhiteSpace(s.CustomFormula) ? null : RetiredFormulaText,
             HwinfoTips.GadgetExportFor(s.Sensors.Select(x => x.Name)),
             s.SmoothComponents,
-            DevicesText(s));
+            DevicesText(s),
+            traceRunning,
+            TraceLinkText(traceRunning),
+            traceRunning ? TraceCaption(_runtime.DiagnosticTraceFile) : _traceFailed ? TraceStartFailedText : null);
     }
 
     /// <summary>Returns the Other Components calculation: "PC Power (DC) − CPU Package Power − GPU Power".</summary>

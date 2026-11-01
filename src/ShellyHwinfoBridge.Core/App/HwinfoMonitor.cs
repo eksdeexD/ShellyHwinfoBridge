@@ -257,7 +257,10 @@ public sealed class HwinfoMonitor : IComponentSensorSource, IDisposable
         if (snapshot is not null)
         {
             var values = sensors.Select(s => FindShared(snapshot, s)).ToList();
-            return new ComponentReadings(OtherSource.SharedMemory, values, true, []);
+            return new ComponentReadings(OtherSource.SharedMemory, values, true, [])
+            {
+                HwinfoPollTime = snapshot.PollTime == DateTimeOffset.MinValue ? null : snapshot.PollTime,
+            };
         }
 
         var exported = gadget?.ReadAll() ?? [];

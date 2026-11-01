@@ -248,11 +248,14 @@ public sealed class PollingService : IAsyncDisposable
             }
 
             ShellyReading reading;
+            TimeSpan duration;
             try
             {
                 using var timeout = new CancellationTokenSource(options.Timeout, _time);
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+                var started = _time.GetTimestamp();
                 reading = await client.GetReadingAsync(linked.Token).ConfigureAwait(false);
+                duration = _time.GetElapsedTime(started);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -264,7 +267,7 @@ public sealed class PollingService : IAsyncDisposable
                 return true;
             }
 
-            OnSuccess(reading);
+            OnSuccess(reading, duration);
             return true;
         }
         finally
@@ -318,7 +321,7 @@ public sealed class PollingService : IAsyncDisposable
         }
     }
 
-    private void OnSuccess(ShellyReading reading)
+    private void OnSuccess(ShellyReading reading, TimeSpan duration)
     {
         PowerReading power;
         OnlineState previous;
@@ -343,7 +346,7 @@ public sealed class PollingService : IAsyncDisposable
             OnlineStateChanged?.Invoke(this, new OnlineStateChangedEventArgs(previous, OnlineState.Online, null, DeviceId));
         }
 
-        ReadingReceived?.Invoke(this, new PowerReadingEventArgs(reading, power, DeviceId));
+        ReadingReceived?.Invoke(this, new PowerReadingEventArgs(reading, power, DeviceId, duration));
     }
 
     private void OnFailure(Exception error)

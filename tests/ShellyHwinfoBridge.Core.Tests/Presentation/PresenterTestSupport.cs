@@ -183,6 +183,25 @@ internal sealed class FakeRuntime : IBridgeRuntime
 
     public void RemoveSensors() => RemoveCalls++;
 
+    public bool IsDiagnosticTraceRunning => DiagnosticTraceFile is not null;
+
+    public string? DiagnosticTraceFile { get; set; }
+
+    public bool TraceStartFails { get; set; }
+
+    public bool StartDiagnosticTrace()
+    {
+        if (TraceStartFails)
+        {
+            return false;
+        }
+
+        DiagnosticTraceFile ??= @"C:\Data\energy\diagnostics\trace-20261101-143005.csv";
+        return true;
+    }
+
+    public void StopDiagnosticTrace() => DiagnosticTraceFile = null;
+
     public Task<ConnectionTestResult> TestConnectionAsync(string host, string? password, CancellationToken cancellationToken = default)
     {
         LastTest = (host, password);

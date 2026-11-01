@@ -111,6 +111,19 @@ internal sealed class PreviewRuntime : IBridgeRuntime
     {
     }
 
+    public bool IsDiagnosticTraceRunning => DiagnosticTraceFile is not null;
+
+    /// <summary>Gets or sets the "recording" trace file (rendered screens of the running trace); nothing is written.</summary>
+    public string? DiagnosticTraceFile { get; set; }
+
+    public bool StartDiagnosticTrace()
+    {
+        DiagnosticTraceFile ??= Path.Combine(Core.AppPaths.DiagnosticsDirectory, "trace-20261101-143005.csv");
+        return true;
+    }
+
+    public void StopDiagnosticTrace() => DiagnosticTraceFile = null;
+
     public Task<ConnectionTestResult> TestConnectionAsync(string host, string? password, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ConnectionTestResult(true, SampleData.Reading().Raw, new ShellyDeviceInfo("PlugMGen3-2", "S3PL-10112EU", "PlugMG3", 3), null));
 }

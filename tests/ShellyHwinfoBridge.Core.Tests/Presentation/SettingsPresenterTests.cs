@@ -228,4 +228,50 @@ public class SettingsPresenterTests
         presenter.RemoveSensors();
         Assert.Equal(1, _runtime.RemoveCalls);
     }
+
+    [Fact]
+    public void DiagnosticTraceLinkAndCaptionFollowTheTraceState()
+    {
+        var presenter = new SettingsPresenter(_runtime, EnUs);
+        var changes = 0;
+        presenter.Changed += (_, _) => changes++;
+
+        var idle = presenter.State;
+        Assert.False(idle.DiagnosticTraceRunning);
+        Assert.Equal("Start diagnostic trace", idle.DiagnosticTraceText);
+        Assert.Null(idle.DiagnosticTraceCaption);
+
+        presenter.ToggleDiagnosticTrace();
+        var running = presenter.State;
+        Assert.True(running.DiagnosticTraceRunning);
+        Assert.Equal("Stop diagnostic trace", running.DiagnosticTraceText);
+        Assert.Equal("Recording to trace-20261101-143005.csv", running.DiagnosticTraceCaption);
+
+        presenter.ToggleDiagnosticTrace();
+        Assert.Null(_runtime.DiagnosticTraceFile);
+        Assert.Equal("Start diagnostic trace", presenter.State.DiagnosticTraceText);
+        Assert.Null(presenter.State.DiagnosticTraceCaption);
+        Assert.Equal(2, changes);
+    }
+
+    [Fact]
+    public void FailedDiagnosticTraceStartShowsTheErrorCaption()
+    {
+        _runtime.TraceStartFails = true;
+        var presenter = new SettingsPresenter(_runtime, EnUs);
+
+        presenter.ToggleDiagnosticTrace();
+
+        Assert.False(presenter.State.DiagnosticTraceRunning);
+        Assert.Equal("Start diagnostic trace", presenter.State.DiagnosticTraceText);
+        Assert.Equal(SettingsPresenter.TraceStartFailedText, presenter.State.DiagnosticTraceCaption);
+    }
+
+    [Fact]
+    public void DiagnosticTraceCaptionShowsTheFileNameOnly()
+    {
+        Assert.Equal("Recording to trace-20261101-090000.csv", SettingsPresenter.TraceCaption(@"C:\Users\x\AppData\Roaming\ShellyHwinfoBridge\energy\diagnostics\trace-20261101-090000.csv"));
+        Assert.Equal("Stop diagnostic trace", SettingsPresenter.TraceLinkText(true));
+        Assert.Equal("Start diagnostic trace", SettingsPresenter.TraceLinkText(false));
+    }
 }
