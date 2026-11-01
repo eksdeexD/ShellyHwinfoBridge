@@ -170,6 +170,7 @@ internal sealed class MainForm : ThemedForm
         CloseSettings(raise: false);
         _settingsPage = page;
         page.BackRequested += OnSettingsBack;
+        page.ClientSizeChanged += OnPageClientSizeChanged;
         page.ManageShellysRequested += OnManageShellysRequested;
         SuspendLayout();
         Controls.Add(page);
@@ -199,6 +200,7 @@ internal sealed class MainForm : ThemedForm
         _settingsPage.CommitPendingEdits();
         _managePage = page;
         page.BackRequested += OnManageBack;
+        page.ClientSizeChanged += OnPageClientSizeChanged;
         SuspendLayout();
         Controls.Add(page);
         UpdateVisibility();
@@ -539,7 +541,25 @@ internal sealed class MainForm : ThemedForm
         var height = this.Px(FooterHeight);
         var top = ClientSize.Height - height;
         var back = _back.GetPreferredSize(Size.Empty);
-        _back.Bounds = new Rectangle(ClientSize.Width - this.Px(Pad) - back.Width, top + ((height - back.Height) / 2), back.Width, back.Height);
+        _back.Bounds = new Rectangle(FooterRight() - back.Width, top + ((height - back.Height) / 2), back.Width, back.Height);
+    }
+
+    /// <summary>
+    /// The right edge of the footer content: aligned with the cards of the visible page. Settings and Manage Shellys are
+    /// scroll panels whose cards end at their client width (without the vertical scrollbar) minus the window padding.
+    /// </summary>
+    private int FooterRight()
+    {
+        var page = (Control?)_managePage ?? _settingsPage;
+        var width = page is { Visible: true } ? page.ClientSize.Width : ClientSize.Width;
+        return width - this.Px(Pad);
+    }
+
+    /// <summary>A page showed or hid its scrollbar: keep the footer aligned with its cards.</summary>
+    private void OnPageClientSizeChanged(object? sender, EventArgs e)
+    {
+        LayoutFooter();
+        Invalidate(new Rectangle(0, ClientSize.Height - this.Px(FooterHeight), ClientSize.Width, this.Px(FooterHeight)));
     }
 
     /// <summary>The footer's back link: Manage Shellys goes back to Settings, Settings to the dashboard.</summary>
