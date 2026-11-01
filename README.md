@@ -22,6 +22,9 @@ PSU's published efficiency curve gives the same insight for any PSU.
     <td><img src="docs/manage-shellys.png" alt="Manage Shellys: the PC plug and an additional plug"></td>
     <td><img src="docs/settings.png" alt="Settings page"></td>
   </tr>
+  <tr>
+    <td colspan="2"><img src="docs/hwinfo-sensors.png" alt="HWiNFO's sensor window with the Shelly Power group: PC Power (AC), PC Power (DC), PC PSU Loss, PC Other Components, Monitor Power (AC), Total Power (AC), Energy Today, Energy This Month"></td>
+  </tr>
 </table>
 
 ## Install
