@@ -51,7 +51,7 @@ Requirements:
 
 The plug reports AC watts every second. The app converts AC to an estimated DC figure through the PSU's efficiency
 curve (115 V or 230 V, picked from the voltage the plug measures) and writes the sensors to the registry; HWiNFO
-shows them after a restart. Energy comes from the plug's own counter and is logged hourly to
+shows them after a restart of HWiNFO. Energy comes from the plug's own counter and is logged hourly to
 `%APPDATA%\ShellyHwinfoBridge\energy`.
 
 The PSU database holds curves from Cybenetics evaluation reports for 378 units, and more will be added. A PSU that
