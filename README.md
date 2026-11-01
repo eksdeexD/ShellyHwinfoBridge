@@ -44,8 +44,8 @@ Requirements:
 - Windows 10 or 11, x64. No .NET install is needed (the app is self-contained).
 - HWiNFO64. The free version is fine: it turns Shared Memory off after 12 hours, and the app then uses HWiNFO's
   gadget export, which the wizard helps you set up.
-- A Gen2 or Gen3 Shelly device with a `Switch` component (e.g. Plug S Gen3, Plug M Gen3, Plus Plug S) or a
-  `PM1` component (e.g. PM Mini). Gen1 devices are not supported. Up to 4 Shellys in total.
+- A Gen2 or Gen3 Shelly with power metering, such as a Plug S Gen3, Plug M Gen3, Plus Plug S or PM Mini. Gen1
+  devices are not supported. Up to 4 Shellys in total.
 
 ## How it works
 
