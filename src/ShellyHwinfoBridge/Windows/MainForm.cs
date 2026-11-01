@@ -32,7 +32,7 @@ internal sealed class MainForm : ThemedForm
     private const int HowToHeight = 22;
     private const int BottomHeight = 96;
     private const int BottomMargin = 22;
-    private const int FooterHeight = 32;
+    private const int FooterHeight = 38;
     private const int CommandsWidth = 136;
     private const int ChartTop = 56;
     private const int TotalsHeight = 70;
