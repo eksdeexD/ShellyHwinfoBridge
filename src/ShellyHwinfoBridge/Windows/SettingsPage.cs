@@ -36,7 +36,7 @@ internal sealed class SettingsPage : ScrollPanel
     /// <summary>The page's back command ("‹ Home"; Manage Shellys has "‹ Settings" in the same place).</summary>
     public const string HomeText = "‹ Home";
 
-    // Layout in DIP, page coordinates (the page starts under the main window's header).
+    // Layout in DIP, page coordinates (the page sits between the main window's header and footer rows).
     private const float Pad = Theme.WindowPadding;
     private const float Gap = Theme.Gap;
     private const float P = Theme.CardPadding;
@@ -167,10 +167,10 @@ internal sealed class SettingsPage : ScrollPanel
         ApplyState();
     }
 
-    /// <summary>Raised by <see cref="RequestBack"/> ("‹ Home" in the main window's header): the main window shows the dashboard again.</summary>
+    /// <summary>Raised by <see cref="RequestBack"/> ("‹ Home" in the main window's footer): the main window shows the dashboard again.</summary>
     public event EventHandler? BackRequested;
 
-    /// <summary>The header's "‹ Home": raises <see cref="BackRequested"/> after the click has been handled.</summary>
+    /// <summary>The footer's "‹ Home": raises <see cref="BackRequested"/> after the click has been handled.</summary>
     public void RequestBack() => Defer(() => BackRequested?.Invoke(this, EventArgs.Empty));
 
     /// <summary>Raised when "Re-run setup wizard" is clicked.</summary>

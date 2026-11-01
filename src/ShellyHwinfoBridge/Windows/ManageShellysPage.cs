@@ -118,10 +118,10 @@ internal sealed class ManageShellysPage : ScrollPanel
         ApplyState();
     }
 
-    /// <summary>Raised by <see cref="RequestBack"/> ("‹ Settings" in the main window's header): the main window shows the settings page again.</summary>
+    /// <summary>Raised by <see cref="RequestBack"/> ("‹ Settings" in the main window's footer): the main window shows the settings page again.</summary>
     public event EventHandler? BackRequested;
 
-    /// <summary>The header's "‹ Settings": raises <see cref="BackRequested"/> after the click has been handled.</summary>
+    /// <summary>The footer's "‹ Settings": raises <see cref="BackRequested"/> after the click has been handled.</summary>
     public void RequestBack() => Defer(() => BackRequested?.Invoke(this, EventArgs.Empty));
 
     /// <summary>Gets whether a dialog (device form, confirmation, colour picker) is open over the page.</summary>

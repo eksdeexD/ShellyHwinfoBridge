@@ -15,8 +15,8 @@ namespace ShellyHwinfoBridge.Windows;
 /// and the device legend in per-device mode); the configuration card and three right-aligned text commands (Settings,
 /// Pause/Resume polling, About). When setup is not done, one "Not set up yet" card (with "Run setup wizard") replaces the stats and the
 /// energy card. <see cref="OpenSettings"/> shows a <see cref="SettingsPage"/> in place of everything under the header row,
-/// and the settings page can open <see cref="ManageShellysPage"/> over itself; "‹ Home" / "‹ Settings" (left of the pill
-/// in the non-scrolling header row) or Esc go back.
+/// and the settings page can open <see cref="ManageShellysPage"/> over itself; "‹ Home" / "‹ Settings" (right-aligned in
+/// the non-scrolling footer row) or Esc go back. The footer row (32 DIP, on every page) shows the app version at the left.
 /// Passive: the tray context pushes <see cref="MainViewState"/> and <see cref="EnergyChartModel"/> in, and the window
 /// raises events for its commands. Closing hides it.
 /// </summary>
@@ -32,6 +32,7 @@ internal sealed class MainForm : ThemedForm
     private const int HowToHeight = 22;
     private const int BottomHeight = 96;
     private const int BottomMargin = 22;
+    private const int FooterHeight = 32;
     private const int CommandsWidth = 136;
     private const int ChartTop = 56;
     private const int TotalsHeight = 70;
@@ -44,8 +45,8 @@ internal sealed class MainForm : ThemedForm
 
     private readonly StatusPill _pill = new() { Clickable = true, AccessibleName = "Shelly status: open Manage Shellys" };
 
-    // The back link of the open page ("‹ Home" on Settings, "‹ Settings" on Manage Shellys), on the header row left of
-    // the pill, so it never scrolls with the page.
+    // The back link of the open page ("‹ Home" on Settings, "‹ Settings" on Manage Shellys), right-aligned on the footer
+    // row, so it never scrolls with the page.
     private readonly TextLink _back = new() { Text = SettingsPage.HomeText, Semibold = true, Visible = false, AccessibleName = "Back to the dashboard" };
 
     // Total, AC, DC, Loss, Other: the first is shown only with additional devices.
@@ -428,6 +429,7 @@ internal sealed class MainForm : ThemedForm
         var gap = this.Px(Gap);
         var right = w - pad;
         LayoutHeader();
+        LayoutFooter();
 
         // Stats row: four (or five, with Total first) equal cards of one height (the Other card's hint and "How to
         // enable?" fit under its caption, which lines up with the other captions).
@@ -452,7 +454,8 @@ internal sealed class MainForm : ThemedForm
 
         // Bottom row: the configuration card and, right of it, the Settings, Pause polling and About commands, right-aligned,
         // one per configuration line.
-        var bottomTop = h - this.Px(BottomMargin) - this.Px(BottomHeight);
+        var footerTop = h - this.Px(FooterHeight);
+        var bottomTop = footerTop - this.Px(BottomMargin) - this.Px(BottomHeight);
         var commandsLeft = right - this.Px(CommandsWidth);
         _config.Bounds = new Rectangle(pad, bottomTop, commandsLeft - gap - pad, this.Px(BottomHeight));
         var firstLine = bottomTop + ConfigFirstLineTop();
@@ -479,9 +482,9 @@ internal sealed class MainForm : ThemedForm
         var chartTop = this.Px(ChartTop);
         _chart.Bounds = new Rectangle(cardPad, chartTop, energy.Width - (2 * cardPad), Math.Max(this.Px(60), energy.Height - chartTop - this.Px(TotalsHeight)));
 
-        // Settings page (and Manage Shellys over it): everything under the status pill.
+        // Settings page (and Manage Shellys over it): everything between the header row and the footer row.
         var pageTop = this.Px(SettingsPageTop);
-        var pageBounds = new Rectangle(0, pageTop, w, Math.Max(0, h - pageTop));
+        var pageBounds = new Rectangle(0, pageTop, w, Math.Max(0, footerTop - pageTop));
         if (_settingsPage is not null)
         {
             _settingsPage.Bounds = pageBounds;
@@ -503,16 +506,19 @@ internal sealed class MainForm : ThemedForm
         base.OnPaint(e);
         var g = e.Graphics;
 
-        // The app version, very small, in the bottom margin under the command column (clear of the cards and commands).
+        // The app version, very small, left-aligned and centred in the footer row (on every page).
         var tiny = Fonts.Get(FontRole.Tiny);
         var versionHeight = Gfx.Measure("Ag", tiny).Height;
-        var version = new Rectangle(0, ClientSize.Height - this.Px(BottomMargin / 2) - (versionHeight / 2), ClientSize.Width - this.Px(Pad), versionHeight);
-        Gfx.Text(g, AboutWindow.VersionText, tiny, version, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.Right);
+        var footerHeight = this.Px(FooterHeight);
+        var left = this.Px(Pad);
+        var right = _back.Visible ? _back.Left - this.Px(Gap) : ClientSize.Width - this.Px(Pad);
+        var version = new Rectangle(left, ClientSize.Height - footerHeight + ((footerHeight - versionHeight) / 2), Math.Max(0, right - left), versionHeight);
+        Gfx.Text(g, AboutWindow.VersionText, tiny, version, Theme.InkSecondary, Gfx.SingleLine);
     }
 
     /// <summary>
-    /// Places the non-scrolling header row: the status pill right-aligned, sized to its text (at least 130 DIP), and the
-    /// open page's back link left of it, both centred on the row.
+    /// Places the non-scrolling header row: the status pill right-aligned, sized to its text (at least 130 DIP), centred
+    /// on the row.
     /// </summary>
     private void LayoutHeader()
     {
@@ -522,11 +528,21 @@ internal sealed class MainForm : ThemedForm
         var pillWidth = Math.Max(this.Px(130), _pill.GetPreferredSize(Size.Empty).Width);
         var pillHeight = this.Px(StatusPill.HeightDip);
         _pill.Bounds = new Rectangle(right - pillWidth, top + ((height - pillHeight) / 2), pillWidth, pillHeight);
-        var back = _back.GetPreferredSize(Size.Empty);
-        _back.Bounds = new Rectangle(_pill.Left - this.Px(20) - back.Width, top + ((height - back.Height) / 2), back.Width, back.Height);
     }
 
-    /// <summary>The header's back link: Manage Shellys goes back to Settings, Settings to the dashboard.</summary>
+    /// <summary>
+    /// Places the non-scrolling footer row's back link right-aligned and centred on the row (the version text at its left
+    /// is painted in <see cref="OnPaint"/>).
+    /// </summary>
+    private void LayoutFooter()
+    {
+        var height = this.Px(FooterHeight);
+        var top = ClientSize.Height - height;
+        var back = _back.GetPreferredSize(Size.Empty);
+        _back.Bounds = new Rectangle(ClientSize.Width - this.Px(Pad) - back.Width, top + ((height - back.Height) / 2), back.Width, back.Height);
+    }
+
+    /// <summary>The footer's back link: Manage Shellys goes back to Settings, Settings to the dashboard.</summary>
     private void OnBackClicked()
     {
         if (_managePage is { } manage)

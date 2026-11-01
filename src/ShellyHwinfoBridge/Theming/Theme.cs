@@ -114,7 +114,7 @@ internal static class Theme
     public const int MainWindowWidth = 1040;
 
     /// <summary>Height of the main window's client area (fixed).</summary>
-    public const int MainWindowHeight = 640;
+    public const int MainWindowHeight = 672;
 
     /// <summary>Letter spacing of uppercase captions, in DIP per character.</summary>
     public const float CaptionTracking = 1.5f;
