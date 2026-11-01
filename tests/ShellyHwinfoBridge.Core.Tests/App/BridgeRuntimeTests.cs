@@ -177,10 +177,10 @@ public sealed class BridgeRuntimeTests : IDisposable
         var first = Assert.Single(_clients);
 
         var interval = runtime.Settings!.Clone();
-        interval.PollIntervalMs = 2000;
+        interval.DisplayIntervalMs = 3000;
         var outcome = runtime.Apply(interval);
         Assert.True(outcome.Success);
-        Assert.Equal(["PollInterval"], outcome.ChangedKeys);
+        Assert.Equal(["DisplayInterval"], outcome.ChangedKeys);
         Assert.Single(_clients);
         Assert.False(first.Disposed);
 
@@ -455,6 +455,18 @@ public sealed class BridgeRuntimeTests : IDisposable
         await Task.Delay(50);
         await NextReadingFrom(runtime, LampId, () => _time.Advance(TimeSpan.FromMilliseconds(340)));
 
+        // Reading-driven writes happen at most every 2 s: the PC's poll at 1 s writes nothing either, the one at 2 s
+        // writes every device's latest value.
+        Assert.Equal("0.0", Value("Power4"));
+        await Task.Delay(50);
+        await NextReadingFrom(runtime, AppSettings.PrimaryDeviceId, () => _time.Advance(TimeSpan.FromMilliseconds(320)));
+        Assert.Equal("0.0", Value("Power4"));
+        foreach (var (id, step) in new[] { (MonitorId, 340), (LampId, 340), (AppSettings.PrimaryDeviceId, 320) })
+        {
+            await Task.Delay(50);
+            await NextReadingFrom(runtime, id, () => _time.Advance(TimeSpan.FromMilliseconds(step)));
+        }
+
         Assert.Equal("Monitor Power (AC)", Name("Power4"));
         Assert.Equal("31.2", Value("Power4"));
         Assert.Equal("10.0", Value("Power5"));
@@ -516,7 +528,7 @@ public sealed class BridgeRuntimeTests : IDisposable
 
         // Changing nothing that affects the layout raises no notice.
         var same = runtime.Settings!.Clone();
-        same.PollIntervalMs = 2000;
+        same.DisplayIntervalMs = 3000;
         runtime.Apply(same);
         Assert.Equal(2, notices);
     }
@@ -548,19 +560,75 @@ public sealed class BridgeRuntimeTests : IDisposable
         var expected = SensorValueFormatter.FormatWatts(first.Power.DcWatts - 250);
         Assert.Equal(expected, Value("Power3"));
 
-        // A missing component: the value is held.
+        var dc = first.Power.DcWatts;
+
+        // A missing component (t = 1 s): the value is held.
         _components.Values["GPU Power"] = null;
         await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
-        Assert.Equal(expected, Value("Power3"));
+        Assert.Equal(dc - 250, runtime.Other.Watts, 6);
 
-        // A spike makes the result negative: held too.
+        // A spike makes the result negative (t = 2 s, two samples in the window): held too, and written (2 s passed).
         _components.Values["GPU Power"] = 900;
         await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal(dc - 250, runtime.Other.Watts, 6);
         Assert.Equal(expected, Value("Power3"));
 
+        // From three samples on the median of the last 10 s is published: dc−250, dc−1000, dc−150 → dc−250; then
+        // dc−200 (mean of the two middle values of four), then dc−150 (five samples).
         _components.Values["GPU Power"] = 50;
-        var fresh = await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
-        Assert.Equal(SensorValueFormatter.FormatWatts(fresh.Power.DcWatts - 150), Value("Power3"));
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal(dc - 250, runtime.Other.Watts, 6);
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal(dc - 200, runtime.Other.Watts, 6);
+        Assert.Equal(SensorValueFormatter.FormatWatts(dc - 200), Value("Power3"));
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal(dc - 150, runtime.Other.Watts, 6);
+    }
+
+    [Fact]
+    public async Task ReadingsAreWrittenToHwinfoAtMostEveryTwoSeconds()
+    {
+        _registry.EnsureKeys();
+        var runtime = Create(ExampleSettings());
+        Assert.Equal(TimeSpan.FromSeconds(2), BridgeRuntime.HwinfoWriteInterval);
+
+        // The first reading writes at once.
+        await NextReading(runtime, runtime.Start);
+        Assert.Equal("312.4", Value("Power0"));
+        var client = Assert.Single(_clients);
+
+        // 1 s later: the state has the new reading, HWiNFO still shows the old one.
+        client.Reading = new ShellyReading(200, 230, 0.9, 1000);
+        var second = await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal(200, second.Power.AcWatts, 6);
+        Assert.Same(second, runtime.LastReading);
+        Assert.Equal("312.4", Value("Power0"));
+
+        // 2 s after the last write: written.
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal("200.0", Value("Power0"));
+
+        // Every second poll writes.
+        client.Reading = new ShellyReading(150, 230, 0.7, 1000);
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal("200.0", Value("Power0"));
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal("150.0", Value("Power0"));
+
+        // Other events write at once: pause zeroes the values without waiting.
+        client.Reading = new ShellyReading(120, 230, 0.6, 1000);
+        await NextReading(runtime, () => _time.Advance(TimeSpan.FromSeconds(1)));
+        Assert.Equal("150.0", Value("Power0"));
+        runtime.Pause();
+        Assert.Equal("0.0", Value("Power0"));
+
+        // After resuming, the first reading writes at once again.
+        await NextReading(runtime, () =>
+        {
+            runtime.Resume();
+            _time.Advance(TimeSpan.FromSeconds(1));
+        });
+        Assert.Equal("120.0", Value("Power0"));
     }
 
     [Fact]

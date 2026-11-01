@@ -16,18 +16,24 @@ using ShellyHwinfoBridge.Windows.Wizard;
 namespace ShellyHwinfoBridge;
 
 /// <summary>
-/// The app's UI root: tray icon and menu, the main window (with its settings page) and the wizard, one 1 Hz
-/// refresh timer that pulls presenter state, and the exit sequence.
+/// The app's UI root: tray icon and menu, the main window (with its settings page) and the wizard, a display timer
+/// (the settings' display interval) and a one-minute energy timer that pull presenter state, and the exit sequence.
 /// </summary>
 /// <remarks>
-/// Background events (readings, state, HWiNFO monitor, energy) only set a dirty flag; <see cref="Refresh"/> runs on
-/// the timer. Hooks for the other windows: <see cref="ShowMainWindow"/>, <see cref="ShowSettings"/>,
+/// Readings and HWiNFO monitor changes only set a dirty flag; <see cref="Refresh"/> (stat cards, status pill, tray
+/// icon and tooltip, showing the latest runtime state without averaging) runs on the display timer. Runtime state
+/// changes that are not readings (online/offline, pause, trace) refresh at once. The energy history (totals and chart)
+/// refreshes once a minute, when the window opens, on a period or mode change and after settings changes. Hooks for
+/// the other windows: <see cref="ShowMainWindow"/>, <see cref="ShowSettings"/>,
 /// <see cref="ShowWizard"/>.
 /// </remarks>
 [SupportedOSPlatform("windows")]
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private const string BalloonTitle = AppInfo.ProductName;
+
+    /// <summary>How often the energy history (totals and chart) refreshes on its own.</summary>
+    private static readonly TimeSpan EnergyRefreshInterval = TimeSpan.FromMinutes(1);
 
     private readonly AppServices _services;
     private readonly ActivationLatch _activation;
@@ -41,6 +47,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _wizardItem;
     private readonly ToolStripMenuItem _aboutItem;
     private readonly System.Windows.Forms.Timer _timer;
+    private readonly System.Windows.Forms.Timer _energyTimer;
     private readonly MainWindowPresenter _mainPresenter;
     private IconFactory _icons;
     private MainForm? _mainForm;
@@ -49,6 +56,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private TrayIconState? _iconState;
     private bool _hideTrayIcon;
     private volatile bool _dirty = true;
+    private Core.Energy.EnergyTotals? _energyTotals;
     private bool _exiting;
 
     public TrayApplicationContext(AppServices services, ActivationLatch activation, ActivationLatch exitRequest, StartupArguments startup, ILogger logger, IReadOnlyList<string> startupNotices)
@@ -97,19 +105,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
             }
         };
 
-        // Background events only mark the UI dirty; the timer pulls the state once per second.
-        services.Runtime.StateChanged += OnBackgroundChange;
+        // Readings and monitor changes only mark the UI dirty; the display timer pulls the state. Other state changes
+        // refresh at once.
+        services.Runtime.StateChanged += OnStateChanged;
         services.Runtime.ReadingReceived += OnBackgroundChange;
         services.Runtime.SettingsChanged += OnSettingsChanged;
         services.Runtime.SensorKeysCreated += OnSensorKeysCreated;
         services.Monitor.Changed += OnBackgroundChange;
-        services.Energy.Updated += OnBackgroundChange;
         SystemEvents.SessionEnding += OnSessionEnding;
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
 
-        _timer = new System.Windows.Forms.Timer { Interval = 1000 };
+        _timer = new System.Windows.Forms.Timer { Interval = DisplayInterval() };
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
+        _energyTimer = new System.Windows.Forms.Timer { Interval = (int)EnergyRefreshInterval.TotalMilliseconds };
+        _energyTimer.Tick += (_, _) => RefreshEnergy(force: false);
+        _energyTimer.Start();
 
         // The first-run / start window rules.
         var configured = services.Runtime.State != RuntimeState.Unconfigured;
@@ -164,7 +175,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _mainForm.AboutRequested += (_, _) => ShowAbout();
             _mainForm.ManageShellysRequested += (_, _) => ShowManageShellys();
             _mainForm.CreateGadgetModel = CreateGadgetModel;
-            _mainForm.PeriodChanged += (_, _) => RefreshMainForm(force: true);
+            _mainForm.PeriodChanged += (_, _) => RefreshEnergy(force: true);
             _mainForm.ChartModeChanged += (_, _) => SetChartMode();
             _mainForm.VisibleChanged += (_, _) => UpdateMonitorActivity();
             _mainForm.SettingsClosed += (_, _) =>
@@ -177,7 +188,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         _mainForm.SetWindowButtonsEnabled(_wizardForm is null);
-        RefreshMainForm(force: true);
+        RefreshEnergy(force: true);
         if (!_mainForm.Visible)
         {
             _mainForm.Show();
@@ -285,7 +296,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
 
         new SettingsPresenter(_services.Runtime).SetChartMode(_mainForm.SelectedChartMode);
-        RefreshMainForm(force: true);
+        RefreshEnergy(force: true);
     }
 
     /// <summary>
@@ -362,11 +373,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
         form.BringToFront();
     }
 
-    /// <summary>Marks the UI dirty and refreshes it now (call after applying changes from a window).</summary>
+    /// <summary>Marks the UI dirty and refreshes it now, the energy history included (call after applying changes from a window).</summary>
     public void RefreshNow()
     {
         _dirty = true;
         Refresh();
+        RefreshEnergy(force: false);
     }
 
     /// <summary>
@@ -383,6 +395,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _exiting = true;
         _logger.LogInformation("Exiting.");
         _timer.Stop();
+        _energyTimer.Stop();
         _activation.Detach();
         _exitRequest.Detach();
         _wizardForm?.Close();
@@ -406,6 +419,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             Unsubscribe();
             _timer.Dispose();
+            _energyTimer.Dispose();
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _menu.Dispose();
@@ -441,12 +455,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void Unsubscribe()
     {
-        _services.Runtime.StateChanged -= OnBackgroundChange;
+        _services.Runtime.StateChanged -= OnStateChanged;
         _services.Runtime.ReadingReceived -= OnBackgroundChange;
         _services.Runtime.SettingsChanged -= OnSettingsChanged;
         _services.Runtime.SensorKeysCreated -= OnSensorKeysCreated;
         _services.Monitor.Changed -= OnBackgroundChange;
-        _services.Energy.Updated -= OnBackgroundChange;
         Theme.AccentChanged -= OnAccentChanged;
         SystemEvents.SessionEnding -= OnSessionEnding;
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
@@ -454,12 +467,33 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void OnBackgroundChange(object? sender, EventArgs e) => _dirty = true;
 
+    // Not a reading (online/offline, pause, trace, settings applied): show it at once instead of on the next tick.
+    private void OnStateChanged(object? sender, EventArgs e)
+    {
+        _dirty = true;
+        _dispatcher.Post(Refresh);
+    }
+
     private void OnSettingsChanged(object? sender, EventArgs e)
     {
         _dirty = true;
         _dispatcher.Post(() =>
         {
+            if (_exiting)
+            {
+                return;
+            }
+
             ApplyAccent();
+
+            // A changed display interval restarts the timer; the first tick of the new cadence is this refresh.
+            var interval = DisplayInterval();
+            if (_timer.Interval != interval)
+            {
+                _timer.Interval = interval;
+            }
+
+            RefreshNow();
             var hide = _services.Runtime.Settings?.HideTrayIcon ?? false;
             if (hide == _hideTrayIcon)
             {
@@ -490,6 +524,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _exiting = true;
         _logger.LogInformation("Session ending ({Reason}); stopping.", e.Reason);
         _timer.Stop();
+        _energyTimer.Stop();
         _activation.Detach();
         _exitRequest.Detach();
         Unsubscribe();
@@ -561,22 +596,42 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _notifyIcon.Text = tooltip;
         }
 
-        RefreshMainForm(force: false);
+        RefreshCards(force: false);
         UpdateMonitorActivity();
     }
 
-    private void RefreshMainForm(bool force)
+    /// <summary>
+    /// Refreshes the stat cards and the status pill with the latest runtime state and the cached energy totals.
+    /// </summary>
+    private void RefreshCards(bool force)
     {
         if (_mainForm is null || _mainForm.IsDisposed || (!force && !_mainForm.Visible))
         {
             return;
         }
 
+        _energyTotals ??= _services.Energy.GetTotals();
+        _mainForm.Apply(_mainPresenter.Build(_services.Monitor.Current, _energyTotals));
+    }
+
+    /// <summary>Refreshes the energy history (totals and chart), then the cards so the totals show.</summary>
+    private void RefreshEnergy(bool force)
+    {
+        if (_exiting || _mainForm is null || _mainForm.IsDisposed || (!force && !_mainForm.Visible))
+        {
+            return;
+        }
+
         var energy = _services.Energy;
-        _mainForm.Apply(_mainPresenter.Build(_services.Monitor.Current, energy.GetTotals()));
+        _energyTotals = energy.GetTotals();
         var period = _mainForm.SelectedPeriod;
         _mainForm.ApplyChart(EnergyChartModel.Build(energy.GetChartData(period), period, _services.Runtime.Settings ?? new Core.Settings.AppSettings(), CultureInfo.CurrentCulture));
+        RefreshCards(force);
     }
+
+    /// <summary>The display timer's interval: the settings' display interval.</summary>
+    private int DisplayInterval() =>
+        Core.Settings.AppSettings.NormalizeDisplayInterval(_services.Runtime.Settings?.DisplayIntervalMs ?? Core.Settings.AppSettings.DefaultDisplayIntervalMs);
 
     private void UpdateMonitorActivity() =>
         _services.Monitor.Active = !_hideTrayIcon || _mainForm is { Visible: true };

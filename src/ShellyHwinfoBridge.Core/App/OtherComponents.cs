@@ -1,4 +1,3 @@
-using ShellyHwinfoBridge.Core.Curves;
 using ShellyHwinfoBridge.Core.Settings;
 
 namespace ShellyHwinfoBridge.Core.App;
@@ -74,10 +73,10 @@ public enum OtherTickOutcome
 
 /// <summary>The details of the last <see cref="OtherComponentsCalculator.Update"/> tick, before any discarding.</summary>
 /// <param name="Outcome">Whether the result was published, discarded or there was no source.</param>
-/// <param name="ComponentSum">This tick's (unsmoothed) component sum, or <c>null</c> when a component was missing.</param>
+/// <param name="ComponentSum">This tick's component sum, or <c>null</c> when a component was missing.</param>
 /// <param name="Raw">
-/// DC − the (smoothed, when smoothing is on) component sum before any clamp; <c>null</c> when a component was missing,
-/// DC was not finite or there was no source.
+/// This tick's DC − component sum before the median and any clamp; <c>null</c> when a component was missing, DC was not
+/// finite or there was no source.
 /// </param>
 public sealed record OtherComponentsTick(OtherTickOutcome Outcome, double? ComponentSum, double? Raw)
 {
@@ -86,21 +85,38 @@ public sealed record OtherComponentsTick(OtherTickOutcome Outcome, double? Compo
 }
 
 /// <summary>
-/// Computes Other Components = DC − sum(selected component readings). A negative or non-finite result, or a missing
-/// component reading, is discarded and the previous value is held; the first value is 0 until a valid reading
-/// exists. Without a source the value is reset to 0 (not published). The component sum can be smoothed with a moving
-/// average (the AC window, <see cref="AppSettings.SmoothingSamples"/>). Not thread-safe.
+/// Computes Other Components from raw = DC − sum(selected component readings) per poll, published as the median of the
+/// raw values of the last <see cref="WindowSeconds"/> seconds. Not thread-safe.
 /// </summary>
+/// <remarks>
+/// <para>The Shelly reading is fresh while HWiNFO's component values can be a few seconds old, so during load
+/// transitions single raw values spike in either direction. The median over the window removes those spikes and still
+/// follows a real load change within a few seconds. Negative raw values stay in the window (they are the same timing
+/// artefact in the other direction).</para>
+/// <para>With at least <see cref="MinimumSamples"/> raw values in the window the median is published; a negative or
+/// non-finite median holds the previous value. With fewer values (the first seconds) the raw value is published and a
+/// negative one holds the previous value. A missing component reading or a non-finite DC holds the previous value and
+/// adds nothing to the window. The first value is 0 until a valid one exists. Without a source the value is reset to 0
+/// (not published) and the window is cleared.</para>
+/// </remarks>
 public sealed class OtherComponentsCalculator
 {
-    private MovingAverage _smoother;
+    /// <summary>The length of the median window in seconds.</summary>
+    public const int WindowSeconds = 10;
+
+    /// <summary>The fewest raw values in the window for which the median is published.</summary>
+    public const int MinimumSamples = 3;
+
+    private static readonly TimeSpan Window = TimeSpan.FromSeconds(WindowSeconds);
+
+    private readonly TimeProvider _time;
+    private readonly Queue<(DateTimeOffset At, double Raw)> _window = new();
     private double _value;
     private bool _hasValue;
 
     /// <summary>Creates a calculator.</summary>
-    /// <param name="smoothingSamples">The component-sum window; 1 = off.</param>
-    public OtherComponentsCalculator(int smoothingSamples = 1) =>
-        _smoother = new MovingAverage(Math.Clamp(smoothingSamples, 1, MovingAverage.MaxSamples));
+    /// <param name="timeProvider">The clock that timestamps each tick; defaults to the system clock.</param>
+    public OtherComponentsCalculator(TimeProvider? timeProvider = null) => _time = timeProvider ?? TimeProvider.System;
 
     /// <summary>Gets the current (held) value in watts.</summary>
     public double Value => _value;
@@ -108,24 +124,13 @@ public sealed class OtherComponentsCalculator
     /// <summary>Gets whether a valid value exists.</summary>
     public bool HasValue => _hasValue;
 
-    /// <summary>Gets the details of the last <see cref="Update"/> tick (the unclamped result; never changes the published value).</summary>
+    /// <summary>Gets the number of raw values currently in the median window.</summary>
+    public int WindowCount => _window.Count;
+
+    /// <summary>Gets the details of the last <see cref="Update"/> tick (the raw result; never changes the published value).</summary>
     public OtherComponentsTick LastTick { get; private set; } = OtherComponentsTick.NoSource;
 
-    /// <summary>Gets the smoothing window.</summary>
-    public int SmoothingSamples => _smoother.Samples;
-
-    /// <summary>Changes the smoothing window (clears the window when it changes).</summary>
-    /// <param name="samples">The window; 1 = off.</param>
-    public void SetSmoothing(int samples)
-    {
-        samples = Math.Clamp(samples, 1, MovingAverage.MaxSamples);
-        if (samples != _smoother.Samples)
-        {
-            _smoother = new MovingAverage(samples);
-        }
-    }
-
-    /// <summary>Computes one tick.</summary>
+    /// <summary>Computes one tick at the clock's current time.</summary>
     /// <param name="dcWatts">The DC estimate of this poll.</param>
     /// <param name="readings">The component readings.</param>
     /// <returns>The value to publish (held on a discarded tick; 0 without a source).</returns>
@@ -156,25 +161,47 @@ public sealed class OtherComponentsCalculator
             return _value;
         }
 
-        var other = dcWatts - _smoother.Add(sum);
-        if (!double.IsFinite(other) || other < 0)
+        var raw = dcWatts - sum;
+        if (!double.IsFinite(raw))
         {
-            LastTick = new OtherComponentsTick(OtherTickOutcome.Discarded, sum, other);
+            LastTick = new OtherComponentsTick(OtherTickOutcome.Discarded, sum, raw);
             return _value;
         }
 
-        LastTick = new OtherComponentsTick(OtherTickOutcome.Accepted, sum, other);
-        _value = other;
+        var now = _time.GetUtcNow();
+        _window.Enqueue((now, raw));
+        while (now - _window.Peek().At >= Window)
+        {
+            _window.Dequeue();
+        }
+
+        var candidate = _window.Count >= MinimumSamples ? Median() : raw;
+        if (!double.IsFinite(candidate) || candidate < 0)
+        {
+            LastTick = new OtherComponentsTick(OtherTickOutcome.Discarded, sum, raw);
+            return _value;
+        }
+
+        LastTick = new OtherComponentsTick(OtherTickOutcome.Accepted, sum, raw);
+        _value = candidate;
         _hasValue = true;
         return _value;
     }
 
-    /// <summary>Drops the value (back to 0) and the smoothing window.</summary>
+    /// <summary>Drops the value (back to 0) and the median window.</summary>
     public void Reset()
     {
         _value = 0;
         _hasValue = false;
-        _smoother.Reset();
+        _window.Clear();
         LastTick = OtherComponentsTick.NoSource;
+    }
+
+    private double Median()
+    {
+        var values = _window.Select(e => e.Raw).ToArray();
+        Array.Sort(values);
+        var mid = values.Length / 2;
+        return values.Length % 2 == 1 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
     }
 }

@@ -17,7 +17,8 @@ namespace ShellyHwinfoBridge.Windows;
 /// The settings page, shown inside the main window in place of the dashboard: a title row ("Settings" and the footnote
 /// "Changes apply immediately." at the left, "‹ Home" right-aligned), then the cards: Shelly plugs ("Manage Shellys")
 /// and Power supply ("Change", input voltage); Sensors across the page (the calculation, a one-line gadget explainer with
-/// "How to enable?", "Customize HWiNFO sensor names" and "Edit sensors" in its lower-right corner); Polling and Energy;
+/// "How to enable?", "Customize HWiNFO sensor names" and "Edit sensors" in its lower-right corner); Display (display
+/// interval and AC smoothing) and Energy;
 /// PSU database ("Check for update" in its lower-right corner) and Startup and tray; Maintenance (Open log folder,
 /// Re-run setup wizard, Start/Stop diagnostic trace with "Recording to …" under it; "Remove HWiNFO sensors"
 /// right-aligned, with a confirmation). Every change goes through
@@ -84,12 +85,12 @@ internal sealed class SettingsPage : ScrollPanel
     private readonly TextLink _sensorNames = new() { Text = "Customize HWiNFO sensor names", Semibold = true };
     private readonly InfoLine _retiredNote = new() { Visible = false };
 
-    // Polling.
-    private readonly CardPanel _pollingCard = new() { Title = "Polling" };
-    private readonly TextLabel _intervalLabel = new() { Text = "Interval", Tone = UiTone.Secondary };
-    private readonly ThemedSlider _interval = new() { Minimum = Core.Polling.PollingOptions.MinIntervalMs, Maximum = Core.Polling.PollingOptions.MaxIntervalMs, SmallChange = 100, LargeChange = 500, AccessibleName = "Poll interval" };
+    // Display.
+    private readonly CardPanel _displayCard = new() { Title = SettingsPresenter.DisplayCardTitle };
+    private readonly TextLabel _intervalLabel = new() { Text = SettingsPresenter.DisplayIntervalLabel, Tone = UiTone.Secondary };
+    private readonly ThemedSlider _interval = new() { Minimum = AppSettings.MinDisplayIntervalMs, Maximum = AppSettings.MaxDisplayIntervalMs, SmallChange = AppSettings.DisplayIntervalStepMs, LargeChange = AppSettings.DisplayIntervalStepMs, AccessibleName = SettingsPresenter.DisplayIntervalLabel };
     private readonly TextLabel _intervalValue = new();
-    private readonly TextLabel _smoothingLabel = new() { Text = "Smoothing", Tone = UiTone.Secondary };
+    private readonly TextLabel _smoothingLabel = new() { Text = SettingsPresenter.SmoothingLabel, Tone = UiTone.Secondary };
     private readonly ThemedSlider _smoothing = new() { Minimum = 1, Maximum = MovingAverage.MaxSamples, SmallChange = 1, LargeChange = 5, AccessibleName = "Smoothing" };
     private readonly TextLabel _smoothingValue = new();
 
@@ -152,7 +153,7 @@ internal sealed class SettingsPage : ScrollPanel
         AddCard(_shellyCard, _devicesText, _devicesHint, _manage);
         AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage, _curveNote);
         AddCard(_sensorsCard, _formula, _gadgetTip, _howToEnable, _sensorNames, _edit, _retiredNote);
-        AddCard(_pollingCard, _intervalLabel, _interval, _intervalValue, _smoothingLabel, _smoothing, _smoothingValue);
+        AddCard(_displayCard, _intervalLabel, _interval, _intervalValue, _smoothingLabel, _smoothing, _smoothingValue);
         AddCard(_energyCard, _logEnergy, _openEnergy, _priceLabel, _price, _currencyLabel, _currency, _priceError);
         AddCard(_databaseCard, _checkUpdate, _databaseText, _databaseResult);
         AddCard(_startupCard, _startWithWindows, _showTrayIcon);
@@ -274,7 +275,7 @@ internal sealed class SettingsPage : ScrollPanel
         _sensorsCard.Bounds = At(left, y, full, sensors);
         y += sensors + Gap;
         var row3 = Math.Max(PollingHeight(t), EnergyHeight(t));
-        _pollingCard.Bounds = At(left, y, column, row3);
+        _displayCard.Bounds = At(left, y, column, row3);
         _energyCard.Bounds = At(right, y, column, row3);
         y += row3 + Gap;
         var row4 = Math.Max(DatabaseHeight(t), StartupHeight(t));
@@ -350,8 +351,8 @@ internal sealed class SettingsPage : ScrollPanel
         _edit.Click += (_, _) => EditSensors();
         _sensorNames.Click += (_, _) => CustomizeSensorNames();
 
-        _interval.ValueChanged += (_, _) => _intervalValue.Text = _interval.Value.ToString(System.Globalization.CultureInfo.CurrentCulture) + " ms";
-        _interval.ValueCommitted += (_, _) => Guard(() => _presenter.SetIntervalMs(_interval.Value));
+        _interval.ValueChanged += (_, _) => _intervalValue.Text = SettingsPresenter.FormatDisplayInterval(AppSettings.NormalizeDisplayInterval(_interval.Value));
+        _interval.ValueCommitted += (_, _) => Guard(() => _presenter.SetDisplayIntervalMs(_interval.Value));
         _smoothing.ValueChanged += (_, _) => _smoothingValue.Text = _smoothing.Value == 1 ? "1 sample" : _smoothing.Value.ToString(System.Globalization.CultureInfo.CurrentCulture) + " samples";
         _smoothing.ValueCommitted += (_, _) => Guard(() => _presenter.SetSmoothing(_smoothing.Value));
 
@@ -450,9 +451,9 @@ internal sealed class SettingsPage : ScrollPanel
             _retiredNote.Visible = s.RetiredFormulaNote is not null;
             _retiredNote.Text = s.RetiredFormulaNote ?? string.Empty;
 
-            // Polling.
-            _interval.Value = s.IntervalMs;
-            _intervalValue.Text = s.IntervalText;
+            // Display.
+            _interval.Value = s.DisplayIntervalMs;
+            _intervalValue.Text = s.DisplayIntervalText;
             _smoothing.Value = s.Smoothing;
             _smoothingValue.Text = s.SmoothingText;
 
@@ -582,8 +583,8 @@ internal sealed class SettingsPage : ScrollPanel
         Command(_sensorNames, P, y, Line);
         Command(_edit, -1, y, Line, full);
 
-        // Polling: label, slider, value.
-        const float labelWidth = 84;
+        // Display: label, slider, value.
+        const float labelWidth = 124;
         const float valueWidth = 80;
         var sliderWidth = inner - labelWidth - valueWidth - 8;
         foreach (var (label, slider, value, top) in new[] { (_intervalLabel, _interval, _intervalValue, t), (_smoothingLabel, _smoothing, _smoothingValue, t + Line + 8) })

@@ -84,7 +84,6 @@ public sealed class SettingsV2Tests : IDisposable
         Assert.Equal(EnergyChartMode.Combined, settings.ChartMode);
         Assert.Equal(ColourMode.AutomaticScheme, settings.ColourMode);
         Assert.Equal(DeviceColours.DefaultBase, settings.BaseColour);
-        Assert.False(settings.SmoothComponents);
         Assert.Null(settings.Device.Colour);
     }
 
@@ -101,7 +100,6 @@ public sealed class SettingsV2Tests : IDisposable
         settings.ChartMode = EnergyChartMode.PerDevice;
         settings.ColourMode = ColourMode.Custom;
         settings.BaseColour = "#00AA00";
-        settings.SmoothComponents = true;
         settings.CustomFormula = "kept";
         store.Save(settings);
 
@@ -118,7 +116,6 @@ public sealed class SettingsV2Tests : IDisposable
         Assert.Equal(EnergyChartMode.PerDevice, loaded.ChartMode);
         Assert.Equal(ColourMode.Custom, loaded.ColourMode);
         Assert.Equal("#00AA00", loaded.BaseColour);
-        Assert.True(loaded.SmoothComponents);
         Assert.Equal("kept", loaded.CustomFormula);
         Assert.Contains("\"additionalDevices\"", File.ReadAllText(store.FilePath), StringComparison.Ordinal);
     }

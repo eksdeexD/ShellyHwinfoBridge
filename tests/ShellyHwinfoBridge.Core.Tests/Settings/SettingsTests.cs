@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using ShellyHwinfoBridge.Core.Curves;
 using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Logging;
+using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Sensors;
 using ShellyHwinfoBridge.Core.Settings;
 
@@ -37,8 +38,8 @@ public sealed class SettingsTests : IDisposable
             Psu = { Mode = PsuSelectionMode.Manual, ManualCurve = [new CurvePoint(100, 80), new CurvePoint(200, 180)] },
             VoltageMode = InputVoltageMode.V115,
             SmoothingSamples = 5,
-            PollIntervalMs = 2000,
-            HttpTimeoutMs = 1500,
+            DisplayIntervalMs = 3500,
+            HttpTimeoutMs = 700,
             Sensors = [new SensorSelection { Name = "GPU Power", Category = SensorCategory.Gpu, Device = "GPU [#0]" }],
             HideTrayIcon = true,
             StartWithWindows = true,
@@ -55,7 +56,9 @@ public sealed class SettingsTests : IDisposable
         Assert.Equal("192.168.1.50", loaded.Device.Host);
         Assert.Equal(InputVoltageMode.V115, loaded.VoltageMode);
         Assert.Equal(5, loaded.SmoothingSamples);
-        Assert.Equal((2000, 1500), (loaded.PollIntervalMs, loaded.HttpTimeoutMs));
+        Assert.Equal((3500, 700), (loaded.DisplayIntervalMs, loaded.HttpTimeoutMs));
+        Assert.Null(loaded.PollIntervalMs);
+        Assert.DoesNotContain("pollIntervalMs", json, StringComparison.Ordinal);
         Assert.Equal(settings.Psu.ManualCurve, loaded.Psu.ManualCurve);
         Assert.Equal(SensorCategory.Gpu, Assert.Single(loaded.Sensors).Category);
         Assert.True(loaded.HideTrayIcon);
@@ -83,7 +86,8 @@ public sealed class SettingsTests : IDisposable
 
         var loaded = new SettingsStore(path, new ReversingProtector()).Load()!;
 
-        Assert.Equal((500, 400, 1), (loaded.PollIntervalMs, loaded.HttpTimeoutMs, loaded.SmoothingSamples));
+        Assert.Equal((1000, 900, 1), (loaded.DisplayIntervalMs, loaded.HttpTimeoutMs, loaded.SmoothingSamples));
+        Assert.Null(loaded.PollIntervalMs);
     }
 
     [Fact]
@@ -192,6 +196,49 @@ public sealed class SettingsTests : IDisposable
         Assert.All(Directory.GetFiles(_dir), f => Assert.True(new FileInfo(f).Length <= 2048));
         Assert.Contains("Message number 199", File.ReadAllText(provider.CurrentFilePath), StringComparison.Ordinal);
         Assert.DoesNotContain("Below minimum level", File.ReadAllText(provider.CurrentFilePath), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("""{"pollIntervalMs": 2000}""", 2000)]
+    [InlineData("""{"pollIntervalMs": 500}""", 1000)]
+    [InlineData("""{"pollIntervalMs": 9000}""", 5000)]
+    [InlineData("""{"pollIntervalMs": 1000}""", 1000)]
+    [InlineData("""{"pollIntervalMs": 4000, "displayIntervalMs": 1500}""", 1500)]
+    [InlineData("""{"displayIntervalMs": 9000}""", 5000)]
+    [InlineData("""{"displayIntervalMs": 3200}""", 3000)]
+    [InlineData("""{}""", AppSettings.DefaultDisplayIntervalMs)]
+    public void PollIntervalMigratesIntoDisplayInterval(string json, int expected)
+    {
+        Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, "settings.json");
+        File.WriteAllText(path, json);
+        var store = new SettingsStore(path, new ReversingProtector());
+
+        var loaded = store.Load()!;
+
+        Assert.Equal(expected, loaded.DisplayIntervalMs);
+        Assert.Null(loaded.PollIntervalMs);
+        Assert.Equal(PollingOptions.DefaultIntervalMs, loaded.GetPollingOptions().IntervalMs);
+
+        // Saved again: the retired key is gone and the display interval stays.
+        store.Save(loaded);
+        var saved = File.ReadAllText(path);
+        Assert.DoesNotContain("pollIntervalMs", saved, StringComparison.Ordinal);
+        Assert.Contains("\"displayIntervalMs\": " + expected, saved, StringComparison.Ordinal);
+        Assert.Equal(expected, store.Load()!.DisplayIntervalMs);
+    }
+
+    [Fact]
+    public void PollingIsFixedAtTheDefaultInterval()
+    {
+        var settings = new AppSettings { HttpTimeoutMs = 5000 };
+        settings.Normalize();
+
+        var options = settings.GetPollingOptions();
+
+        Assert.Equal(PollingOptions.DefaultIntervalMs, options.IntervalMs);
+        Assert.Equal(PollingOptions.DefaultIntervalMs - PollingOptions.TimeoutMarginMs, options.TimeoutMs);
+        Assert.Equal(AppSettings.DefaultDisplayIntervalMs, new AppSettings().DisplayIntervalMs);
     }
 
     /// <summary>Test stand-in for DPAPI: reverses and prefixes the text.</summary>

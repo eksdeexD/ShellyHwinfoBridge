@@ -22,8 +22,9 @@ namespace ShellyHwinfoBridge.Core.App;
 /// <para>Every device is polled on the shared interval by its own poller (own request pipeline and offline counter);
 /// device i of n starts i × interval / n after the first, so requests do not fire at the same instant. One device's
 /// failure never affects the others. The PC's readings drive the PSU curve, Other Components, the status and the tray.</para>
-/// <para>After every poll of any device (success or failure) every power value of the
-/// <see cref="SensorLayout"/> is written to HWiNFO; the energy logger writes the energy totals after each reading.</para>
+/// <para>Readings update the state on every poll, but the power values of the <see cref="SensorLayout"/> are written to
+/// HWiNFO from readings at most every <see cref="HwinfoWriteInterval"/>. Other events (going offline, pause, layout and
+/// settings changes, shutdown) write at once. The energy logger writes the energy totals after each reading.</para>
 /// <para>Settings changes rebuild only what changed. A replaced Shelly client is disposed immediately; an in-flight
 /// request on it fails and counts as one poll failure (never enough to go offline).</para>
 /// <para>All members are thread-safe; events are raised outside the internal lock.</para>
@@ -32,6 +33,20 @@ public sealed class BridgeRuntime : IBridgeRuntime
 {
     /// <summary>The timeout of <see cref="TestConnectionAsync"/>.</summary>
     public static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// The shortest time between two reading-driven writes of the power values to HWiNFO (with 1 s polling every
+    /// second poll writes). HWiNFO polls its sensors every 2 s by default, so the bridge's sensors change at the same
+    /// cadence as HWiNFO's own numbers instead of half of HWiNFO's samples showing a value one poll newer. Writes caused
+    /// by other events (offline, pause, layout or settings changes, shutdown) are not throttled.
+    /// </summary>
+    public static readonly TimeSpan HwinfoWriteInterval = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// The slack on <see cref="HwinfoWriteInterval"/>: a reading that arrives up to this much early still writes, so
+    /// HTTP response-time jitter does not turn every second poll into every third.
+    /// </summary>
+    internal static readonly TimeSpan HwinfoWriteTolerance = TimeSpan.FromMilliseconds(250);
 
     private readonly SettingsStore _store;
     private readonly PsuDatabaseLoader _databaseLoader;
@@ -47,7 +62,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
     private readonly object _gate = new();
     private readonly Dictionary<string, DevicePoller> _pollers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string?> _devicePasswords = new(StringComparer.OrdinalIgnoreCase);
-    private readonly OtherComponentsCalculator _other = new();
+    private readonly OtherComponentsCalculator _other;
     private readonly DiagnosticTrace _trace;
 
     private AppSettings? _settings;
@@ -59,6 +74,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
     private bool _started;
     private bool _userPaused;
     private bool _sensorsRemoved;
+    private DateTimeOffset? _lastReadingWrite;
 
     /// <summary>Creates the runtime; nothing is polled until <see cref="Start"/>.</summary>
     /// <param name="settings">The loaded settings, or <c>null</c> on first run.</param>
@@ -96,6 +112,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
         _components = components;
         _clientFactory = clientFactory ?? ((host, password) => new ShellyClient(host, password));
         _time = timeProvider ?? TimeProvider.System;
+        _other = new OtherComponentsCalculator(_time);
         _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
         _logger = _loggerFactory.CreateLogger<BridgeRuntime>();
         _trace = new DiagnosticTrace(diagnosticsDirectory ?? AppPaths.DiagnosticsDirectory, _time, _loggerFactory.CreateLogger<DiagnosticTrace>());
@@ -670,8 +687,8 @@ public sealed class BridgeRuntime : IBridgeRuntime
               !old.AdditionalDevices.Select(d => d.Colour).SequenceEqual(now.AdditionalDevices.Select(d => d.Colour)), Keys.Colours);
         Check(Json(old.Psu) != Json(now.Psu), Keys.Psu);
         Check(old.VoltageMode != now.VoltageMode, Keys.VoltageMode);
-        Check(old.SmoothingSamples != now.SmoothingSamples || old.SmoothComponents != now.SmoothComponents, Keys.Smoothing);
-        Check(old.GetPollingOptions() != now.GetPollingOptions(), Keys.Interval);
+        Check(old.SmoothingSamples != now.SmoothingSamples, Keys.Smoothing);
+        Check(old.DisplayIntervalMs != now.DisplayIntervalMs, Keys.DisplayInterval);
         Check(Json(old.Sensors) != Json(now.Sensors), Keys.Sensors);
         Check(old.CustomFormula != now.CustomFormula, Keys.CustomFormula);
         Check(old.StartWithWindows != now.StartWithWindows, Keys.StartWithWindows);
@@ -759,7 +776,6 @@ public sealed class BridgeRuntime : IBridgeRuntime
         _energy.SetDevices(EnergyLogger.DevicesFrom(settings));
         _energy.PollInterval = settings.GetPollingOptions().Interval;
         _energy.Enabled = settings.EnergyLoggingEnabled;
-        _other.SetSmoothing(settings.SmoothComponents ? settings.SmoothingSamples : 1);
 
         var options = settings.GetPollingOptions();
         var wanted = new List<(string Id, string Host, string? Password)> { (AppSettings.PrimaryDeviceId, settings.Device.Host.Trim(), _password) };
@@ -926,6 +942,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
     private void ResetLiveLocked()
     {
         _last = null;
+        _lastReadingWrite = null;
         _other.Reset();
         _otherState = _otherState with { Watts = 0, HasValue = false };
         foreach (var entry in _pollers.Values)
@@ -1031,6 +1048,22 @@ public sealed class BridgeRuntime : IBridgeRuntime
         TryWrite(() => _registry.WriteValues(values));
     }
 
+    /// <summary>
+    /// Writes every power value after a reading, unless a reading-driven write happened less than
+    /// <see cref="HwinfoWriteInterval"/> ago. Caller holds the lock.
+    /// </summary>
+    private void WriteFromReadingLocked()
+    {
+        var now = _time.GetUtcNow();
+        if (_lastReadingWrite is DateTimeOffset last && now - last < HwinfoWriteInterval - HwinfoWriteTolerance)
+        {
+            return;
+        }
+
+        _lastReadingWrite = now;
+        WriteAllLocked();
+    }
+
     private void OnPollerReading(object? sender, PowerReadingEventArgs e)
     {
         // Component readings are read outside the lock (shared memory or registry).
@@ -1076,7 +1109,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
                 traceRow = new DiagnosticTraceRow(e, components, _other.LastTick, _other.Value);
             }
 
-            WriteAllLocked();
+            WriteFromReadingLocked();
         }
 
         // The diagnostic trace (a no-op while idle; never throws).
@@ -1124,6 +1157,9 @@ public sealed class BridgeRuntime : IBridgeRuntime
             }
 
             WriteAllLocked();
+
+            // The first reading after the zeros writes at once.
+            _lastReadingWrite = null;
         }
     }
 
@@ -1189,7 +1225,7 @@ public sealed class BridgeRuntime : IBridgeRuntime
         public const string Psu = "Psu";
         public const string VoltageMode = "VoltageMode";
         public const string Smoothing = "SmoothingSamples";
-        public const string Interval = "PollInterval";
+        public const string DisplayInterval = "DisplayInterval";
         public const string Sensors = "Sensors";
         public const string CustomFormula = "CustomFormula";
         public const string StartWithWindows = "StartWithWindows";

@@ -104,6 +104,12 @@ public sealed class MainWindowPresenter
     /// <summary>The caption of the "How to enable?" button.</summary>
     public const string HowToEnableText = "How to enable?";
 
+    /// <summary>
+    /// The Other card's hover tooltip: the value is the median over <see cref="OtherComponentsCalculator.WindowSeconds"/>
+    /// seconds.
+    /// </summary>
+    public const string OtherValueTooltip = "The median of the last 10 seconds of DC minus the selected sensors. The median removes the spikes that appear while HWiNFO's sensor values lag behind the plug's reading.";
+
     private readonly IBridgeRuntime _runtime;
 
     /// <summary>Creates a presenter over a runtime.</summary>

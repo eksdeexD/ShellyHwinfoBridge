@@ -11,7 +11,7 @@ A small Windows tray application that reads live wall power from a Shelly smart 
 | **AC Power (Wall)** | The raw Shelly reading |
 | **DC Power (Est.)** | AC converted through your PSU's efficiency curve |
 | **PSU Loss** | AC − DC |
-| **Other Components** | DC minus the component sensors you select (CPU, GPU, RAM, …), computed by HWiNFO with a formula sensor |
+| **Other Components** | DC minus the component sensors you select (CPU, GPU, RAM, …), computed by the app as the median of the last 10 seconds |
 | **Shelly Online** | 1 while the plug is reachable, 0 otherwise |
 | **Energy Today** / **Energy This Month** | Wall energy in kWh from the plug's own energy counter |
 
@@ -78,7 +78,8 @@ to the dashboard. Every change applies immediately, without a restart:
 - **Power supply:** "Change…" opens the PSU step of the wizard; the input voltage can be fixed to 115 V or 230 V.
 - **Sensors and formula:** "Edit…" opens the sensor step of the wizard. The tip next to the formula explains the
   gadget export described above.
-- **Polling:** the poll interval (500 to 5000 ms) and smoothing (moving average over 1 to 30 readings).
+- **Display:** the display interval (1 to 5 s, how often the main window and the tray tooltip refresh; the plug is
+  always polled every second) and smoothing of AC (moving average over 1 to 30 readings).
 - **Energy:** energy logging on or off, an optional price per kWh and currency for the cost shown in the main window,
   and "Open energy folder".
 - **Startup and tray:** start with Windows, show the tray icon.

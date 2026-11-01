@@ -86,57 +86,6 @@ public class ColoursAndChartTests
         Assert.Equal(DeviceColours.Scheme("#0099FF", 3)[1], DeviceColours.ColourOf(settings, MonitorId));
     }
 
-    [Fact]
-    public void OtherCalculatorSubtractsComponentsAndHoldsInvalidResults()
-    {
-        var calc = new OtherComponentsCalculator();
-        ComponentReadings With(params double?[] values) => new(OtherSource.SharedMemory, values, true, []);
-
-        Assert.Equal(0, calc.Value);
-        Assert.Equal(45, calc.Update(295, With(100, 150)), 9);
-        Assert.True(calc.HasValue);
-
-        // Negative (a GPU spike): held.
-        Assert.Equal(45, calc.Update(295, With(100, 400)), 9);
-
-        // A missing component: held.
-        Assert.Equal(45, calc.Update(295, With(100, null)), 9);
-
-        // Non-finite: held.
-        Assert.Equal(45, calc.Update(double.NaN, With(100, 150)), 9);
-        Assert.Equal(45, calc.Update(295, With(double.PositiveInfinity, 150)), 9);
-
-        Assert.Equal(50, calc.Update(300, With(100, 150)), 9);
-
-        // No source: not published, back to 0.
-        Assert.Equal(0, calc.Update(300, new ComponentReadings(OtherSource.None, [], true, ["GPU Power"])));
-        Assert.False(calc.HasValue);
-    }
-
-    [Fact]
-    public void OtherCalculatorStartsAtZeroUntilAValidReading()
-    {
-        var calc = new OtherComponentsCalculator();
-        Assert.Equal(0, calc.Update(100, new ComponentReadings(OtherSource.Gadget, [200.0], true, [])));
-        Assert.False(calc.HasValue);
-        Assert.Equal(100, calc.Update(100, new ComponentReadings(OtherSource.Gadget, [], true, [])));
-    }
-
-    [Fact]
-    public void OtherCalculatorCanSmoothTheComponentSum()
-    {
-        var calc = new OtherComponentsCalculator(smoothingSamples: 2);
-        ComponentReadings With(double v) => new(OtherSource.SharedMemory, [v], true, []);
-
-        Assert.Equal(200, calc.Update(300, With(100)), 9);
-        Assert.Equal(150, calc.Update(300, With(200)), 9);
-        Assert.Equal(100, calc.Update(300, With(200)), 9);
-
-        calc.SetSmoothing(1);
-        Assert.Equal(1, calc.SmoothingSamples);
-        Assert.Equal(0, calc.Update(300, With(300)), 9);
-    }
-
     private static EnergyBucket Bucket(int hour, double ac, double dc = 0, bool has = true) =>
         new(new DateTimeOffset(2026, 10, 30, hour, 0, 0, TimeSpan.Zero), new DateTime(2026, 10, 30, hour, 0, 0), ac, dc, has);
 

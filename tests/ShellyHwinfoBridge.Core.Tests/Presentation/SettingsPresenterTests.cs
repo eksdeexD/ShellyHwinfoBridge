@@ -24,7 +24,8 @@ public class SettingsPresenterTests
         Assert.Equal("PC Power (DC)\r\n − CPU Package Power\r\n − GPU Power\r\n − DIMM1 Power\r\n − DIMM3 Power", state.FormulaText);
         Assert.Null(state.RetiredFormulaNote);
         Assert.Equal("PC · 192.168.1.42", state.DevicesText);
-        Assert.Equal("1000 ms", state.IntervalText);
+        Assert.Equal("2 s", state.DisplayIntervalText);
+        Assert.Equal(2000, state.DisplayIntervalMs);
         Assert.Equal("1 sample", state.SmoothingText);
         Assert.Equal("Last updated 2026-10-29 · 1 entry · shipped", state.DatabaseText);
         Assert.Equal("leave empty if not set", state.PasswordPlaceholder);
@@ -119,14 +120,36 @@ public class SettingsPresenterTests
     }
 
     [Theory]
-    [InlineData(1234, 1200)]
-    [InlineData(1250, 1300)]
-    [InlineData(100, 500)]
+    [InlineData(1234, 1000)]
+    [InlineData(1250, 1500)]
+    [InlineData(2600, 2500)]
+    [InlineData(100, 1000)]
     [InlineData(9000, 5000)]
-    public void IntervalSnapsAndClamps(int input, int expected)
+    public void DisplayIntervalSnapsAndClamps(int input, int expected)
     {
-        new SettingsPresenter(_runtime, EnUs).SetIntervalMs(input);
-        Assert.Equal(expected, _runtime.Settings!.PollIntervalMs);
+        var presenter = new SettingsPresenter(_runtime, EnUs);
+        presenter.SetDisplayIntervalMs(input);
+        Assert.Equal(expected, _runtime.Settings!.DisplayIntervalMs);
+        Assert.Equal(expected, presenter.State.DisplayIntervalMs);
+        Assert.Null(_runtime.Settings.PollIntervalMs);
+    }
+
+    [Theory]
+    [InlineData(1000, "en-US", "1 s")]
+    [InlineData(1500, "en-US", "1.5 s")]
+    [InlineData(2000, "en-US", "2 s")]
+    [InlineData(5000, "en-US", "5 s")]
+    [InlineData(2500, "da-DK", "2,5 s")]
+    public void DisplayIntervalTextIsInSeconds(int milliseconds, string culture, string expected) =>
+        Assert.Equal(expected, SettingsPresenter.FormatDisplayInterval(milliseconds, CultureInfo.GetCultureInfo(culture)));
+
+    [Fact]
+    public void DisplayCardTexts()
+    {
+        Assert.Equal("Display", SettingsPresenter.DisplayCardTitle);
+        Assert.Equal("Display interval", SettingsPresenter.DisplayIntervalLabel);
+        Assert.Equal("Smoothing", SettingsPresenter.SmoothingLabel);
+        Assert.Contains("median of the last " + Core.App.OtherComponentsCalculator.WindowSeconds + " seconds", MainWindowPresenter.OtherValueTooltip, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\src\ShellyHwinfoBridge.Core\ShellyHwinfoBridge.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="App\other-trace.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

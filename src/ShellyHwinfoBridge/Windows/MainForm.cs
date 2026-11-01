@@ -80,6 +80,7 @@ internal sealed class MainForm : ThemedForm
 
         _stats[0].Visible = false;
         _stats[4].Controls.Add(_howToEnable);
+        HoverTip.Attach(_stats[4], MainWindowPresenter.OtherValueTooltip);
 
         _chartMode.SetItems(["Combined", "Per device"], 0);
         _period.SetItems(["Hours", "Days", "Months"], 0);

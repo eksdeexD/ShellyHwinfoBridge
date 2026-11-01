@@ -23,8 +23,8 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// <param name="PsuSubtitle">"700 W · Titanium · Cybenetics 21PS1872A".</param>
 /// <param name="VoltageMode">The voltage override.</param>
 /// <param name="FormulaText">The Other Components calculation ("PC Power (DC) − CPU Package Power − …") broken across lines before each " − ".</param>
-/// <param name="IntervalMs">The poll interval.</param>
-/// <param name="IntervalText">"1000 ms".</param>
+/// <param name="DisplayIntervalMs">The display interval (how often the main window and the tray tooltip refresh).</param>
+/// <param name="DisplayIntervalText">"2 s" (see <see cref="SettingsPresenter.FormatDisplayInterval"/>).</param>
 /// <param name="Smoothing">The smoothing window.</param>
 /// <param name="SmoothingText">"1 sample".</param>
 /// <param name="EnergyEnabled">Whether energy logging is on.</param>
@@ -46,7 +46,6 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// When the settings still hold a retired custom formula: the note that it is no longer applied; otherwise <c>null</c>.
 /// </param>
 /// <param name="GadgetTip">The gadget how-to with the selected sensor names (<see cref="HwinfoTips.GadgetExportFor"/>).</param>
-/// <param name="SmoothComponents">Whether the component sum uses the AC smoothing window.</param>
 /// <param name="DevicesText">The Manage Shellys summary ("PC · 192.168.1.42", "PC + 1 more device").</param>
 /// <param name="DiagnosticTraceRunning">Whether the diagnostic trace is recording.</param>
 /// <param name="DiagnosticTraceText">The Maintenance text action: "Start diagnostic trace" or "Stop diagnostic trace".</param>
@@ -63,8 +62,8 @@ public sealed record SettingsViewState(
     string PsuSubtitle,
     InputVoltageMode VoltageMode,
     string FormulaText,
-    int IntervalMs,
-    string IntervalText,
+    int DisplayIntervalMs,
+    string DisplayIntervalText,
     int Smoothing,
     string SmoothingText,
     bool EnergyEnabled,
@@ -81,7 +80,6 @@ public sealed record SettingsViewState(
     string? CurveNote = null,
     string? RetiredFormulaNote = null,
     string GadgetTip = "",
-    bool SmoothComponents = false,
     string DevicesText = "",
     bool DiagnosticTraceRunning = false,
     string DiagnosticTraceText = SettingsPresenter.StartTraceText,
@@ -115,6 +113,15 @@ public sealed class SettingsPresenter
 
     /// <summary>The caption after a failed start of the diagnostic trace.</summary>
     public const string TraceStartFailedText = "Could not create the trace file. See the log.";
+
+    /// <summary>The title of the card with the display interval and the AC smoothing.</summary>
+    public const string DisplayCardTitle = "Display";
+
+    /// <summary>The label of the display interval slider.</summary>
+    public const string DisplayIntervalLabel = "Display interval";
+
+    /// <summary>The label of the AC smoothing slider.</summary>
+    public const string SmoothingLabel = "Smoothing";
 
     private readonly IBridgeRuntime _runtime;
     private readonly CultureInfo _culture;
@@ -184,13 +191,18 @@ public sealed class SettingsPresenter
     /// <param name="mode">The mode.</param>
     public void SetVoltageMode(InputVoltageMode mode) => Update(s => s.VoltageMode = mode);
 
-    /// <summary>Sets the poll interval (snapped to 100 ms and clamped to 500–5000 ms).</summary>
+    /// <summary>
+    /// Sets the display interval (snapped to <see cref="AppSettings.DisplayIntervalStepMs"/> and clamped to
+    /// <see cref="AppSettings.MinDisplayIntervalMs"/>–<see cref="AppSettings.MaxDisplayIntervalMs"/>).
+    /// </summary>
     /// <param name="milliseconds">The interval.</param>
-    public void SetIntervalMs(int milliseconds)
-    {
-        var snapped = (int)(Math.Round(milliseconds / 100.0, MidpointRounding.AwayFromZero) * 100);
-        Update(s => s.PollIntervalMs = Math.Clamp(snapped, PollingOptions.MinIntervalMs, PollingOptions.MaxIntervalMs));
-    }
+    public void SetDisplayIntervalMs(int milliseconds) => Update(s => s.DisplayIntervalMs = AppSettings.NormalizeDisplayInterval(milliseconds));
+
+    /// <summary>Formats a display interval for the slider's value: "2 s", "1.5 s" (one decimal at most).</summary>
+    /// <param name="milliseconds">The interval.</param>
+    /// <param name="culture">The culture for the number; defaults to the current culture.</param>
+    public static string FormatDisplayInterval(int milliseconds, CultureInfo? culture = null) =>
+        (milliseconds / 1000.0).ToString("0.#", culture ?? CultureInfo.CurrentCulture) + " s";
 
     /// <summary>Sets the smoothing window (clamped to 1–<see cref="MovingAverage.MaxSamples"/>).</summary>
     /// <param name="samples">The number of samples.</param>
@@ -355,10 +367,6 @@ public sealed class SettingsPresenter
     /// <param name="mode">The mode.</param>
     public void SetChartMode(EnergyChartMode mode) => Update(s => s.ChartMode = mode);
 
-    /// <summary>Turns smoothing of the Other Components component sum on or off.</summary>
-    /// <param name="enabled">Whether to smooth.</param>
-    public void SetSmoothComponents(bool enabled) => Update(s => s.SmoothComponents = enabled);
-
     /// <summary>Creates the Manage Shellys page model over the same runtime.</summary>
     /// <param name="discover">Browses the network for plugs (for the device form).</param>
     public ManageShellysModel CreateManageShellys(Func<CancellationToken, Task<IReadOnlyList<Shelly.Discovery.DiscoveredShelly>>> discover) =>
@@ -402,8 +410,8 @@ public sealed class SettingsPresenter
             psuSubtitle,
             s.VoltageMode,
             formula,
-            s.PollIntervalMs,
-            s.PollIntervalMs.ToString(_culture) + " ms",
+            s.DisplayIntervalMs,
+            FormatDisplayInterval(s.DisplayIntervalMs, _culture),
             s.SmoothingSamples,
             s.SmoothingSamples == 1 ? "1 sample" : s.SmoothingSamples.ToString(_culture) + " samples",
             s.EnergyLoggingEnabled,
@@ -420,7 +428,6 @@ public sealed class SettingsPresenter
             CurveNote(s, db),
             string.IsNullOrWhiteSpace(s.CustomFormula) ? null : RetiredFormulaText,
             HwinfoTips.GadgetExportFor(s.Sensors.Select(x => x.Name)),
-            s.SmoothComponents,
             DevicesText(s),
             traceRunning,
             TraceLinkText(traceRunning),

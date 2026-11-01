@@ -10,7 +10,8 @@ namespace ShellyHwinfoBridge.Core.Settings;
 /// <summary>All user settings, persisted as JSON in <c>%APPDATA%\ShellyHwinfoBridge\settings.json</c>.</summary>
 /// <remarks>
 /// Schema 2 added <see cref="AdditionalDevices"/>, <see cref="SensorNames"/>, <see cref="ChartMode"/>,
-/// <see cref="ColourMode"/> / <see cref="BaseColour"/> and <see cref="SmoothComponents"/>. Version 1 files load
+/// <see cref="ColourMode"/> / <see cref="BaseColour"/>; <see cref="DisplayIntervalMs"/> later replaced the poll interval
+/// (see <see cref="PollIntervalMs"/>). Version 1 files load
 /// unchanged with the defaults; <see cref="Normalize"/> raises <see cref="SchemaVersion"/> to the current version.
 /// </remarks>
 public sealed class AppSettings
@@ -63,14 +64,38 @@ public sealed class AppSettings
     /// <summary>Gets or sets the AC moving-average window; 1 = off.</summary>
     public int SmoothingSamples { get; set; } = 1;
 
-    /// <summary>
-    /// Gets or sets whether the component sum of Other Components is smoothed with the same window as AC
-    /// (<see cref="SmoothingSamples"/>). Default off.
-    /// </summary>
-    public bool SmoothComponents { get; set; }
+    /// <summary>The shortest display interval in milliseconds.</summary>
+    public const int MinDisplayIntervalMs = 1000;
 
-    /// <summary>Gets or sets the poll interval in milliseconds (500–5000).</summary>
-    public int PollIntervalMs { get; set; } = PollingOptions.DefaultIntervalMs;
+    /// <summary>The longest display interval in milliseconds.</summary>
+    public const int MaxDisplayIntervalMs = 5000;
+
+    /// <summary>The default display interval in milliseconds.</summary>
+    public const int DefaultDisplayIntervalMs = 2000;
+
+    /// <summary>The step of the display interval slider in milliseconds.</summary>
+    public const int DisplayIntervalStepMs = 500;
+
+    private int? _displayIntervalMs;
+
+    /// <summary>
+    /// Gets or sets how often the main window's stat cards, the status pill and the tray tooltip refresh, in
+    /// milliseconds (<see cref="MinDisplayIntervalMs"/>–<see cref="MaxDisplayIntervalMs"/>). Polling itself always
+    /// runs at <see cref="PollingOptions.DefaultIntervalMs"/>.
+    /// </summary>
+    public int DisplayIntervalMs
+    {
+        get => _displayIntervalMs ?? DefaultDisplayIntervalMs;
+        set => _displayIntervalMs = value;
+    }
+
+    /// <summary>
+    /// Gets or sets the retired poll interval of earlier versions (polling is fixed at
+    /// <see cref="PollingOptions.DefaultIntervalMs"/> now). Read only to migrate it into <see cref="DisplayIntervalMs"/>
+    /// when a file has no display interval yet; <see cref="Normalize"/> clears it, so it is not written again.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? PollIntervalMs { get; set; }
 
     /// <summary>Gets or sets the HTTP timeout in milliseconds (always below the interval).</summary>
     public int HttpTimeoutMs { get; set; } = PollingOptions.DefaultTimeoutMs;
@@ -145,9 +170,23 @@ public sealed class AppSettings
     /// <param name="deviceId">The device id.</param>
     public bool IsIncludedInTotals(string? deviceId) => IsPrimary(deviceId) || FindAdditionalDevice(deviceId)?.IncludeInTotals == true;
 
-    /// <summary>Returns the polling options described by these settings, normalized.</summary>
+    /// <summary>
+    /// Returns the polling options described by these settings, normalized: the fixed interval
+    /// <see cref="PollingOptions.DefaultIntervalMs"/> and <see cref="HttpTimeoutMs"/>.
+    /// </summary>
     public PollingOptions GetPollingOptions() =>
-        new PollingOptions { IntervalMs = PollIntervalMs, TimeoutMs = HttpTimeoutMs }.Normalize();
+        new PollingOptions { IntervalMs = PollingOptions.DefaultIntervalMs, TimeoutMs = HttpTimeoutMs }.Normalize();
+
+    /// <summary>
+    /// Snaps a display interval to <see cref="DisplayIntervalStepMs"/> and clamps it to
+    /// <see cref="MinDisplayIntervalMs"/>–<see cref="MaxDisplayIntervalMs"/>.
+    /// </summary>
+    /// <param name="milliseconds">The interval.</param>
+    public static int NormalizeDisplayInterval(int milliseconds)
+    {
+        var clamped = Math.Clamp(milliseconds, MinDisplayIntervalMs, MaxDisplayIntervalMs);
+        return (int)(Math.Round(clamped / (double)DisplayIntervalStepMs, MidpointRounding.AwayFromZero) * DisplayIntervalStepMs);
+    }
 
     /// <summary>
     /// Clamps numeric settings into their valid ranges, replaces missing objects, repairs the device list (ids, labels,
@@ -175,9 +214,15 @@ public sealed class AppSettings
         }
 
         BaseColour = DeviceColours.Normalize(BaseColour) ?? DeviceColours.DefaultBase;
-        var polling = GetPollingOptions();
-        PollIntervalMs = polling.IntervalMs;
-        HttpTimeoutMs = polling.TimeoutMs;
+        // Migration: a file from before the display interval keeps its poll interval as the display interval.
+        if (PollIntervalMs is int legacy && _displayIntervalMs is null)
+        {
+            _displayIntervalMs = legacy;
+        }
+
+        PollIntervalMs = null;
+        DisplayIntervalMs = NormalizeDisplayInterval(DisplayIntervalMs);
+        HttpTimeoutMs = GetPollingOptions().TimeoutMs;
         SmoothingSamples = Math.Clamp(SmoothingSamples, 1, MovingAverage.MaxSamples);
         if (!Enum.IsDefined(VoltageMode))
         {
