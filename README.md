@@ -79,11 +79,15 @@ maintainer tool that turns a Cybenetics report PDF into a database entry.
 
 ## PSU data attribution
 
-The PSU efficiency curves in `psu-database.json` come from [Cybenetics](https://www.cybenetics.com/) evaluation
-reports. Each database entry names its source and links to the original report, as Cybenetics requires for reuse
-of its data. PSUs not in the database can use a generic curve derived from the 80 Plus minimum requirements
-(approximate, least accurate at low load) or a manually entered curve.
+The PSU efficiency curves in `psu-database.json` are test results provided by [Cybenetics](https://www.cybenetics.com/),
+used with their written permission. Each entry links to the original report and names the input voltage of the
+curve (115 V or 230 V); the results are from the sample Cybenetics tested. PSUs not in the database can use a generic
+curve derived from the 80 Plus minimum requirements (approximate, least accurate at low load) or a manually entered
+curve.
 
 ## License
 
-[MIT](LICENSE). Copyright (c) 2026 Zapador.
+The source code is licensed under [MIT](LICENSE). Copyright (c) 2026 Zapador.
+
+The Cybenetics data in `psu-database.json` is not covered by the MIT licence. It remains under Cybenetics' conditions,
+see [PSU-DATA-NOTICE.md](PSU-DATA-NOTICE.md).
