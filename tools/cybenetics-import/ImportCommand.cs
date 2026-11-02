@@ -3,8 +3,8 @@ using System.Globalization;
 namespace CybeneticsImport;
 
 /// <summary>
-/// The command-line front end: single import, plus the <c>batch</c>, <c>merge</c>, <c>download</c> and
-/// <c>backfill-dates</c> verbs.
+/// The command-line front end: single import, plus the <c>batch</c>, <c>merge</c>, <c>download</c>, <c>backfill</c>,
+/// <c>backfill-dates</c> and <c>backfill-eta</c> verbs.
 /// </summary>
 public static class ImportCommand
 {
@@ -25,12 +25,19 @@ public static class ImportCommand
           CybeneticsImport merge --entries <dir> --into <psu-database.json> [--remove <id>]...
                                                                                 merge entries into the database; each
                                                                                 --remove deletes that existing entry
-          CybeneticsImport download --catalog <csv> --reports <dir>             fetch missing report PDFs (see README)
-          CybeneticsImport backfill-dates --pages <dir> --into <psu-database.json> [--dry-run]
-                                                                                fill source.reportDate of existing
-                                                                                entries from saved evaluation pages
-                                                                                (matched on source.reportId); nothing
-                                                                                else changes
+          CybeneticsImport download --catalog <csv> --reports <dir> [--max-per-day <n>]
+                                    [--batch-size <n>] [--batch-pause <15m|900s>]
+                                                                                fetch missing report pages (reportUrl
+                                                                                to <reportId>.htm; one request per 15 s,
+                                                                                at most n pages a day, default 150;
+                                                                                batches of 50 with 15 min pauses;
+                                                                                see README)
+          CybeneticsImport backfill --pages <dir> --into <psu-database.json> [--dry-run]
+                                                                                fill source.reportDate and
+                                                                                ratingsCybenetics of existing entries
+                                                                                from saved evaluation pages (matched on
+                                                                                source.reportId); nothing else changes
+          CybeneticsImport backfill-dates ...  /  backfill-eta ...              the same, for one of the two only
 
         Single import: builds one psu-database.json entry from Cybenetics report(s).
 
@@ -45,7 +52,9 @@ public static class ImportCommand
         Metadata (required unless noted):
           --id <id>  --brand <text>  --series <text>  --model <text>  [--revision <text>]  (--revision "" = none)
           --wattage <W>  --rating80plus <White|Bronze|Silver|Gold|Platinum|Titanium|None>
-          [--ratingCybenetics <text>]  [--reportId <id>]  --url <report page URL>
+          [--eta230 <grade>] [--eta115 <grade>]  [--reportId <id>]  --url <report page URL>
+          (ETA grade per voltage: Diamond|Titanium|Platinum|Gold|Silver|Bronze|Standard; taken from a saved page's ETA
+          badges unless given)
           [--reportDate <yyyy-MM-dd or "Jul 16, 2021">]  (taken from a saved page's "Testing Date" unless given)
           (--reportId may be omitted for older reports without one; the URL is always required)
 
@@ -63,7 +72,7 @@ public static class ImportCommand
         ["voltage", "light-load-header", "load-header", "section-end", "voltage-marker", "light-load-row", "load-row", "ignore-line", "dc-tolerance"];
 
     private static readonly string[] MetadataNames =
-        ["id", "brand", "series", "model", "revision", "wattage", "rating80plus", "ratingcybenetics", "reportid", "url", "reportdate"];
+        ["id", "brand", "series", "model", "revision", "wattage", "rating80plus", "eta115", "eta230", "reportid", "url", "reportdate"];
 
     /// <summary>Runs the tool.</summary>
     /// <param name="args">The arguments.</param>
@@ -92,9 +101,13 @@ public static class ImportCommand
                 case "merge":
                     return MergeCommand.Run(OptionSet.Parse(args[1..], ["entries", "into", "date", "remove"], []), stderr, DateTime.Today);
                 case "download":
-                    return DownloadCommand.Run(OptionSet.Parse(args[1..], ["catalog", "reports"], []), stderr);
-                case "backfill-dates":
+                    return DownloadCommand.Run(OptionSet.Parse(args[1..], ["catalog", "reports", "max-per-day", "batch-size", "batch-pause"], []), stderr);
+                case "backfill":
                     return BackfillDatesCommand.Run(OptionSet.Parse(args[1..], ["pages", "into"], ["dry-run"]), stderr);
+                case "backfill-dates":
+                    return BackfillDatesCommand.Run(OptionSet.Parse(args[1..], ["pages", "into"], ["dry-run"]), stderr, eta: false);
+                case "backfill-eta":
+                    return BackfillDatesCommand.Run(OptionSet.Parse(args[1..], ["pages", "into"], ["dry-run"]), stderr, dates: false);
                 case "import":
                     return RunImport(args[1..], stdout, stderr, readLines);
                 default:

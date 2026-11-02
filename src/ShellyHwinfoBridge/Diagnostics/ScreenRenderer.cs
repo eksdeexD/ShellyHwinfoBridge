@@ -357,7 +357,72 @@ internal static class ScreenRenderer
             form.Tag = new Action(() => form.SettingsPage?.PreviewScrollToEnd());
             return form;
         }),
+
+        // 1.0.1: the three-column PSU list (model | 80 Plus | Cybenetics ETA and the report link), the credit under it,
+        // the Settings PSU card's link line and the shorter curve note of the main window.
+        ("v101-wizard-3-psu-unknown-voltage", () => WizardPreview.At(WizardStep.Psu, tweak: s =>
+        {
+            // Automatic and nothing measured: every ETA grade, 230 V first.
+            s.Psu.MeasuredVolts = null;
+            s.Psu.SetBrand("Seasonic");
+            s.Psu.Select("seasonic-prime-fanless-tx-700");
+        })),
+        ("v101-wizard-3-psu-measured-230", () => WizardPreview.At(WizardStep.Psu, tweak: s =>
+        {
+            s.Psu.MeasuredVolts = 226.9;
+            s.Psu.Select("preview-px-750");
+        })),
+        ("v101-wizard-3-psu-long-names", () => WizardPreview.At(WizardStep.Psu, database: PsuDatabaseLoader.LoadEmbedded(), tweak: s =>
+        {
+            s.Psu.SetSearchText("1100");
+            s.Psu.Select(LongPsuId);
+        })),
+        ("v101-wizard-3-psu-no-80-plus", () => WizardPreview.At(WizardStep.Psu, database: PsuDatabaseLoader.LoadEmbedded(), tweak: s =>
+        {
+            s.Psu.SetSearchText("shift");
+            s.Psu.MeasuredVolts = 118.2;
+        })),
+        ("v101-step-dialog-psu-unknown-voltage", () =>
+        {
+            var model = new PsuStepModel(WizardPreview.Database(), SampleData.Culture);
+            model.LoadFrom(SampleData.Settings());
+            return new StepDialog("Power supply", "Pick it from the database for the most accurate curve. If it is missing, use a generic or your own curve.", new PsuStepView(model), () => null);
+        }),
+        ("v101-main-window-long-psu-115", () => MainWindow(SampleData.MainView(settings: LongPsuSettings()), EnergyPeriod.Hours)),
+        ("v101-main-settings-long-psu-115", () => Settings(out _, LongPsuSettings(), PsuDatabaseLoader.LoadEmbedded())),
+
+        // 1.0.1: the platform revision after the model name ("MWE Gold 1050 V2 (ATX v2.52, 2021)", the longest shipped).
+        ("v101-wizard-3-psu-revisions", () => WizardPreview.At(WizardStep.Psu, database: PsuDatabaseLoader.LoadEmbedded(), tweak: s =>
+        {
+            s.Psu.SetSearchText("mwe gold 1050");
+            s.Psu.Select(LongRevisionPsuId);
+        })),
+        ("v101-main-window-long-revision", () => MainWindow(SampleData.MainView(settings: LongRevisionSettings()), EnergyPeriod.Hours)),
+        ("v101-main-settings-long-revision", () => Settings(out _, LongRevisionSettings(), PsuDatabaseLoader.LoadEmbedded())),
     ];
+
+    /// <summary>The shipped database's longest PSU name, a unit tested at 230 V only.</summary>
+    private const string LongPsuId = "cooler-master-x-silent-edge-platinum-1100-230v";
+
+    /// <summary>The sample settings with <see cref="LongPsuId"/> and the 115 V override (the longest main-window PSU line).</summary>
+    private static AppSettings LongPsuSettings()
+    {
+        var settings = SampleData.Settings();
+        settings.Psu.DatabaseId = LongPsuId;
+        settings.VoltageMode = Core.Curves.InputVoltageMode.V115;
+        return settings;
+    }
+
+    /// <summary>The shipped database's longest PSU name with a revision.</summary>
+    private const string LongRevisionPsuId = "thermaltake-toughpower-gf-a3-850";
+
+    /// <summary>The sample settings with <see cref="LongRevisionPsuId"/>.</summary>
+    private static AppSettings LongRevisionSettings()
+    {
+        var settings = SampleData.Settings();
+        settings.Psu.DatabaseId = LongRevisionPsuId;
+        return settings;
+    }
 
     private static MainForm Settings() => Settings(out _);
 

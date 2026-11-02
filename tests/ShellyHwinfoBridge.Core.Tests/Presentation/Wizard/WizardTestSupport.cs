@@ -110,7 +110,7 @@ internal static class TestDatabase
     public static PsuDatabase Create()
     {
         var curve = TestCurves.Tx700.Curves;
-        PsuEntry Entry(string id, string brand, string model, int watts, string rating, string? eta, string? revision = null, string? report = "21PS0000A") => new()
+        PsuEntry Entry(string id, string brand, string model, int watts, string rating, string? eta, string? revision = null, string? report = "21PS0000A", string? eta115 = null, string? date = null) => new()
         {
             Id = id,
             Brand = brand,
@@ -119,8 +119,10 @@ internal static class TestDatabase
             Revision = revision,
             Wattage = watts,
             Rating80Plus = rating,
-            RatingCybenetics = eta,
-            Source = new PsuSource { Name = "Cybenetics", ReportId = report, Url = "https://www.cybenetics.com/evaluations/psus/" + id + "/" },
+            RatingsCybenetics = eta is null && eta115 is null
+                ? null
+                : new Dictionary<string, string>(new[] { ("230", eta), ("115", eta115) }.Where(g => g.Item2 is not null).Select(g => KeyValuePair.Create(g.Item1, g.Item2!))),
+            Source = new PsuSource { Name = "Cybenetics", ReportId = report, Url = "https://www.cybenetics.com/evaluations/psus/" + id + "/", ReportDate = date },
             Curves = curve,
         };
 
@@ -129,10 +131,10 @@ internal static class TestDatabase
             SchemaVersion = 1,
             Psus =
             [
-                Entry("tx700", "Seasonic", "Prime Fanless TX-700", 700, "Titanium", "Titanium", report: "21PS1872A"),
+                Entry("tx700", "Seasonic", "Prime Fanless TX-700", 700, "Titanium", "Titanium", report: "21PS1872A", eta115: "Titanium", date: "2021-07-16"),
                 Entry("tx750", "Seasonic", "Prime TX-750", 750, "Titanium", "Titanium"),
                 Entry("px750", "Seasonic", "Prime PX-750", 750, "Platinum", "Platinum"),
-                Entry("rm850", "Corsair", "RM850x", 850, "Gold", "Platinum", "2021"),
+                Entry("rm850", "Corsair", "RM850x", 850, "Gold", "Gold", "2021", eta115: "Platinum"),
                 Entry("rm850old", "Corsair", "RM850x", 850, "Gold", null, "2018"),
                 Entry("sf750", "Corsair", "SF750", 750, "Platinum", "Platinum", report: null),
             ],

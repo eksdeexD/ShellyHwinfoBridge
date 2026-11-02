@@ -3,18 +3,35 @@ using ShellyHwinfoBridge.Theming;
 namespace ShellyHwinfoBridge.Controls;
 
 /// <summary>A row of a <see cref="SelectableList"/>.</summary>
-/// <param name="Title">Bold first line ("Prime Fanless TX-700").</param>
-/// <param name="Subtitle">Secondary line ("80 Plus Titanium · Cybenetics ETA Titanium"), or null.</param>
-/// <param name="LinkText">Clickable text after the subtitle ("report 21PS1872A ↗"), or null.</param>
+/// <param name="Title">Bold first line ("Prime Fanless TX-700"); column 1 in column mode.</param>
+/// <param name="Subtitle">Secondary line ("S3PL-10112EU · 192.168.1.42"), or null; not shown in column mode.</param>
+/// <param name="LinkText">
+/// Clickable text after the subtitle, or (column mode) on the last line of the last column ("report 21PS1872A ·
+/// 2021-07-16 ↗"); or null.
+/// </param>
 /// <param name="Tag">Caller data (an id, a device, a URL).</param>
-internal sealed record SelectableRow(string Title, string? Subtitle = null, string? LinkText = null, object? Tag = null);
+internal sealed record SelectableRow(string Title, string? Subtitle = null, string? LinkText = null, object? Tag = null)
+{
+    /// <summary>Gets the middle column's text in column mode ("80 Plus Gold"), or null.</summary>
+    public string? Column2 { get; init; }
+
+    /// <summary>Gets the last column's lines in column mode ("Cybenetics ETA Gold (230 V)"); the link follows them.</summary>
+    public IReadOnlyList<string> Column3 { get; init; } = [];
+}
 
 /// <summary>
 /// A card-framed list of rows separated by 1 px lines; the selected row is SurfaceElevated with a 4 DIP Accent bar at
 /// the left. Scrolls with the wheel, the keyboard and a thin drawn scrollbar (no virtualisation; lists are short).
+/// With <see cref="ColumnWidthsDip"/> set, rows are three columns: the title takes the remaining width (up to two
+/// lines), then <see cref="SelectableRow.Column2"/> and <see cref="SelectableRow.Column3"/> plus the link at fixed
+/// widths; <see cref="ColumnHeaders"/> adds a thin non-scrolling header row.
 /// </summary>
 internal sealed class SelectableList : ThemedControl
 {
+    private const int HeaderHeightDip = 28;
+    private const int ColumnGapDip = 16;
+    private const int LineGapDip = 2;
+
     private readonly List<SelectableRow> _rows = [];
     private int _selectedIndex = -1;
     private int _hoverIndex = -1;
@@ -23,6 +40,7 @@ internal sealed class SelectableList : ThemedControl
     private bool _draggingThumb;
     private int _dragStartY;
     private int _dragStartScroll;
+    private int _maxColumnLines = 1;
 
     public SelectableList()
     {
@@ -36,8 +54,16 @@ internal sealed class SelectableList : ThemedControl
     /// <summary>Raised when a row's link is clicked; the argument is the row index.</summary>
     public event EventHandler<int>? LinkClicked;
 
-    /// <summary>Gets or sets the row height in DIP (default 70).</summary>
+    /// <summary>Gets or sets the minimum row height in DIP (column mode grows it to fit the tallest last column).</summary>
     public int RowHeightDip { get; set; } = 48;
+
+    /// <summary>
+    /// Gets or sets the fixed DIP widths of columns 2 and 3 (column mode), or null for the title + subtitle layout.
+    /// </summary>
+    public int[]? ColumnWidthsDip { get; set; }
+
+    /// <summary>Gets or sets the column header texts (column mode), or null for no header row.</summary>
+    public IReadOnlyList<string>? ColumnHeaders { get; set; }
 
     /// <summary>Gets or sets the text shown when there are no rows ("Searching…", "No match").</summary>
     public string EmptyText { get; set; } = string.Empty;
@@ -73,6 +99,30 @@ internal sealed class SelectableList : ThemedControl
         }
     }
 
+    private bool ColumnMode => ColumnWidthsDip is { Length: >= 2 };
+
+    private int HeaderHeight => ColumnMode && ColumnHeaders is { Count: > 0 } ? this.Px(HeaderHeightDip) : 0;
+
+    private int ViewHeight => Math.Max(0, Height - HeaderHeight);
+
+    private int LineHeight => Gfx.Measure("Ag", Fonts.Body).Height;
+
+    private int RowHeight
+    {
+        get
+        {
+            var height = this.Px(RowHeightDip);
+            if (ColumnMode)
+            {
+                height = Math.Max(height, (_maxColumnLines * LineHeight) + ((_maxColumnLines - 1) * this.Px(LineGapDip)) + this.Px(16));
+            }
+
+            return Math.Max(1, height);
+        }
+    }
+
+    private int MaxScroll => Math.Max(0, (_rows.Count * RowHeight) - ViewHeight);
+
     protected override AccessibleObject CreateAccessibilityInstance() => new ThemedAccessibleObject(this)
     {
         ValueText = () => SelectedRow?.Title,
@@ -81,10 +131,10 @@ internal sealed class SelectableList : ThemedControl
                 this,
                 i,
                 AccessibleRole.ListItem,
-                index => index < _rows.Count ? string.Join(", ", new[] { _rows[index].Title, _rows[index].Subtitle }.Where(s => !string.IsNullOrEmpty(s))) : string.Empty,
+                index => index < _rows.Count ? AccessibleText(_rows[index]) : string.Empty,
                 index => index == _selectedIndex,
                 index => SelectedIndex = index,
-                index => new Rectangle(0, (index * RowHeight) - _scroll, Width, RowHeight)))
+                index => new Rectangle(0, HeaderHeight + (index * RowHeight) - _scroll, Width, RowHeight)))
             .ToList(),
     };
 
@@ -93,6 +143,7 @@ internal sealed class SelectableList : ThemedControl
     {
         _rows.Clear();
         _rows.AddRange(rows);
+        _maxColumnLines = Math.Max(1, _rows.Count == 0 ? 1 : _rows.Max(r => r.Column3.Count + (string.IsNullOrEmpty(r.LinkText) ? 0 : 1)));
         _selectedIndex = _rows.Count == 0 ? -1 : Math.Clamp(selectedIndex, -1, _rows.Count - 1);
         _hoverIndex = -1;
         _hoverLink = -1;
@@ -105,7 +156,7 @@ internal sealed class SelectableList : ThemedControl
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        var page = Math.Max(1, Height / RowHeight);
+        var page = Math.Max(1, ViewHeight / RowHeight);
         int? target = e.KeyCode switch
         {
             Keys.Up => Math.Max(0, _selectedIndex - 1),
@@ -139,7 +190,7 @@ internal sealed class SelectableList : ThemedControl
             return;
         }
 
-        if (ThumbBounds() is { } thumb && thumb.Width > 0 && e.X >= Width - this.Px(14))
+        if (ThumbBounds() is { } thumb && thumb.Width > 0 && e.X >= Width - this.Px(14) && e.Y >= HeaderHeight)
         {
             _draggingThumb = true;
             _dragStartY = e.Y;
@@ -164,7 +215,7 @@ internal sealed class SelectableList : ThemedControl
     {
         if (_draggingThumb)
         {
-            var track = Height - ThumbBounds()!.Value.Height;
+            var track = ViewHeight - ThumbBounds()!.Value.Height;
             if (track > 0)
             {
                 ScrollTo(_dragStartScroll + (int)((e.Y - _dragStartY) * (MaxScroll / (double)track)));
@@ -224,6 +275,13 @@ internal sealed class SelectableList : ThemedControl
             var state = g.Save();
             g.SetClip(clip, System.Drawing.Drawing2D.CombineMode.Intersect);
             PaintRows(g);
+
+            // The header goes over the rows scrolled under it (GDI text ignores the Graphics clip).
+            if (HeaderHeight > 0)
+            {
+                PaintHeader(g);
+            }
+
             g.Restore(state);
         }
 
@@ -231,7 +289,7 @@ internal sealed class SelectableList : ThemedControl
 
         if (_rows.Count == 0 && !string.IsNullOrEmpty(EmptyText))
         {
-            Gfx.Text(g, EmptyText, Fonts.Body, ClientRectangle, Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            Gfx.Text(g, EmptyText, Fonts.Body, new Rectangle(0, HeaderHeight, Width, ViewHeight), Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
 
         if (ThumbBounds() is { } thumb && thumb.Width > 0)
@@ -240,9 +298,39 @@ internal sealed class SelectableList : ThemedControl
         }
     }
 
-    private int RowHeight => Math.Max(1, this.Px(RowHeightDip));
+    /// <summary>The left edges and widths of the three columns in column mode (pixels).</summary>
+    private (int Left1, int Width1, int Left2, int Width2, int Left3, int Width3) Columns()
+    {
+        var widths = ColumnWidthsDip!;
+        var pad = this.Px(16);
+        var gap = this.Px(ColumnGapDip);
+        var right = Width - this.Px(20);
+        var width3 = this.Px(widths[1]);
+        var left3 = right - width3;
+        var width2 = this.Px(widths[0]);
+        var left2 = left3 - gap - width2;
+        return (pad, Math.Max(0, left2 - gap - pad), left2, width2, left3, width3);
+    }
 
-    private int MaxScroll => Math.Max(0, (_rows.Count * RowHeight) - Height);
+    private void PaintHeader(Graphics g)
+    {
+        var headers = ColumnHeaders!;
+        var height = HeaderHeight;
+        var (left1, width1, left2, width2, left3, width3) = Columns();
+        var lefts = new[] { (left1, width1), (left2, width2), (left3, width3) };
+        using (var background = new SolidBrush(Theme.Surface))
+        {
+            g.FillRectangle(background, 0, 0, Width, height);
+        }
+
+        for (var i = 0; i < headers.Count && i < lefts.Length; i++)
+        {
+            Gfx.Text(g, headers[i], Fonts.Small, new Rectangle(lefts[i].Item1, 0, lefts[i].Item2, height), Theme.InkSecondary);
+        }
+
+        using var separator = new SolidBrush(Theme.Border);
+        g.FillRectangle(separator, 0, height - Math.Max(1, this.Px(1)), Width, Math.Max(1, this.Px(1)));
+    }
 
     private void PaintRows(Graphics g)
     {
@@ -253,8 +341,8 @@ internal sealed class SelectableList : ThemedControl
         using var separator = new SolidBrush(Theme.Border);
         for (var i = 0; i < _rows.Count; i++)
         {
-            var top = (i * rowHeight) - _scroll;
-            if (top + rowHeight < 0 || top > Height)
+            var top = HeaderHeight + (i * rowHeight) - _scroll;
+            if (top + rowHeight < HeaderHeight || top > Height)
             {
                 continue;
             }
@@ -277,6 +365,12 @@ internal sealed class SelectableList : ThemedControl
                 g.FillRectangle(separator, 0, top, Width, line);
             }
 
+            if (ColumnMode)
+            {
+                PaintColumns(g, i, top, rowHeight);
+                continue;
+            }
+
             var titleHeight = Gfx.Measure(row.Title, titleFont).Height;
             var subHeight = string.IsNullOrEmpty(row.Subtitle) && string.IsNullOrEmpty(row.LinkText) ? 0 : Gfx.Measure("Ag", Fonts.Body).Height;
             var gap = subHeight > 0 ? this.Px(2) : 0;
@@ -290,17 +384,60 @@ internal sealed class SelectableList : ThemedControl
                 if (!string.IsNullOrEmpty(row.LinkText))
                 {
                     var link = LinkBounds(i)!.Value;
-                    var hovered = _hoverLink == i;
                     if (subWidth > 0)
                     {
                         Gfx.Text(g, "·", Fonts.Body, new Rectangle(link.Left - this.Px(14), subTop, this.Px(10), subHeight), Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.HorizontalCenter);
                     }
 
-                    using var font = hovered ? new Font(Fonts.Body, FontStyle.Underline) : null;
-                    Gfx.Text(g, row.LinkText, font ?? Fonts.Body, link, hovered ? Theme.Accent : Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.VerticalCenter);
+                    PaintLink(g, i, link);
                 }
             }
         }
+    }
+
+    private void PaintColumns(Graphics g, int index, int top, int rowHeight)
+    {
+        var row = _rows[index];
+        var (left1, width1, left2, width2, left3, width3) = Columns();
+        var inset = this.Px(6);
+
+        // Column 1: the title, wrapped onto a second line when it is too long, then cut with an ellipsis.
+        var titleFont = Fonts.ItemTitle;
+        const TextFormatFlags wrap = TextFormatFlags.NoPadding | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis;
+        var titleLine = Gfx.Measure("Ag", titleFont).Height;
+        var titleHeight = Math.Min(Math.Min(2 * titleLine, rowHeight - (2 * inset)), Gfx.MeasureWrapped(row.Title, titleFont, width1).Height);
+        Gfx.Text(g, row.Title, titleFont, new Rectangle(left1, top + ((rowHeight - titleHeight) / 2), width1, titleHeight), Theme.Ink, wrap);
+
+        // Column 2: the 80 Plus rating, centred on the row.
+        Gfx.Text(g, row.Column2, Fonts.Body, new Rectangle(left2, top, width2, rowHeight), Theme.InkSecondary);
+
+        // Column 3: the lines, then the link, as one block centred on the row.
+        var lineHeight = LineHeight;
+        var y = Column3Top(row, top, rowHeight);
+        foreach (var text in row.Column3)
+        {
+            Gfx.Text(g, text, Fonts.Body, new Rectangle(left3, y, width3, lineHeight), Theme.InkSecondary);
+            y += lineHeight + this.Px(LineGapDip);
+        }
+
+        if (LinkBounds(index) is { } link)
+        {
+            PaintLink(g, index, link);
+        }
+    }
+
+    private void PaintLink(Graphics g, int index, Rectangle link)
+    {
+        var hovered = _hoverLink == index;
+        using var font = hovered ? new Font(Fonts.Body, FontStyle.Underline) : null;
+        Gfx.Text(g, _rows[index].LinkText, font ?? Fonts.Body, link, hovered ? Theme.Accent : Theme.InkSecondary, Gfx.SingleLine | TextFormatFlags.VerticalCenter);
+    }
+
+    private int Column3Top(SelectableRow row, int top, int rowHeight)
+    {
+        var lines = row.Column3.Count + (string.IsNullOrEmpty(row.LinkText) ? 0 : 1);
+        var block = (lines * LineHeight) + (Math.Max(0, lines - 1) * this.Px(LineGapDip));
+        return top + ((rowHeight - block) / 2);
     }
 
     private Rectangle? LinkBounds(int index)
@@ -312,41 +449,52 @@ internal sealed class SelectableList : ThemedControl
 
         var row = _rows[index];
         var rowHeight = RowHeight;
+        var top = HeaderHeight + (index * rowHeight) - _scroll;
+        var width = Gfx.Measure(row.LinkText, Fonts.Body).Width + this.Px(2);
+        if (ColumnMode)
+        {
+            var columns = Columns();
+            var lineTop = Column3Top(row, top, rowHeight) + (row.Column3.Count * (LineHeight + this.Px(LineGapDip)));
+            return new Rectangle(columns.Left3, lineTop, Math.Min(width, columns.Width3 + this.Px(2)), LineHeight);
+        }
+
         var titleHeight = Gfx.Measure(row.Title, Fonts.ItemTitle).Height;
         var subHeight = Gfx.Measure("Ag", Fonts.Body).Height;
         var gap = this.Px(2);
-        var top = (index * rowHeight) - _scroll;
         var y = top + ((rowHeight - titleHeight - gap - subHeight) / 2) + titleHeight + gap;
         var pad = this.Px(16);
         var subWidth = string.IsNullOrEmpty(row.Subtitle) ? 0 : Gfx.Measure(row.Subtitle, Fonts.Body).Width + this.Px(18);
-        var width = Gfx.Measure(row.LinkText, Fonts.Body).Width + this.Px(2);
         return new Rectangle(pad + subWidth, y, width, subHeight);
     }
 
+    private static string AccessibleText(SelectableRow row) =>
+        string.Join(", ", new[] { row.Title, row.Subtitle, row.Column2 }.Concat(row.Column3).Append(row.LinkText).Where(s => !string.IsNullOrEmpty(s)));
+
     private int RowAt(int y)
     {
-        if (_rows.Count == 0)
+        if (_rows.Count == 0 || y < HeaderHeight)
         {
             return -1;
         }
 
-        var index = (y + _scroll) / RowHeight;
+        var index = (y - HeaderHeight + _scroll) / RowHeight;
         return index >= 0 && index < _rows.Count ? index : -1;
     }
 
     private RectangleF? ThumbBounds()
     {
         var content = _rows.Count * RowHeight;
-        if (content <= Height || Height <= 0)
+        var view = ViewHeight;
+        if (content <= view || view <= 0)
         {
             return null;
         }
 
         var width = this.PxF(5);
         var inset = this.PxF(6);
-        var track = Height - (2 * inset);
-        var thumb = Math.Max(this.PxF(24), track * Height / content);
-        var top = inset + ((track - thumb) * _scroll / (float)MaxScroll);
+        var track = view - (2 * inset);
+        var thumb = Math.Max(this.PxF(24), track * view / content);
+        var top = HeaderHeight + inset + ((track - thumb) * _scroll / (float)MaxScroll);
         return new RectangleF(Width - inset - width, top, width, thumb);
     }
 
@@ -372,9 +520,9 @@ internal sealed class SelectableList : ThemedControl
         {
             ScrollTo(top);
         }
-        else if (top + RowHeight > _scroll + Height)
+        else if (top + RowHeight > _scroll + ViewHeight)
         {
-            ScrollTo(top + RowHeight - Height);
+            ScrollTo(top + RowHeight - ViewHeight);
         }
     }
 }

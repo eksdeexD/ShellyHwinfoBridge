@@ -16,7 +16,7 @@
     Product version without a leading "v", e.g. 1.0.0 or 1.1.0-beta.1.
 
 .PARAMETER PublishDir
-    Folder with the published ShellyHwinfoBridge.exe and psu-database.json. Default: <repo>\publish.
+    Folder with the published ShellyHwinfoBridge.exe, psu-database.json and PSU-DATA-NOTICE.md. Default: <repo>\publish.
 
 .PARAMETER OutputDir
     Folder for the setup.exe. Default: <repo>\artifacts\installer.
@@ -44,7 +44,7 @@ if (-not $OutputDir) { $OutputDir = Join-Path $repoRoot 'artifacts\installer' }
 $PublishDir = [System.IO.Path]::GetFullPath($PublishDir)
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 
-foreach ($file in 'ShellyHwinfoBridge.exe', 'psu-database.json') {
+foreach ($file in 'ShellyHwinfoBridge.exe', 'psu-database.json', 'PSU-DATA-NOTICE.md') {
     if (-not (Test-Path (Join-Path $PublishDir $file))) {
         throw "Missing $file in $PublishDir. Run dotnet publish first."
     }

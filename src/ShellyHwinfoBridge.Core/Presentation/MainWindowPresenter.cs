@@ -330,20 +330,23 @@ public sealed class MainWindowPresenter
         return !string.IsNullOrWhiteSpace(settings.Device.Name) ? settings.Device.Name.Trim() : settings.Device.Host.Trim();
     }
 
-    /// <summary>Builds the PSU line ("Seasonic Prime Fanless TX-700 · 230 V curve · Cybenetics").</summary>
+    /// <summary>
+    /// Builds the PSU line ("Seasonic Prime Fanless TX-700 · 230 V curve · Cybenetics · report 2021-07-16"; the report
+    /// date when the entry has one).
+    /// </summary>
     /// <param name="settings">The settings.</param>
     /// <param name="entry">The database entry (database mode), or <c>null</c>.</param>
     /// <param name="measuredVolts">The mains voltage of the last reading, if any (selects the curve in automatic mode).</param>
     /// <param name="culture">The culture.</param>
     /// <remarks>
-    /// When the selected database entry has no curve for that voltage, the curve part reads "230 V curve (115 V data
-    /// not available for this unit)".
+    /// When the selected database entry has no curve for that voltage, the curve part reads "230 V curve (no 115 V
+    /// data)" (<see cref="PsuCurveSet.ShortCurveLabel"/>).
     /// </remarks>
     public static string PsuLine(AppSettings settings, PsuEntry? entry, double? measuredVolts, CultureInfo culture)
     {
         ArgumentNullException.ThrowIfNull(settings);
         var voltage = VoltageSelector.Resolve(settings.VoltageMode, measuredVolts);
-        var curve = PsuCurveSet.CurveLabel(settings.Psu.Mode == PsuSelectionMode.Database ? entry?.GetCurveSet() : null, voltage);
+        var curve = PsuCurveSet.ShortCurveLabel(settings.Psu.Mode == PsuSelectionMode.Database ? entry?.GetCurveSet() : null, voltage);
         switch (settings.Psu.Mode)
         {
             case PsuSelectionMode.Database:
@@ -352,9 +355,14 @@ public sealed class MainWindowPresenter
                     return settings.Psu.DatabaseId is null ? "No PSU selected" : "PSU not found in the database";
                 }
 
-                var name = $"{entry.Brand} {entry.DisplayName}".Trim();
+                var name = entry.FullName;
                 var source = entry.Source?.Name;
-                return string.IsNullOrWhiteSpace(source) ? $"{name} · {curve}" : $"{name} · {curve} · {source}";
+                if (string.IsNullOrWhiteSpace(source))
+                {
+                    return $"{name} · {curve}";
+                }
+
+                return PsuSourceText.ReportDate(entry.Source) is { } date ? $"{name} · {curve} · {source} · {date}" : $"{name} · {curve} · {source}";
 
             case PsuSelectionMode.Generic:
                 return settings.Psu.GenericWattage is int watts && settings.Psu.GenericRating is { } rating
@@ -402,7 +410,7 @@ public sealed class MainWindowPresenter
 
     private static string DcSub(AppSettings settings, PsuEntry? entry) => settings.Psu.Mode switch
     {
-        PsuSelectionMode.Database when entry is not null => $"via {entry.Model.Trim().Split(' ')[^1]} curve",
+        PsuSelectionMode.Database when entry is not null => "via measured curve",
         PsuSelectionMode.Generic => "via generic curve",
         PsuSelectionMode.Manual => "via manual curve",
         _ => "no PSU curve",

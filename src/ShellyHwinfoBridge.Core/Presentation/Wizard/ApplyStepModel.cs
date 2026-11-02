@@ -222,9 +222,10 @@ public sealed class ApplyStepModel
         {
             case PsuSelectionMode.Database:
                 var entry = draft.Psu.DatabaseId is { } id ? new PsuDatabaseQuery(database).FindById(id) : null;
-                psu = entry is null ? "No PSU selected" : $"{entry.Brand} {entry.DisplayName}".Trim();
+                psu = entry is null ? "No PSU selected" : entry.FullName;
                 source = entry?.Source is { } s
                     ? (string.IsNullOrWhiteSpace(s.ReportId) ? $"{s.Name} report" : $"{s.Name} report {s.ReportId.Trim()}").Trim()
+                        + (string.IsNullOrWhiteSpace(s.ReportDate) ? string.Empty : " · " + s.ReportDate.Trim())
                     : "PSU database";
                 break;
             case PsuSelectionMode.Generic:

@@ -20,7 +20,10 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// <param name="HasPassword">Whether a password is stored.</param>
 /// <param name="PasswordPlaceholder">"unchanged" when a password is stored, else "leave empty if not set".</param>
 /// <param name="PsuTitle">"Seasonic Prime Fanless TX-700".</param>
-/// <param name="PsuSubtitle">"700 W · Titanium · Cybenetics 21PS1872A".</param>
+/// <param name="PsuSubtitle">
+/// Line 2: "700 W · 80 Plus Titanium · Cybenetics ETA Titanium (230 V)" (the ETA grade for the voltage in use), without an
+/// ETA grade "700 W · 80 Plus Gold · Cybenetics"; the report itself is <paramref name="PsuLinkText"/> on line 3.
+/// </param>
 /// <param name="VoltageMode">The voltage override.</param>
 /// <param name="FormulaText">The Other Components calculation ("PC Power (DC) − CPU Package Power − …") broken across lines before each " − ".</param>
 /// <param name="DisplayIntervalMs">The display interval (how often the main window and the tray tooltip refresh).</param>
@@ -53,6 +56,11 @@ public sealed record ResultLine(Tone Tone, string Text);
 /// The caption after it: "Recording to trace-YYYYMMDD-HHmmss.csv" while recording, the start error after a failed
 /// start, otherwise <c>null</c>.
 /// </param>
+/// <param name="PsuLinkText">
+/// Line 3 of the Power supply card: the clickable "report 21PS1872A · 2021-07-16 ↗" of a database PSU with a report URL;
+/// otherwise <c>null</c>.
+/// </param>
+/// <param name="PsuReportUrl">The report URL <paramref name="PsuLinkText"/> opens, or <c>null</c>.</param>
 public sealed record SettingsViewState(
     string Host,
     string? HostError,
@@ -83,7 +91,9 @@ public sealed record SettingsViewState(
     string DevicesText = "",
     bool DiagnosticTraceRunning = false,
     string DiagnosticTraceText = SettingsPresenter.StartTraceText,
-    string? DiagnosticTraceCaption = null);
+    string? DiagnosticTraceCaption = null,
+    string? PsuLinkText = null,
+    string? PsuReportUrl = null);
 
 /// <summary>
 /// Drives the settings page: every setter clones the current settings, changes one thing and applies it through
@@ -396,7 +406,8 @@ public sealed class SettingsPresenter
     {
         var s = _runtime.Settings ?? new AppSettings();
         var db = _runtime.Database;
-        var (psuTitle, psuSubtitle) = PsuText(s, db);
+        var (psuTitle, psuSubtitle, psuSource) = PsuText(s, db);
+        var psuLink = PsuSourceText.ReportLink(psuSource);
         var hasPassword = _runtime.HasPassword;
         var formula = BreakFormula(CalculationText(s));
         var traceRunning = _runtime.IsDiagnosticTraceRunning;
@@ -431,7 +442,9 @@ public sealed class SettingsPresenter
             DevicesText(s),
             traceRunning,
             TraceLinkText(traceRunning),
-            traceRunning ? TraceCaption(_runtime.DiagnosticTraceFile) : _traceFailed ? TraceStartFailedText : null);
+            traceRunning ? TraceCaption(_runtime.DiagnosticTraceFile) : _traceFailed ? TraceStartFailedText : null,
+            psuLink,
+            psuLink is null ? null : psuSource!.Url);
     }
 
     /// <summary>Returns the Other Components calculation: "PC Power (DC) − CPU Package Power − GPU Power".</summary>
@@ -460,7 +473,7 @@ public sealed class SettingsPresenter
         return PsuCurveResolver.Resolve(s.Psu, db)?.CurveNote(voltage);
     }
 
-    private (string Title, string Subtitle) PsuText(AppSettings s, PsuDatabase db)
+    private (string Title, string Subtitle, PsuSource? Source) PsuText(AppSettings s, PsuDatabase db)
     {
         switch (s.Psu.Mode)
         {
@@ -468,31 +481,40 @@ public sealed class SettingsPresenter
                 var entry = s.Psu.DatabaseId is { } id ? new PsuDatabaseQuery(db).FindById(id) : null;
                 if (entry is null)
                 {
-                    return ("No PSU selected", s.Psu.DatabaseId is null ? "Choose one with Change" : "The selected PSU is not in the database");
+                    return ("No PSU selected", s.Psu.DatabaseId is null ? "Choose one with Change" : "The selected PSU is not in the database", null);
                 }
 
-                var parts = new List<string> { entry.Wattage.ToString(_culture) + " W" };
-                if (!string.IsNullOrWhiteSpace(entry.Rating80Plus))
-                {
-                    parts.Add(entry.Rating80Plus);
-                }
-
-                if (entry.Source is { } source && !string.IsNullOrWhiteSpace(source.Name))
-                {
-                    parts.Add(string.IsNullOrWhiteSpace(source.ReportId) ? source.Name + " report" : source.Name + " " + source.ReportId.Trim());
-                }
-
-                return ($"{entry.Brand} {entry.DisplayName}".Trim(), string.Join(" · ", parts));
+                return (entry.FullName, DatabaseSubtitle(entry, VoltageSelector.Resolve(s.VoltageMode, _runtime.LastReading?.Raw.Volts)), entry.Source);
 
             case PsuSelectionMode.Generic:
                 return s.Psu.GenericWattage is int w && s.Psu.GenericRating is { } rating
-                    ? ($"Generic {rating} {w.ToString(_culture)} W", "Approximate curve from the 80 Plus rating")
-                    : ("Generic curve", "Wattage or rating missing");
+                    ? ($"Generic {rating} {w.ToString(_culture)} W", "Approximate curve from the 80 Plus rating", null)
+                    : ("Generic curve", "Wattage or rating missing", null);
 
             default:
                 var points = s.Psu.ManualCurve?.Count ?? 0;
-                return ("Manual curve", points == 1 ? "1 point" : points.ToString(_culture) + " points");
+                return ("Manual curve", points == 1 ? "1 point" : points.ToString(_culture) + " points", null);
         }
+    }
+
+    // Line 2 of a database PSU: "700 W · 80 Plus Titanium · Cybenetics ETA Titanium (230 V)". "80 Plus Titanium", never
+    // the bare grade, so it cannot be mistaken for the ETA grade; "80 Plus None" is left out. Without an ETA grade the
+    // source is named instead ("700 W · 80 Plus Gold · Cybenetics"). The report is the link on line 3; a source without
+    // a URL (no link) keeps its report id and date on this line.
+    private string DatabaseSubtitle(PsuEntry entry, InputVoltage voltage)
+    {
+        var source = entry.Source;
+        var hasLink = PsuSourceText.ReportLink(source) is not null;
+        var sourceName = source is not null && !string.IsNullOrWhiteSpace(source.Name) ? source.Name.Trim() : null;
+        string?[] tail = hasLink
+            ? [PsuSourceText.Eta(entry, voltage) ?? sourceName]
+            : [
+                PsuSourceText.Eta(entry, voltage),
+                sourceName is null ? null : string.IsNullOrWhiteSpace(source!.ReportId) ? sourceName + " report" : sourceName + " " + source.ReportId.Trim(),
+                PsuSourceText.ReportDate(source),
+            ];
+        string?[] parts = [entry.Wattage.ToString(_culture) + " W", PsuSourceText.EightyPlus(entry), .. tail];
+        return string.Join(" · ", parts.OfType<string>());
     }
 
     /// <summary>The source word of <see cref="SettingsViewState.DatabaseText"/> ("downloaded", "shipped", "built-in").</summary>

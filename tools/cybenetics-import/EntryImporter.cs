@@ -59,17 +59,22 @@ public static class EntryImporter
         {
             if (HtmlReportParser.IsHtml(input.Path))
             {
-                ParseResult page;
+                HtmlReport page;
                 try
                 {
-                    page = HtmlReportParser.Parse(File.ReadAllText(input.Path), metadata.Wattage, input.Voltage).Result;
+                    page = HtmlReportParser.Parse(File.ReadAllText(input.Path), metadata.Wattage, input.Voltage);
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     return Fail($"cannot read {input.Path}: {ex.Message}");
                 }
 
-                Collect(Path.GetFileName(input.Path), page);
+                foreach (var problem in page.Metadata.EtaProblems)
+                {
+                    Warn($"{Path.GetFileName(input.Path)}: {problem}");
+                }
+
+                Collect(Path.GetFileName(input.Path), page.Result);
                 continue;
             }
 

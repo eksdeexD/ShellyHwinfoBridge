@@ -47,12 +47,16 @@ public sealed class PsuDatabaseQuery
 
     /// <summary>
     /// Searches by name: every whitespace-separated term must occur (case-insensitive) in the entry's
-    /// brand, series, model or revision. An empty query returns everything.
+    /// brand, series, model or revision (brackets and commas in the text are ignored, so a name copied from the list,
+    /// "RM1000e (ATX v3.1)", matches too). An empty query returns everything.
     /// </summary>
     /// <param name="text">The search text.</param>
     public IReadOnlyList<PsuEntry> Search(string? text)
     {
-        var terms = (text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var terms = (text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim('(', ')', ','))
+            .Where(t => t.Length > 0)
+            .ToList();
         return Sort(_entries.Where(e =>
         {
             var haystack = $"{e.Brand} {e.Series} {e.Model} {e.Revision}";

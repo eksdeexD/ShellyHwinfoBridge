@@ -31,6 +31,8 @@
 
   <ItemGroup>
     <None Include="..\..\psu-database.json" Link="psu-database.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <!-- Cybenetics' terms: the notice on the PSU data ships next to psu-database.json (zip and installer). -->
+    <None Include="..\..\PSU-DATA-NOTICE.md" Link="PSU-DATA-NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
   <ItemGroup>

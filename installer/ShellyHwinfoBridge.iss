@@ -8,7 +8,8 @@
 ; Defines that can be passed with /D:
 ;   AppVersion  the product version without a leading "v" (the release workflow passes the tag, which must match
 ;               <Version> in Directory.Build.props). Without it the script builds a "0.0.0-dev" installer.
-;   PublishDir  folder that holds the published ShellyHwinfoBridge.exe and psu-database.json (default ..\publish).
+;   PublishDir  folder that holds the published ShellyHwinfoBridge.exe, psu-database.json and PSU-DATA-NOTICE.md
+;               (default ..\publish).
 ;   OutputDir   folder the setup.exe is written to (default ..\artifacts\installer).
 ;
 ; Silent install / uninstall (used by winget): /VERYSILENT /NORESTART. A silent uninstall answers No to both
@@ -87,6 +88,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "{#PublishDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PublishDir}\psu-database.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PublishDir}\PSU-DATA-NOTICE.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"

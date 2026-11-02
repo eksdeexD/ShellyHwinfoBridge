@@ -26,7 +26,7 @@ internal sealed class AboutWindow : ThemedForm
     private readonly TextLink _email = new() { Text = AppInfo.FeedbackEmail, AccessibleName = "Send feedback to " + AppInfo.FeedbackEmail };
     private readonly TextLabel _feedbackMiddle = new() { Text = AppInfo.FeedbackMiddle, Tone = UiTone.Secondary };
     private readonly TextLink _issues = new() { Text = AppInfo.IssuesLinkText, AccessibleName = "Open the issues page on GitHub" };
-    private readonly TextLabel _licence = new() { Text = AppInfo.Licence, Tone = UiTone.Secondary };
+    private readonly TextLabel _licence = new() { Text = AppInfo.Licence, Tone = UiTone.Secondary, WordWrap = true };
     private readonly TextLabel _attribution = new() { Text = AppInfo.Attribution, Tone = UiTone.Secondary, WordWrap = true };
 
     public AboutWindow()
@@ -44,7 +44,9 @@ internal sealed class AboutWindow : ThemedForm
         _issues.TabIndex = 1;
         _email.Click += (_, _) => OpenWithShell(this, "mailto:" + AppInfo.FeedbackEmail);
         _issues.Click += (_, _) => OpenWithShell(this, AppInfo.IssuesUrl);
-        SetFixedClientSizeDip(new Size(WidthDip, 220));
+
+        // Sized to the content (the licence and the credit wrap).
+        SetFixedClientSizeDip(new Size(WidthDip, (int)Math.Ceiling(Arrange(apply: false) * 96f / DeviceDpi)));
     }
 
     /// <summary>Gets the app version ("v0.1.0-beta.4"; build metadata after '+' dropped).</summary>
@@ -137,7 +139,7 @@ internal sealed class AboutWindow : ThemedForm
         }
 
         y += line + this.Px(8);
-        Place(_licence, line);
+        Place(_licence, Math.Max(line, _licence.GetPreferredHeight(inner)));
         y += this.Px(4);
         Place(_attribution, Math.Max(line, _attribution.GetPreferredHeight(inner)));
         return y + pad;

@@ -54,7 +54,7 @@ curve (115 V or 230 V, picked from the voltage the plug measures) and writes the
 shows them after a restart of HWiNFO. Energy comes from the plug's own counter and is logged hourly to
 `%APPDATA%\ShellyHwinfoBridge\energy`.
 
-The PSU database holds curves from Cybenetics evaluation reports for 378 units, and more will be added. A PSU that
+The PSU database holds curves from Cybenetics evaluation reports for 524 units, and more will be added. A PSU that
 is missing can use a generic 80 Plus curve or a custom curve. "Check for update" in Settings downloads a newer
 database from this repository.
 
@@ -80,8 +80,9 @@ maintainer tool that turns a saved Cybenetics report page into a database entry.
 ## PSU data attribution
 
 The PSU efficiency curves in `psu-database.json` are test results provided by [Cybenetics](https://www.cybenetics.com/),
-used with their written permission. Each entry links to the original report and names the input voltage of the
-curve (115 V or 230 V); the results are from the sample Cybenetics tested. PSUs not in the database can use a generic
+used with their written permission. Each entry links to the original report and gives the report date and the
+input voltage of the curve (115 V or 230 V); the results are from the sample Cybenetics tested. Where the report
+gives one, the app also shows the Cybenetics ETA grade for each input voltage. PSUs not in the database can use a generic
 curve derived from the 80 Plus minimum requirements (approximate, least accurate at low load) or a manually entered
 curve.
 

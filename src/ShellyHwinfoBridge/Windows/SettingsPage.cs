@@ -71,6 +71,8 @@ internal sealed class SettingsPage : ScrollPanel
     private readonly CardPanel _psuCard = new() { Title = "Power supply" };
     private readonly TextLabel _psuTitle = new() { Role = FontRole.Subtitle };
     private readonly TextLabel _psuSubtitle = new() { Tone = UiTone.Secondary };
+    private readonly TextLink _psuLink = new() { Visible = false, AccessibleName = "Open the Cybenetics report" };
+    private bool _hasPsuLink;
     private readonly TextLink _change = new() { Text = "Change", Semibold = true, AccessibleName = "Change power supply" };
     private readonly TextLabel _voltageLabel = new() { Text = "Input voltage", Tone = UiTone.Secondary };
     private readonly SegmentedControl _voltage = new() { AccessibleName = "Input voltage" };
@@ -151,7 +153,7 @@ internal sealed class SettingsPage : ScrollPanel
         SuspendLayout();
         _voltage.SetItems(["Auto", "115 V", "230 V"], 0);
         AddCard(_shellyCard, _devicesText, _devicesHint, _manage);
-        AddCard(_psuCard, _psuTitle, _psuSubtitle, _change, _voltageLabel, _voltage, _curveNote);
+        AddCard(_psuCard, _psuTitle, _psuSubtitle, _psuLink, _change, _voltageLabel, _voltage, _curveNote);
         AddCard(_sensorsCard, _formula, _gadgetTip, _howToEnable, _sensorNames, _edit, _retiredNote);
         AddCard(_displayCard, _intervalLabel, _interval, _intervalValue, _smoothingLabel, _smoothing, _smoothingValue);
         AddCard(_energyCard, _logEnergy, _openEnergy, _priceLabel, _price, _currencyLabel, _currency, _priceError);
@@ -347,6 +349,7 @@ internal sealed class SettingsPage : ScrollPanel
         _manage.Click += (_, _) => Defer(() => ManageShellysRequested?.Invoke(this, EventArgs.Empty));
 
         _change.Click += (_, _) => ChangePsu();
+        _psuLink.Click += (_, _) => OpenPsuReport();
         _voltage.SelectedIndexChanged += (_, _) => Guard(() => _presenter.SetVoltageMode(VoltageModes[Math.Max(0, _voltage.SelectedIndex)]));
         _edit.Click += (_, _) => EditSensors();
         _sensorNames.Click += (_, _) => CustomizeSensorNames();
@@ -435,6 +438,9 @@ internal sealed class SettingsPage : ScrollPanel
             // Power supply.
             _psuTitle.Text = s.PsuTitle;
             _psuSubtitle.Text = s.PsuSubtitle;
+            _psuLink.Text = s.PsuLinkText ?? string.Empty;
+            _hasPsuLink = s.PsuLinkText is not null;
+            _psuLink.Visible = _hasPsuLink;
             _voltage.SetItems(["Auto", "115 V", "230 V"], Math.Max(0, Array.IndexOf(VoltageModes, s.VoltageMode)));
             _curveNote.Visible = s.CurveNote is not null;
             _curveNote.Text = s.CurveNote ?? string.Empty;
@@ -503,6 +509,9 @@ internal sealed class SettingsPage : ScrollPanel
         return Math.Max(FormulaMinHeight, (_formulaLines * lineHeight) + 14);
     }
 
+    /// <summary>The report link line of the Power supply card (none without a link).</summary>
+    private float PsuLinkLine => _hasPsuLink ? TextLine : 0;
+
     private float TipWidth(float cardWidth) => cardWidth - (2 * P) - FormulaWidth - Gap;
 
     private float TipHeight(float cardWidth) => _gadgetTip.GetPreferredHeight(this.Px(TipWidth(cardWidth))) * 96f / DeviceDpi;
@@ -513,8 +522,11 @@ internal sealed class SettingsPage : ScrollPanel
     /// <summary>Shelly plugs: the devices summary and the hint, then Manage Shellys.</summary>
     private static float ShellyHeight(float t) => t + SubLine + TextLine + 6 + Line + BottomPad;
 
-    /// <summary>Power supply: model and details, the input voltage segments and (single-voltage PSU) the curve note.</summary>
-    private float PsuHeight(float t) => t + SubLine + TextLine + 8 + Segment + (_curveNote.Visible ? 4 + CurveNoteHeight : 0) + BottomPad;
+    /// <summary>
+    /// Power supply: model, details and (database PSU) the report link, the input voltage segments and (single-voltage
+    /// PSU) the curve note.
+    /// </summary>
+    private float PsuHeight(float t) => t + SubLine + TextLine + PsuLinkLine + 8 + Segment + (_curveNote.Visible ? 4 + CurveNoteHeight : 0) + BottomPad;
 
     /// <summary>
     /// Sensors: the calculation box and, beside it, the gadget explainer with "How to enable?"; the retired formula
@@ -559,11 +571,13 @@ internal sealed class SettingsPage : ScrollPanel
         _devicesHint.Bounds = R(P, t + SubLine, inner, TextLine);
         Command(_manage, P, t + SubLine + TextLine + 6, Line);
 
-        // Power supply: Change on the title line; model and details; the input voltage segments; the curve note.
+        // Power supply: Change on the title line; model, details and the report link; the input voltage segments; the
+        // curve note.
         Command(_change, -1, P, titleHeight, column);
         _psuTitle.Bounds = R(P, t, inner, SubLine);
         _psuSubtitle.Bounds = R(P, t + SubLine, inner, TextLine);
-        var voltageTop = t + SubLine + TextLine + 8;
+        Command(_psuLink, P, t + SubLine + TextLine, TextLine);
+        var voltageTop = t + SubLine + TextLine + PsuLinkLine + 8;
         _voltageLabel.Bounds = R(P, voltageTop, FieldLabelWidth, Segment);
         _voltage.Bounds = R(P + FieldLabelWidth, voltageTop, Math.Min(inner - FieldLabelWidth, 230), Segment);
         _curveNote.Bounds = R(P, voltageTop + Segment + 4, inner, CurveNoteHeight);
@@ -639,6 +653,16 @@ internal sealed class SettingsPage : ScrollPanel
         finally
         {
             _modalDepth--;
+        }
+    }
+
+    /// <summary>Opens the selected PSU's Cybenetics report (http or https only) in the browser.</summary>
+    private void OpenPsuReport()
+    {
+        if (_presenter.State.PsuReportUrl is { } url && Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp))
+        {
+            AboutWindow.OpenWithShell(FindForm(), uri.AbsoluteUri);
         }
     }
 

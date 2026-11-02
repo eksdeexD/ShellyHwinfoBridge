@@ -35,8 +35,11 @@ public sealed class PsuDatabaseTests : IDisposable
             Assert.StartsWith("https://www.cybenetics.com/", p.Source.Url, StringComparison.Ordinal);
             // Cybenetics' terms require the report date next to the link: every shipped entry carries one.
             Assert.True(PsuDatabaseValidator.IsIsoDate(p.Source.ReportDate), p.Id + " source.reportDate");
-            // Single-voltage reports carry only the 230 V curve; the key of a missing curve is omitted, never null.
-            Assert.True(p.GetCurve(InputVoltage.V230)!.Points.Count >= 2, p.Id + " 230 V curve");
+            // Single-voltage reports carry only the curve of the voltage tested (230 V for EU-only units, 115 V for
+            // early reports tested at 115 V only); the key of a missing curve is omitted, never null.
+            Assert.True(
+                (p.GetCurve(InputVoltage.V230)?.Points.Count ?? 0) >= 2 || (p.GetCurve(InputVoltage.V115)?.Points.Count ?? 0) >= 2,
+                p.Id + " curve");
             Assert.All(p.Curves!, c => Assert.NotNull(c.Value));
         });
     }
@@ -282,11 +285,112 @@ public sealed class PsuDatabaseTests : IDisposable
         public List<V100Entry> Psus { get; set; } = [];
     }
 
+    [Fact]
+    public void A100ClientLoadsTheShippedDatabaseWithPerVoltageEtaGrades()
+    {
+        // 1.0.0 clients download psu-database.json from main. Their PsuEntry has a single string RatingCybenetics and no
+        // ratingsCybenetics; their validator never looks at the rating (git show v1.0.0's PsuDatabaseValidator). The
+        // object-valued ratingsCybenetics is skipped as an unknown member and the missing ratingCybenetics stays null,
+        // so the file loads there and those clients simply show no ETA grade. V100Entry mirrors the 1.0.0 shape.
+        var text = File.ReadAllText(RepoFile);
+        Assert.Contains("\"ratingsCybenetics\": {", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"ratingCybenetics\"", text, StringComparison.Ordinal);
+
+        var old = System.Text.Json.JsonSerializer.Deserialize<V100Database>(text, PsuDatabaseJson.Options)!;
+        Assert.Equal(1, old.SchemaVersion);
+        Assert.Equal(PsuDatabaseLoader.LoadEmbedded().Psus.Count, old.Psus.Count);
+        Assert.All(old.Psus, p =>
+        {
+            Assert.Null(p.RatingCybenetics);
+            Assert.False(string.IsNullOrEmpty(p.Rating80Plus));
+            Assert.True(p.Wattage > 0);
+            Assert.NotEmpty(p.Curves!);
+        });
+    }
+
+    [Fact]
+    public void ShippedDatabaseCarriesPerVoltageEtaGradesOnlyWithKnownValues()
+    {
+        var db = PsuDatabaseLoader.LoadEmbedded();
+        var tx = db.Psus.Single(p => p.Id == "seasonic-prime-fanless-tx-700");
+        Assert.Equal("Titanium", tx.GetEtaRating(InputVoltage.V230));
+        Assert.Equal("Titanium", tx.GetEtaRating(InputVoltage.V115));
+        Assert.All(db.Psus.Where(p => p.RatingsCybenetics is not null), p =>
+        {
+            Assert.NotEmpty(p.RatingsCybenetics!);
+            Assert.All(p.RatingsCybenetics!, g => Assert.Contains(g.Value, PsuDatabaseValidator.AllowedEtaRatings));
+        });
+    }
+
+    [Theory]
+    [InlineData("""{ "230": "Gold", "115": "Platinum" }""", new string[0])]
+    [InlineData("""{ "230": "gold" }""", new string[0])]
+    [InlineData("""{ "230": "Diamond", "115": "Standard" }""", new string[0])]
+    [InlineData("""{ "240": "Gold" }""", new[] { "psus[0].ratingsCybenetics.240" })]
+    [InlineData("""{ "115": "White" }""", new[] { "psus[0].ratingsCybenetics.115" })]
+    [InlineData("""{ "230": "None" }""", new[] { "psus[0].ratingsCybenetics.230" })]
+    public void ValidatorChecksTheEtaKeysAndGrades(string ratings, string[] errorPaths)
+    {
+        var json = $$"""
+            { "schemaVersion": 1, "psus": [ {
+              "id": "a", "brand": "Brand", "series": "Series", "model": "A 750", "wattage": 750, "rating80Plus": "None",
+              "ratingsCybenetics": {{ratings}},
+              "source": { "name": "Cybenetics", "url": "https://www.cybenetics.com/evaluations/psus/1/" },
+              "curves": { "230": [[100, 90], [200, 185]] } } ] }
+            """;
+        Assert.Equal(errorPaths, PsuDatabaseValidator.ValidateJson(json, out _).Select(e => e.Path));
+    }
+
+    [Fact]
+    public void TheOldSingleEtaGradeIsReadAs230VAndNeverWritten()
+    {
+        const string json = """
+            { "schemaVersion": 1, "psus": [ {
+              "id": "a", "brand": "Brand", "series": "Series", "model": "A 750", "wattage": 750, "rating80Plus": "None",
+              "ratingCybenetics": "Gold",
+              "source": { "name": "Cybenetics", "url": "https://www.cybenetics.com/evaluations/psus/1/" },
+              "curves": { "230": [[100, 90], [200, 185]], "115": [[100, 88], [200, 182]] } } ] }
+            """;
+        Assert.Empty(PsuDatabaseValidator.ValidateJson(json, out var db));
+        var entry = db!.Psus[0];
+        Assert.Equal("Gold", entry.GetEtaRating(InputVoltage.V230));
+        Assert.Null(entry.GetEtaRating(InputVoltage.V115));
+
+        var written = PsuDatabaseJson.Serialize(db);
+        Assert.DoesNotContain("\"ratingCybenetics\"", written, StringComparison.Ordinal);
+        Assert.Contains("\"ratingsCybenetics\"", written, StringComparison.Ordinal);
+        Assert.Equal("Gold", PsuDatabaseJson.Deserialize(written).Psus[0].GetEtaRating(InputVoltage.V230));
+
+        // When both are present, the per-voltage grades win, in either order.
+        foreach (var both in new[]
+        {
+            """{ "ratingCybenetics": "Gold", "ratingsCybenetics": { "230": "Platinum" } }""",
+            """{ "ratingsCybenetics": { "230": "Platinum" }, "ratingCybenetics": "Gold" }""",
+        })
+        {
+            var e = System.Text.Json.JsonSerializer.Deserialize<PsuEntry>(both, PsuDatabaseJson.Options)!;
+            Assert.Equal("Platinum", e.GetEtaRating(InputVoltage.V230));
+        }
+
+        // No grades: the member is left out.
+        Assert.DoesNotContain("atingsCybenetics", PsuDatabaseJson.Serialize(new PsuDatabase { SchemaVersion = 1, Psus = [Entry("b", "B", "S", "M", 650, "Gold", null)] }), StringComparison.Ordinal);
+    }
+
+    private static string RepoFile => Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", PsuDatabaseLoader.FileName);
+
     private sealed class V100Entry
     {
         public string Id { get; set; } = string.Empty;
 
+        public int Wattage { get; set; }
+
+        public string Rating80Plus { get; set; } = string.Empty;
+
+        public string? RatingCybenetics { get; set; }
+
         public V100Source? Source { get; set; }
+
+        public Dictionary<string, List<double[]>>? Curves { get; set; }
     }
 
     private sealed class V100Source
@@ -296,6 +400,52 @@ public sealed class PsuDatabaseTests : IDisposable
         public string? ReportId { get; set; }
 
         public string Url { get; set; } = string.Empty;
+    }
+
+    [Theory]
+    [InlineData("RM1000e", "ATX v3.1", "RM1000e (ATX v3.1)")]
+    [InlineData("Prime TX-700", "2021", "Prime TX-700 (2021)")]
+    [InlineData("MWE Gold 1050 V2", "ATX v3.0 (2024)", "MWE Gold 1050 V2 (ATX v3.0, 2024)")]
+    [InlineData("Toughpower GF A3", "2018 (#2)", "Toughpower GF A3 (2018, #2)")]
+    [InlineData("V Platinum 1100 V2", null, "V Platinum 1100 V2")]
+    [InlineData("V Platinum 1100 V2", "  ", "V Platinum 1100 V2")]
+    [InlineData("V Platinum 1100 V2", "v2", "V Platinum 1100 V2")]
+    [InlineData("Focus GX-750 ATX v3.1", "atx V3.1", "Focus GX-750 ATX v3.1")]
+    public void DisplayNameAppendsTheRevisionUnlessTheModelAlreadyHasIt(string model, string? revision, string expected)
+    {
+        var entry = Entry("x", "Corsair", "S", model, 700, "Gold", revision);
+        Assert.Equal(expected, entry.DisplayName);
+        Assert.Equal("Corsair " + expected, entry.FullName);
+    }
+
+    [Fact]
+    public void DisplayNamesAreNotWrittenToTheJson()
+    {
+        var db = new PsuDatabase { SchemaVersion = 1, Psus = [Entry("x", "Corsair", "RM", "RM1000e", 1000, "Gold", "ATX v3.1")] };
+        var json = PsuDatabaseJson.Serialize(db);
+        Assert.DoesNotContain("displayName", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("fullName", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SearchMatchesTheRevisionAlsoAsShownInTheList()
+    {
+        var query = new PsuDatabaseQuery(new PsuDatabase
+        {
+            SchemaVersion = 1,
+            Psus =
+            [
+                Entry("old", "Corsair", "RMe", "RM1000e", 1000, "Gold", null),
+                Entry("new", "Corsair", "RMe", "RM1000e", 1000, "Gold", "ATX v3.1"),
+                Entry("mwe", "Cooler Master", "MWE Gold", "MWE Gold 1050 V2", 1050, "Gold", "ATX v3.0 (2024)"),
+            ],
+        });
+
+        Assert.Equal(["new"], query.Search("rm1000e v3.1").Select(e => e.Id));
+        Assert.Equal(["new"], query.Search("Corsair RM1000e (ATX v3.1)").Select(e => e.Id));
+        Assert.Equal(["mwe"], query.Search("MWE Gold 1050 V2 (ATX v3.0, 2024)").Select(e => e.Id));
+        Assert.Equal(["mwe"], query.Search("(2024)").Select(e => e.Id));
+        Assert.Equal(3, query.Search(" ( ) , ").Count);
     }
 
     private static PsuEntry Entry(string id, string brand, string series, string model, int watts, string rating, string? revision) => new()

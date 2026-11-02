@@ -1,5 +1,6 @@
 using System.Globalization;
 using ShellyHwinfoBridge.Core.Curves;
+using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Presentation.Wizard;
 using ShellyHwinfoBridge.Core.Settings;
 
@@ -70,17 +71,149 @@ public class PsuStepModelTests
         Assert.Equal(["RM850x (2018)", "RM850x (2021)", "SF750"], m.Rows.Select(r => r.Title));
 
         var old = m.Rows[0];
-        Assert.Equal("80 Plus Gold", old.Subtitle);
+        Assert.Equal("80 Plus Gold", old.EightyPlus);
+        Assert.Empty(old.EtaLines);
         var tx = Model().Rows.Single(r => r.Id == "tx700");
         Assert.Equal("Seasonic Prime Fanless TX-700", tx.Title);
-        Assert.Equal("80 Plus Titanium · Cybenetics ETA Titanium", tx.Subtitle);
-        Assert.Equal("report 21PS1872A ↗", tx.LinkText);
+        // The voltage is not known yet (automatic, nothing measured): every ETA grade, each with its voltage.
+        Assert.Equal("80 Plus Titanium", tx.EightyPlus);
+        Assert.Equal(["Cybenetics ETA Titanium (230 V)", "Cybenetics ETA Titanium (115 V)"], tx.EtaLines);
+        Assert.Equal("report 21PS1872A · 2021-07-16 ↗", tx.LinkText);
         Assert.Equal("https://www.cybenetics.com/evaluations/psus/tx700/", tx.Url);
 
         // Older reports have no report id: the link degrades to "report ↗" and still opens the URL.
         var sf = Model().Rows.Single(r => r.Id == "sf750");
         Assert.Equal("report ↗", sf.LinkText);
         Assert.Equal("https://www.cybenetics.com/evaluations/psus/sf750/", sf.Url);
+    }
+
+    [Fact]
+    public void SearchMatchesTheRevisionShownInTheTitle()
+    {
+        var m = Model();
+        m.SetSearchText("rm850x (2021)");
+        Assert.Equal(["Corsair RM850x (2021)"], m.Rows.Select(r => r.Title));
+
+        m.SetSearchText("2018");
+        Assert.Equal(["Corsair RM850x (2018)"], m.Rows.Select(r => r.Title));
+    }
+
+    [Fact]
+    public void RowsShowTheEtaGradeOfTheVoltageInUse()
+    {
+        var m = Model();
+        IReadOnlyList<string> Rm850() => m.Rows.Single(r => r.Id == "rm850").EtaLines;
+        Assert.Equal(["Cybenetics ETA Gold (230 V)", "Cybenetics ETA Platinum (115 V)"], Rm850());
+
+        m.MeasuredVolts = 118.2;
+        Assert.Equal(["Cybenetics ETA Platinum (115 V)"], Rm850());
+        m.MeasuredVolts = 226.9;
+        Assert.Equal(["Cybenetics ETA Gold (230 V)"], Rm850());
+        m.VoltageMode = InputVoltageMode.V115;
+        Assert.Equal(["Cybenetics ETA Platinum (115 V)"], Rm850());
+        Assert.Equal("80 Plus Gold", m.Rows.Single(r => r.Id == "rm850").EightyPlus);
+
+        // A unit without a published ETA rating shows none; never a grade borrowed from 80 Plus.
+        Assert.Empty(m.Rows.Single(r => r.Id == "rm850old").EtaLines);
+
+        // A unit graded only at 230 V shows nothing at 115 V when it has a 115 V curve.
+        Assert.Empty(m.Rows.Single(r => r.Id == "px750").EtaLines);
+    }
+
+    /// <summary>Entries for the three-column tests: every combination of 80 Plus, ETA grades and report source.</summary>
+    private static PsuStepModel ColumnModel()
+    {
+        var curve = Tests.TestSupport.TestCurves.Tx700.Curves;
+        PsuEntry Entry(string id, string rating, Dictionary<string, string>? eta, string? report = "21PS1872A", string? date = "2021-07-16", string url = "https://www.cybenetics.com/evaluations/psus/1872/") => new()
+        {
+            Id = id,
+            Brand = "Testbrand",
+            Series = "Series",
+            Model = "Model " + id,
+            Wattage = 750,
+            Rating80Plus = rating,
+            RatingsCybenetics = eta,
+            Source = new PsuSource { Name = "Cybenetics", ReportId = report, Url = url, ReportDate = date },
+            Curves = curve,
+        };
+
+        return new PsuStepModel(
+            new PsuDatabase
+            {
+                SchemaVersion = 1,
+                Psus =
+                [
+                    Entry("both", "Gold", new() { ["230"] = "Gold", ["115"] = "Platinum" }),
+                    Entry("noplus", "None", new() { ["230"] = "Silver" }),
+                    Entry("noeta", "Bronze", null),
+                    Entry("noid", "Platinum", new() { ["230"] = "Platinum" }, report: null),
+                    Entry("nosource", "Gold", new() { ["230"] = "Gold" }, report: null, date: null, url: ""),
+                ],
+            },
+            EnUs);
+    }
+
+    [Fact]
+    public void ColumnsShowThe80PlusRatingAndTheEtaGradeAtAKnownVoltage()
+    {
+        var m = ColumnModel();
+        m.MeasuredVolts = 226.9;
+        var row = m.Rows.Single(r => r.Id == "both");
+        Assert.Equal("Testbrand Model both", row.Title);
+        Assert.Equal("80 Plus Gold", row.EightyPlus);
+        Assert.Equal(["Cybenetics ETA Gold (230 V)"], row.EtaLines);
+        Assert.Equal("report 21PS1872A · 2021-07-16 ↗", row.LinkText);
+        Assert.Equal("https://www.cybenetics.com/evaluations/psus/1872/", row.Url);
+
+        m.VoltageMode = InputVoltageMode.V115;
+        Assert.Equal(["Cybenetics ETA Platinum (115 V)"], m.Rows.Single(r => r.Id == "both").EtaLines);
+    }
+
+    [Fact]
+    public void ColumnsShowBothEtaGradesWhileTheVoltageIsUnknown()
+    {
+        var row = ColumnModel().Rows.Single(r => r.Id == "both");
+        Assert.Equal(["Cybenetics ETA Gold (230 V)", "Cybenetics ETA Platinum (115 V)"], row.EtaLines);
+        Assert.Equal("report 21PS1872A · 2021-07-16 ↗", row.LinkText);
+    }
+
+    [Fact]
+    public void ColumnsLeaveThe80PlusColumnEmptyWithoutARating()
+    {
+        var row = ColumnModel().Rows.Single(r => r.Id == "noplus");
+        Assert.Null(row.EightyPlus);
+        Assert.Equal(["Cybenetics ETA Silver (230 V)"], row.EtaLines);
+    }
+
+    [Fact]
+    public void ColumnsShowOnlyTheReportLinkWithoutAnEtaGrade()
+    {
+        var row = ColumnModel().Rows.Single(r => r.Id == "noeta");
+        Assert.Equal("80 Plus Bronze", row.EightyPlus);
+        Assert.Empty(row.EtaLines);
+        Assert.Equal("report 21PS1872A · 2021-07-16 ↗", row.LinkText);
+    }
+
+    [Fact]
+    public void ColumnsShowTheReportDateWithoutAReportId()
+    {
+        var m = ColumnModel();
+        var row = m.Rows.Single(r => r.Id == "noid");
+        Assert.Equal("report 2021-07-16 ↗", row.LinkText);
+        Assert.Equal("https://www.cybenetics.com/evaluations/psus/1872/", row.Url);
+
+        // Without a URL there is nothing to open: no link at all.
+        var none = m.Rows.Single(r => r.Id == "nosource");
+        Assert.Null(none.LinkText);
+        Assert.Null(none.Url);
+        Assert.Equal(["Cybenetics ETA Gold (230 V)"], none.EtaLines);
+    }
+
+    [Fact]
+    public void ListTextsAreTheHeadersAndTheCredit()
+    {
+        Assert.Equal(["Model", "80 Plus", "Cybenetics ETA"], PsuStepModel.ColumnHeaders);
+        Assert.Equal("Test results provided by Cybenetics.", PsuStepModel.AttributionLine);
     }
 
     [Fact]

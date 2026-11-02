@@ -249,13 +249,13 @@ internal sealed class ControlGalleryForm : ThemedForm
         }
 
         _layout.Place(this, new ThemedTextBox { Placeholder = "Search model…" }, x, 308, 253, 46);
-        var list = _layout.Place(this, new SelectableList(), 24, 372, 1052, 213);
-        list.RowHeightDip = 71;
+        var list = _layout.Place(this, new SelectableList { ColumnWidthsDip = [130, 240], ColumnHeaders = ["Model", "80 Plus", "Cybenetics ETA"] }, 24, 372, 1052, 213);
+        list.RowHeightDip = 56;
         list.SetRows(
         [
-            new SelectableRow("Prime Fanless TX-700", "80 Plus Titanium · Cybenetics ETA Titanium", "report 21PS1872A ↗"),
-            new SelectableRow("Prime TX-750", "80 Plus Titanium · Cybenetics ETA Titanium", "report 20PS1620A ↗"),
-            new SelectableRow("Prime PX-750", "80 Plus Platinum · Cybenetics ETA Platinum", "report 20PS1588A ↗"),
+            new SelectableRow("Prime Fanless TX-700", null, "report 21PS1872A · 2021-07-16 ↗") { Column2 = "80 Plus Titanium", Column3 = ["Cybenetics ETA Titanium (230 V)"] },
+            new SelectableRow("Prime TX-750", null, "report 20PS1620A · 2021-07-16 ↗") { Column2 = "80 Plus Titanium", Column3 = ["Cybenetics ETA Titanium (230 V)"] },
+            new SelectableRow("Prime PX-750", null, "report 20PS1588A · 2021-07-16 ↗") { Column2 = "80 Plus Platinum", Column3 = ["Cybenetics ETA Platinum (230 V)"] },
         ], 0);
         _layout.Place(this, new InfoLine { Text = "Input voltage: 230 V curve (plug measured 226.9 V)", LinkText = "Change" }, 28, 606, 700, 28);
         _layout.Place(this, new TextLink { Text = "Cancel", Tone = LinkTone.Ink }, 30, 664, 70, 32);

@@ -169,7 +169,7 @@ internal static class WizardPreview
     {
         var real = PsuDatabaseLoader.LoadEmbedded();
         var tx700 = real.Psus.First(p => p.Id == "seasonic-prime-fanless-tx-700");
-        PsuEntry Copy(string id, string model, int watts, string rating, string report) => new()
+        PsuEntry Copy(string id, string model, int watts, string rating, string eta115, string report) => new()
         {
             Id = id,
             Brand = tx700.Brand,
@@ -177,8 +177,9 @@ internal static class WizardPreview
             Model = model,
             Wattage = watts,
             Rating80Plus = rating,
-            RatingCybenetics = rating,
-            Source = new PsuSource { Name = "Cybenetics", ReportId = report, Url = tx700.Source?.Url ?? string.Empty },
+            // Per-voltage ETA grades as the report prints them; PX-750 shows a unit graded differently at 115 V.
+            RatingsCybenetics = new Dictionary<string, string> { ["230"] = rating, ["115"] = eta115 },
+            Source = new PsuSource { Name = "Cybenetics", ReportId = report, Url = tx700.Source?.Url ?? string.Empty, ReportDate = tx700.Source?.ReportDate },
             Curves = tx700.Curves,
         };
 
@@ -186,7 +187,7 @@ internal static class WizardPreview
         {
             SchemaVersion = 1,
             Updated = real.Updated,
-            Psus = [tx700, Copy("preview-tx-750", "Prime TX-750", 750, "Titanium", "20PS1620A"), Copy("preview-px-750", "Prime PX-750", 750, "Platinum", "20PS1588A")],
+            Psus = [tx700, Copy("preview-tx-750", "Prime TX-750", 750, "Titanium", "Titanium", "20PS1620A"), Copy("preview-px-750", "Prime PX-750", 750, "Platinum", "Gold", "20PS1588A")],
         };
     }
 
@@ -214,7 +215,7 @@ internal static class WizardPreview
         Model = "Prime EU-700",
         Wattage = 700,
         Rating80Plus = "Titanium",
-        RatingCybenetics = "Titanium",
+        RatingsCybenetics = new Dictionary<string, string> { ["230"] = "Titanium" },
         Source = template.Source,
         Curves = new Dictionary<string, List<double[]>> { ["230"] = template.Curves!["230"] },
     };

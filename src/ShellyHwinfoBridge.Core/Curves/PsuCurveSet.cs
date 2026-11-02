@@ -59,4 +59,16 @@ public sealed class PsuCurveSet
     /// <param name="requested">The requested input voltage.</param>
     public static string CurveLabel(PsuCurveSet? curves, InputVoltage requested) =>
         curves?.CurveNote(requested) ?? $"{(int)requested} V curve";
+
+    /// <summary>
+    /// Returns the short curve label of the main window's PSU line: "230 V curve", or "230 V curve (no 115 V data)" when
+    /// the requested voltage falls back to the other curve.
+    /// </summary>
+    /// <param name="curves">The resolved curves, or <c>null</c> when unknown (then the requested voltage is shown).</param>
+    /// <param name="requested">The requested input voltage.</param>
+    public static string ShortCurveLabel(PsuCurveSet? curves, InputVoltage requested)
+    {
+        var used = curves?.AvailableVoltage(requested) ?? requested;
+        return used == requested ? $"{(int)requested} V curve" : $"{(int)used} V curve (no {(int)requested} V data)";
+    }
 }

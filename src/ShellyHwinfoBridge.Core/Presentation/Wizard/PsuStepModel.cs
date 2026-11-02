@@ -5,13 +5,17 @@ using ShellyHwinfoBridge.Core.Settings;
 
 namespace ShellyHwinfoBridge.Core.Presentation.Wizard;
 
-/// <summary>A PSU in the step-3 list.</summary>
+/// <summary>A PSU in the step-3 list: three columns, model | 80 Plus | Cybenetics ETA with the report link under it.</summary>
 /// <param name="Id">The database id.</param>
-/// <param name="Title">Model and revision ("Prime Fanless TX-700"), with the brand when no brand filter is set.</param>
-/// <param name="Subtitle">"80 Plus Titanium · Cybenetics ETA Titanium".</param>
-/// <param name="LinkText">"report 21PS1872A ↗", or <c>null</c> without a source URL.</param>
+/// <param name="Title">Column 1: model and revision ("Prime Fanless TX-700"), with the brand when no brand filter is set.</param>
+/// <param name="EightyPlus">Column 2: "80 Plus Titanium", or <c>null</c> when the unit has none (never "80 Plus None").</param>
+/// <param name="EtaLines">
+/// Column 3: "Cybenetics ETA Titanium (230 V)" for the voltage in use, or one line per voltage (230 V first) while it is
+/// not known; empty when the report gives no grade.
+/// </param>
+/// <param name="LinkText">Column 3, under the grades: "report 21PS1872A · 2021-07-16 ↗", or <c>null</c> without a source URL.</param>
 /// <param name="Url">The source report URL, or <c>null</c>.</param>
-public sealed record PsuRow(string Id, string Title, string Subtitle, string? LinkText, string? Url);
+public sealed record PsuRow(string Id, string Title, string? EightyPlus, IReadOnlyList<string> EtaLines, string? LinkText, string? Url);
 
 /// <summary>A value tile: caption and value ("20 % load", "90 %").</summary>
 /// <param name="Caption">The caption.</param>
@@ -37,6 +41,12 @@ public sealed class PsuStepModel
 {
     /// <summary>The approximate-curve warning of generic mode.</summary>
     public const string GenericWarning = "Approximate: least accurate at low load. Use the database or a manual curve if you can.";
+
+    /// <summary>The credit line under the PSU list (Secondary tone).</summary>
+    public const string AttributionLine = "Test results provided by Cybenetics.";
+
+    /// <summary>The PSU list's column headers: model, 80 Plus, Cybenetics ETA.</summary>
+    public static IReadOnlyList<string> ColumnHeaders { get; } = ["Model", "80 Plus", "Cybenetics ETA"];
 
     private static readonly double[] PreviewLoads = [0.20, 0.50, 1.00];
 
@@ -191,6 +201,7 @@ public sealed class PsuStepModel
             if (_voltageMode != value)
             {
                 _voltageMode = value;
+                Rebuild(); // The rows show the ETA grade of the voltage in use.
                 RaiseChanged();
             }
         }
@@ -207,6 +218,7 @@ public sealed class PsuStepModel
             if (_measuredVolts != value)
             {
                 _measuredVolts = value;
+                Rebuild();
                 RaiseChanged();
             }
         }
@@ -216,6 +228,12 @@ public sealed class PsuStepModel
 
     /// <summary>Gets the voltage of the curve that will be used.</summary>
     public InputVoltage EffectiveVoltage => VoltageSelector.Resolve(VoltageMode, MeasuredVolts);
+
+    /// <summary>
+    /// Gets whether <see cref="EffectiveVoltage"/> is known: set manually, or measured by the plug. In automatic mode
+    /// without a measurement it is only the 230 V default, and the rows show the ETA grades of both voltages.
+    /// </summary>
+    public bool IsVoltageKnown => VoltageMode != InputVoltageMode.Auto || MeasuredVolts is double v && double.IsFinite(v) && v > 0;
 
     /// <summary>
     /// Gets the voltage line ("Input voltage: 230 V curve (plug measured 226.9 V)"). When the selected PSU has no curve
@@ -539,32 +557,16 @@ public sealed class PsuStepModel
 
     private PsuRow ToRow(PsuEntry e)
     {
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(e.Rating80Plus) && !e.Rating80Plus.Equals("None", StringComparison.OrdinalIgnoreCase))
-        {
-            parts.Add("80 Plus " + e.Rating80Plus);
-        }
-
-        if (!string.IsNullOrWhiteSpace(e.RatingCybenetics))
-        {
-            parts.Add("Cybenetics ETA " + e.RatingCybenetics);
-        }
-
-        if (parts.Count == 0)
-        {
-            parts.Add(e.Wattage.ToString(_culture) + " W");
-        }
-
-        string? link = null;
-        string? url = null;
-        if (e.Source is { } source && !string.IsNullOrWhiteSpace(source.Url))
-        {
-            url = source.Url;
-            link = !string.IsNullOrWhiteSpace(source.ReportId) ? $"report {source.ReportId.Trim()} ↗" : "report ↗";
-        }
-
-        var title = Brand is null ? $"{e.Brand} {e.DisplayName}".Trim() : e.DisplayName;
-        return new PsuRow(e.Id, title, string.Join(" · ", parts), link, url);
+        // The ETA grade of the voltage the app will use, or every grade with its voltage while that is not known.
+        var link = PsuSourceText.ReportLink(e.Source);
+        var title = Brand is null ? e.FullName : e.DisplayName;
+        return new PsuRow(
+            e.Id,
+            title,
+            PsuSourceText.EightyPlus(e),
+            PsuSourceText.EtaLines(e, IsVoltageKnown ? EffectiveVoltage : null),
+            link,
+            link is null ? null : e.Source!.Url);
     }
 
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);

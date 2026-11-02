@@ -47,8 +47,17 @@ public sealed class PageMetadata
     /// <summary>Gets or sets the 80 Plus rating, when the page names one.</summary>
     public string? Rating80Plus { get; set; }
 
-    /// <summary>Gets or sets the Cybenetics ETA rating, when the page names one.</summary>
-    public string? RatingCybenetics { get; set; }
+    /// <summary>
+    /// Gets or sets the Cybenetics ETA grade per input voltage (115, 230) as the page's ETA badge table shows it; empty
+    /// when the page has no ETA badge (no published ETA rating) at any voltage. See <see cref="HtmlReportParser"/>.
+    /// </summary>
+    public IReadOnlyDictionary<int, string> RatingsCybenetics { get; set; } = new Dictionary<int, string>();
+
+    /// <summary>Gets or sets whether the page has the ETA badge table ("Scheme: ETA-EMI PSU") at all.</summary>
+    public bool HasEtaTable { get; set; }
+
+    /// <summary>Gets or sets problems reading the ETA badges (e.g. a badge image the parser does not know).</summary>
+    public IReadOnlyList<string> EtaProblems { get; set; } = [];
 
     /// <summary>Returns the values as metadata keys (see <see cref="EntryMetadata.FromValues"/>), skipping unknown ones.</summary>
     public IReadOnlyDictionary<string, string> ToValues()
@@ -69,7 +78,8 @@ public sealed class PageMetadata
         Add("reportid", ReportId);
         Add("url", Url);
         Add("rating80plus", Rating80Plus);
-        Add("ratingcybenetics", RatingCybenetics);
+        Add("eta115", RatingsCybenetics.GetValueOrDefault(115));
+        Add("eta230", RatingsCybenetics.GetValueOrDefault(230));
         Add("reportdate", ReportDate);
         if (Brand is not null && Model is not null)
         {
@@ -102,6 +112,62 @@ public sealed record HtmlReport(ParseResult Result, PageMetadata Metadata);
 /// </remarks>
 public static partial class HtmlReportParser
 {
+    /// <summary>
+    /// Splits a model text as Cybenetics prints it into the model and the revision tags it carries in parentheses:
+    /// an ATX version ("(ATX v3.1)", also written "(ATXv3.1)", "(ATX 3.1)", "(ATX3.1)" or with Greek capitals, all
+    /// normalised to "ATX v3.1"), a sample number ("(#2)"), a year ("(2024)"), a market ("(EU)", "(US)") or the
+    /// manufacturer of that build ("(HKC)", "(CE-Link)", "(CWT)", "(Great Wall)"). Other parenthesised text, such as a
+    /// sister model ("(GX Gold 1050)"), a wattage ("(1000W)") or a colour ("(Black/White)"), stays in the model.
+    /// Several tags are joined as the database writes them: the first, then each further one in parentheses
+    /// ("HX1200i (ATX v3.1) (#2)" gives "HX1200i" and "ATX v3.1 (#2)").
+    /// </summary>
+    /// <param name="text">The model text.</param>
+    /// <returns>The model without the revision tags, and the revision (<c>null</c> when there is none).</returns>
+    public static (string Model, string? Revision) SplitModel(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var tags = new List<string>();
+        var model = ParenthesisedRegex().Replace(text, m =>
+        {
+            var tag = RevisionTag(m.Groups["t"].Value);
+            if (tag is null)
+            {
+                return m.Value;
+            }
+
+            tags.Add(tag);
+            return " ";
+        });
+        model = WhitespaceRegex().Replace(model, " ").Trim();
+        if (tags.Count == 0 || model.Length == 0)
+        {
+            return (WhitespaceRegex().Replace(text, " ").Trim(), null);
+        }
+
+        return (model, tags[0] + string.Concat(tags.Skip(1).Select(t => $" ({t})")));
+    }
+
+    /// <summary>Returns the normalised revision tag, or <c>null</c> when the text is not one (see <see cref="SplitModel"/>).</summary>
+    private static string? RevisionTag(string text)
+    {
+        // Greek capitals that look like Latin ones ("ΑΤΧ v3.1" on one page).
+        var latin = text.Trim().Replace('Α', 'A').Replace('Τ', 'T').Replace('Χ', 'X');
+        if (AtxTagRegex().Match(latin) is { Success: true } atx)
+        {
+            return "ATX v" + atx.Groups["v"].Value;
+        }
+
+        if (SampleTagRegex().IsMatch(latin) || YearTagRegex().IsMatch(latin))
+        {
+            return latin;
+        }
+
+        return KnownTags.FirstOrDefault(t => t.Equals(latin, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Market and manufacturer tags that mark a separate report of the same model.</summary>
+    private static readonly string[] KnownTags = ["EU", "US", "UK", "JP", "CN", "HKC", "CE-Link", "CWT", "Great Wall", "Andyson", "HEC", "Sirfa", "Megmeet", "Gospower", "Helly", "Enhance"];
+
     /// <summary>Returns whether a file is an HTML page: by extension, or for other non-PDF files by its first bytes.</summary>
     /// <param name="path">The file.</param>
     public static bool IsHtml(string path)
@@ -175,7 +241,7 @@ public static partial class HtmlReportParser
         var warnings = new List<string>();
         foreach (var (table, contextVoltage) in TablesWithContext(document))
         {
-            var rows = table.Descendants("tr").Where(r => r.Ancestors("table").FirstOrDefault() == table)
+            var rows = OwnRows(table)
                 .Select(r => (Node: r, Cells: r.ChildNodes.Where(c => c.Name is "td" or "th").Select(CellText).ToList()))
                 .ToList();
             var paneVoltage = PaneVoltageOf(table);
@@ -328,9 +394,17 @@ public static partial class HtmlReportParser
         return true;
     }
 
+    // The rows of a table, without those of nested tables. For a container of rows without a <table> start tag
+    // (seen once: the 230 V light-load pane of unit 236 starts with "</tr><tr>"), the rows outside any table.
+    private static IEnumerable<HtmlNode> OwnRows(HtmlNode table) =>
+        table.Name == "table"
+            ? table.Descendants("tr").Where(r => r.Ancestors("table").FirstOrDefault() == table)
+            : table.Descendants("tr").Where(r => r.Ancestors("table").FirstOrDefault() is null);
+
     private static IEnumerable<(HtmlNode Table, int? ContextVoltage)> TablesWithContext(HtmlDocument document)
     {
         int? context = null;
+        var orphanContainers = new HashSet<HtmlNode>();
         foreach (var node in document.DocumentNode.Descendants())
         {
             if (node.NodeType == HtmlNodeType.Text && node.ParentNode?.Name is not ("script" or "style"))
@@ -344,6 +418,14 @@ public static partial class HtmlReportParser
             else if (node.Name == "table")
             {
                 yield return (node, context);
+            }
+            else if (node.Name == "tr"
+                && node.Ancestors().FirstOrDefault(a => a.Name is not ("tr" or "tbody" or "thead")) is { } container
+                && container.Name != "table"
+                && node.Ancestors("table").FirstOrDefault() is null
+                && orphanContainers.Add(container))
+            {
+                yield return (container, context);
             }
         }
     }
@@ -445,10 +527,8 @@ public static partial class HtmlReportParser
                     metadata.Brand ??= cells[1];
                     break;
                 case "model" when metadata.Model is null:
-                    // "Prime TX-1600 (ATX v3.0)": the platform revision goes to Revision.
-                    var split = ModelRevisionRegex().Match(cells[1]);
-                    metadata.Model = split.Success ? split.Groups["model"].Value : cells[1];
-                    metadata.Revision = split.Success ? split.Groups["rev"].Value : null;
+                    // "Prime TX-1600 (ATX v3.0)": the revision tags go to Revision (see SplitModel).
+                    (metadata.Model, metadata.Revision) = SplitModel(cells[1]);
                     break;
                 case "testing date":
                     // Only this label: "Date of receipt", "Report Issued Date" and "Certificate Issue Date" are other dates.
@@ -463,16 +543,112 @@ public static partial class HtmlReportParser
         var text = Clean(root.InnerText);
         metadata.ReportId = ReportIdRegex().Match(text) is { Success: true } id ? id.Groups[1].Value : null;
 
-        // Ratings: from text or from badge image alt/title/src (e.g. "ETA Titanium", "80 PLUS Gold", "eta_platinum.png").
+        // The 80 Plus rating: from text or from badge image alt/title/src (e.g. "80 PLUS Gold").
         var badges = string.Join(' ', root.Descendants("img").SelectMany(i => new[]
         {
             i.GetAttributeValue("alt", string.Empty), i.GetAttributeValue("title", string.Empty), i.GetAttributeValue("src", string.Empty),
         }));
         var haystack = text + " " + badges.Replace('_', ' ').Replace('-', ' ');
-        metadata.RatingCybenetics = EtaRegex().Match(haystack) is { Success: true } eta ? Title(eta.Groups["r"].Value) : null;
         metadata.Rating80Plus = EightyPlusRegex().Match(haystack) is { Success: true } plus ? Title(plus.Groups["r"].Value) : null;
+        ReadEta(root, metadata);
         return metadata;
     }
+
+    /// <summary>
+    /// The ETA badge images by voltage and badge number. A page shows the ETA grade only as a badge image whose file
+    /// is named after a number ("17.png"; a saved page renames it "17_kQ_U.png"), with no grade in the text. The numbers
+    /// were matched to grades on the 386 saved pages of 2026-11-02: per voltage the numbers form one ladder (115 V:
+    /// 15, 16, 17, 18, 49; 230 V: 27, 28, 29, 30, 50), the average efficiency (">1450 load combinations") of the units
+    /// with each number falls steadily down that ladder, and the Titanium-rated Prime Fanless TX-700 (21PS1872A) carries
+    /// 15 and 27. Numbers not listed (Diamond, Standard: never seen yet) give no grade and a problem, never a guess.
+    /// </summary>
+    private static readonly Dictionary<(int Voltage, int Badge), string> EtaBadges = new()
+    {
+        [(115, 15)] = "Titanium",
+        [(115, 16)] = "Platinum",
+        [(115, 17)] = "Gold",
+        [(115, 18)] = "Silver",
+        [(115, 49)] = "Bronze",
+        [(230, 27)] = "Titanium",
+        [(230, 28)] = "Platinum",
+        [(230, 29)] = "Gold",
+        [(230, 30)] = "Silver",
+        [(230, 50)] = "Bronze",
+    };
+
+    // The ETA badge table: a header row "| 115V | 230V" and a row "Scheme: ETA-EMI PSU | <badge> | <badge>". A voltage
+    // the unit was not tested at has class "d-none" on both cells; a tested voltage without an ETA rating has an empty
+    // cell. The grade is the badge's alt/title text when it names one, else its file number (see EtaBadges).
+    private static void ReadEta(HtmlNode root, PageMetadata metadata)
+    {
+        var table = root.Descendants("td")
+            .Where(td => CellText(td).StartsWith("Scheme: ETA", StringComparison.OrdinalIgnoreCase))
+            .Select(td => td.Ancestors("table").FirstOrDefault())
+            .FirstOrDefault(t => t is not null);
+        if (table is null)
+        {
+            return;
+        }
+
+        metadata.HasEtaTable = true;
+        var rows = table.Descendants("tr").Where(r => r.Ancestors("table").FirstOrDefault() == table)
+            .Select(r => r.ChildNodes.Where(c => c.Name is "td" or "th").ToList())
+            .ToList();
+        var header = rows.FirstOrDefault(r => r.Any(c => SectionVoltageRegex().IsMatch(CellText(c))));
+        var badgeRow = rows.FirstOrDefault(r => r.Any(c => CellText(c).StartsWith("Scheme: ETA", StringComparison.OrdinalIgnoreCase)));
+        var grades = new Dictionary<int, string>();
+        var problems = new List<string>();
+        if (header is null || badgeRow is null)
+        {
+            problems.Add("the ETA badge table has no 115V/230V header row.");
+        }
+        else
+        {
+            for (var i = 0; i < header.Count; i++)
+            {
+                if (SectionVoltageRegex().Match(CellText(header[i])) is not { Success: true } v)
+                {
+                    continue;
+                }
+
+                var voltage = int.Parse(v.Groups["v"].Value, CultureInfo.InvariantCulture);
+                var cell = i < badgeRow.Count ? badgeRow[i] : null;
+                if (cell is null || IsHidden(header[i]) || IsHidden(cell))
+                {
+                    continue; // Not tested at this voltage.
+                }
+
+                var image = cell.Descendants("img").FirstOrDefault();
+                if (image is null)
+                {
+                    continue; // Tested, but no ETA rating at this voltage.
+                }
+
+                var named = EtaGradeRegex().Match(image.GetAttributeValue("alt", string.Empty) + " " + image.GetAttributeValue("title", string.Empty));
+                var src = image.GetAttributeValue("src", string.Empty);
+                var file = Uri.UnescapeDataString(src.Split('?', '#')[0]).Replace('\\', '/').Split('/')[^1];
+                var number = BadgeFileRegex().Match(file);
+                if (named.Success)
+                {
+                    grades[voltage] = Title(named.Groups["r"].Value);
+                }
+                else if (number.Success && EtaBadges.TryGetValue((voltage, int.Parse(number.Groups[1].Value, CultureInfo.InvariantCulture)), out var grade))
+                {
+                    grades[voltage] = grade;
+                }
+                else
+                {
+                    problems.Add($"unknown {voltage} V ETA badge image \"{file}\"; no grade taken for {voltage} V.");
+                }
+            }
+        }
+
+        metadata.RatingsCybenetics = grades;
+        metadata.EtaProblems = problems;
+    }
+
+    private static bool IsHidden(HtmlNode cell) =>
+        cell.GetAttributeValue("class", string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).Contains("d-none", StringComparer.OrdinalIgnoreCase);
 
     private static string Title(string value) => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(value.ToLowerInvariant());
 
@@ -559,14 +735,27 @@ public static partial class HtmlReportParser
     [GeneratedRegex(@"^(https?://[^\s""'#?]*/evaluations/psus/\d+/)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex EvaluationUrlRegex();
 
-    [GeneratedRegex(@"^(?<model>.+?)\s*\((?<rev>[^()]*(?:ATX|v\d)[^()]*)\)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ModelRevisionRegex();
+    [GeneratedRegex(@"\s*\((?<t>[^()]*)\)", RegexOptions.CultureInvariant)]
+    private static partial Regex ParenthesisedRegex();
 
-    [GeneratedRegex(@"Report\s*ID\s*:?\s*(\d{2}PS\d{3,5}[A-Z]?)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^ATX\s*v?\s*(?<v>\d(?:\.\d{1,2})?)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex AtxTagRegex();
+
+    [GeneratedRegex(@"^#\d{1,2}$", RegexOptions.CultureInvariant)]
+    private static partial Regex SampleTagRegex();
+
+    [GeneratedRegex(@"^(?:19|20)\d{2}$", RegexOptions.CultureInvariant)]
+    private static partial Regex YearTagRegex();
+
+    [GeneratedRegex(@"Report\s*ID\s*:?\s*(\d{2}PS\d{2,5}[A-Z]?)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ReportIdRegex();
 
-    [GeneratedRegex(@"\bETA\s*(?:rating\s*)?:?\s*(?<r>Diamond|Titanium|Platinum|Gold|Silver|Bronze|Standard)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex EtaRegex();
+    [GeneratedRegex(@"\bETA\W*(?<r>Diamond|Titanium|Platinum|Gold|Silver|Bronze|Standard)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex EtaGradeRegex();
+
+    // A badge file: "17.png" as served, "17_kQ_U.png" or "36_002_qx62.png" as a browser saves it.
+    [GeneratedRegex(@"^(\d+)(?:_[^/]*)?\.(?:png|svg|webp|jpe?g|gif)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex BadgeFileRegex();
 
     [GeneratedRegex(@"\b80\s*(?:PLUS|\+)\s*(?:rating\s*)?:?\s*(?<r>White|Bronze|Silver|Gold|Platinum|Titanium)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex EightyPlusRegex();

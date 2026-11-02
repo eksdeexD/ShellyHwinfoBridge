@@ -6,10 +6,13 @@ report has it, 115 V) and writes the (AC W, DC W) pairs sorted by AC.
 
 Rules it follows:
 
-- **Curated, not crawled.** Imports read PDFs that are already on disk. Only the `download` command makes HTTP
-  requests, and only for the `pdfUrl`s listed in a reviewed catalogue (see below).
-- **Attribution is mandatory.** Every entry carries `source.name = "Cybenetics"`, the report id and the report URL;
-  Cybenetics permits reuse of report data on that condition.
+- **Curated, not crawled.** Imports read pages and PDFs that are already on disk. Only the `download` command makes
+  HTTP requests, and only for the `reportUrl`s listed in a reviewed catalogue (see below), within Cybenetics' written
+  permission of 2026-11-02.
+- **Attribution is mandatory.** Every entry carries `source.name = "Cybenetics"`, the report id, the report URL and
+  the report date; Cybenetics permits reuse of the efficiency data on those conditions (see `PSU-DATA-NOTICE.md`).
+- **ETA grades are copied from the report**, per input voltage, into `ratingsCybenetics`; units without a published
+  ETA rating get none.
 - **Same name, different platform:** if a model name exists in several platform revisions, give each its own `--id`
   and set `--revision`.
 
@@ -20,7 +23,7 @@ From the repository root:
 ```powershell
 dotnet run --project tools/cybenetics-import -- C:\Downloads\21PS1872A.pdf `
   --id seasonic-prime-fanless-tx-700 --brand Seasonic --series "Prime Fanless TX" `
-  --model "Prime Fanless TX-700" --wattage 700 --rating80plus Titanium --ratingCybenetics Titanium `
+  --model "Prime Fanless TX-700" --wattage 700 --rating80plus Titanium --eta230 Titanium --eta115 Titanium `
   --reportId 21PS1872A --url https://www.cybenetics.com/evaluations/psus/1872/ `
   --out entry.json
 ```
@@ -51,10 +54,33 @@ dotnet run --project tools/cybenetics-import -- import --html "Seasonic Prime TX
 
 A plain path ending in `.html`/`.htm`, or any non-PDF file that starts with `<html` or `<!doctype html`, is read the
 same way. From the page the tool takes the brand, model, wattage (`Rated Power (W)`), report id, report URL (canonical
-link, or the page's own `/evaluations/psus/<n>/` links such as the PDF download) and a platform revision written as a
-model suffix (`Prime TX-1600 (ATX v3.0)` becomes model `Prime TX-1600`, revision `ATX v3.0`); without `--id` the id
-is derived from brand, model and revision. Command-line (or catalogue) values win. The page does not name the
-80 Plus or Cybenetics ratings in text (they are badge images), and not the series, so pass those.
+link, or the page's own `/evaluations/psus/<n>/` links such as the PDF download) and the revision tags written in
+parentheses after the model: an ATX version (`(ATX v3.1)`, also `(ATXv3.1)`, `(ATX 3.1)`, `(ATX3.1)`, normalised to
+`ATX v3.1`), a sample number (`(#2)`), a year (`(2024)`), a market (`(EU)`, `(US)`) or the build's manufacturer
+(`(HKC)`, `(CE-Link)`, `(CWT)`, `(Great Wall)`). `Prime TX-1600 (ATX v3.0)` becomes model `Prime TX-1600`, revision
+`ATX v3.0`; `HX1200i (ATX v3.1) (#2)` becomes `HX1200i`, `ATX v3.1 (#2)`. Other parenthesised text (a sister model such
+as `(GX Gold 1050)`, `(1000W)`, `(Black/White)`) stays in the model. Without `--id` the id is derived from brand, model and revision. Command-line (or catalogue) values win. The page names neither the
+80 Plus rating nor the series, so pass those.
+
+The Cybenetics ETA grade per voltage (`ratingsCybenetics`, `--eta230`/`--eta115` override it) comes from the page's
+ETA badge table near the top: a header row `| 115V | 230V` and a row `Scheme: ETA-EMI PSU | <badge> | <badge>`. A
+voltage the unit was not tested at has class `d-none` on both cells; a tested voltage without an ETA rating has an
+empty cell (e.g. the 230 V cell of the SuperNOVA 1000 G5). The page prints no grade as text: each badge is an image
+named after a number (`17.png`, saved by the browser as `17_kQ_U.png` or `36_002_qx62.png`). The numbers per voltage
+are one ladder, matched to grades on the 386 saved pages of 2026-11-02 (the average efficiency of the units falls
+steadily down the ladder; the Titanium TX-700, 21PS1872A, has 15 and 27):
+
+| Grade | 115 V badge | 230 V badge |
+|---|---|---|
+| Titanium | 15 | 27 |
+| Platinum | 16 | 28 |
+| Gold | 17 | 29 |
+| Silver | 18 | 30 |
+| Bronze | 49 | 50 |
+
+A badge whose `alt`/`title` names the grade ("ETA Gold") is read from that text. Any other number (Diamond and
+Standard have not been seen yet) gives no grade and a warning: add it to `EtaBadges` in `HtmlReportParser.cs` after
+checking the report, never guess.
 
 The report date (`source.reportDate`, yyyy-MM-dd) is the page's `Testing Date` row ("Jul 16, 2021" becomes
 `2021-07-16`). A page carries other dates too: `Certificate Issue Date` at the top, and `Date of receipt` and
@@ -68,7 +94,8 @@ mapped to 10–110 % and 20–80 W from the tab pane id, or else from the DC val
 and 5VSB tables never match. The voltage comes from the tab pane id (`nav-…-10-110-230`, `nav-…-20-80-115`), else the
 AC voltage cell (≥ 180 V is 230 V), else the nearest `115V`/`230V` heading. The printed efficiency confirms each
 pair; a mismatch keeps the row (from the DC/AC column) with a warning. A one-row layout with a `70.006 / 78.495` cell
-is read too.
+is read too. Rows that sit in a tab pane without a `<table>` start tag (the 230 V light-load pane of unit 236 starts with
+`</tr><tr>`) are read like a table's rows. Report ids with a two-digit number (`19PS57A`, unit 57) are read too.
 
 Checked against six saved pages (2020–2025, including the 2020 numbered layout): all 15 points per voltage, and the
 TX-700 page gives exactly the seed entry, identical to the PDF import of 21PS1872A. Some pages print a light-load
@@ -77,17 +104,21 @@ efficiency that differs slightly from DC/AC (e.g. 75.53 % for 20.008/26.422 W); 
 ## Batch import
 
 A catalogue is a CSV file with the header
-`id,brand,series,model,revision,wattage,rating80Plus,ratingCybenetics,reportId,reportUrl,pdfUrl,tier,notes`
-(RFC 4180 quoting; `revision`, `ratingCybenetics`, `pdfUrl`, `tier` and `notes` may be empty; `reportUrl` becomes
-`source.url`). PDFs are named after the report id:
+`id,brand,series,model,revision,wattage,rating80Plus,reportId,reportUrl,tier,notes`
+(RFC 4180 quoting; `revision`, `tier` and `notes` may be empty; `reportUrl` becomes `source.url` and is what
+`download` fetches). Other columns are ignored, so older catalogues with `ratingCybenetics` and `pdfUrl` still load;
+the ETA grades come from the report pages, not from the catalogue. Pages and PDFs are named after the report id:
 
 ```powershell
 dotnet run --project tools/cybenetics-import -- batch --catalog catalog.csv --reports work\reports --out work\entries
 ```
 
-For each row the tool imports `<reports>\<reportId>.html` (a saved evaluation page) when it exists, otherwise
+For each row the tool imports `<reports>\<reportId>.htm` or `.html` (a saved evaluation page) when it exists, otherwise
 `<reports>\<reportId>.pdf`; with a page, empty catalogue cells (brand, model, revision, wattage, reportUrl) are filled
-from it. If `<reportId>-115.pdf` exists next to a PDF, that file is read as 115 V and the main file as 230 V (its own
+from it. A placeholder `reportId` of the form `psu-<unit number>` (fetch lists built from the overview page, which has
+no report ids) names the file only: `source.reportId` is the id printed on the page, or is left out with a warning when
+the page has none. With an empty `revision`, the revision tags of the model text (the catalogue's, else the page's)
+become the revision and leave the model. If `<reportId>-115.pdf` exists next to a PDF, that file is read as 115 V and the main file as 230 V (its own
 voltage markers still win). One `<id>.json` per imported row and a
 `summary.csv` (`id,reportId,status,points230,points115,warnings,message`, status `ok` or `error`) go to `--out`.
 The exit code is 0 only when every row imported. Rows with warnings are still `ok`: read the `message` column and
@@ -103,31 +134,58 @@ Every `*.json` in `--entries` is merged: an entry with an existing id replaces i
 model, and `updated` is set to today (`--date yyyy-MM-dd` overrides). The result is validated with the app's
 database validator first; on any error nothing is written. Then run `dotnet test`.
 
-## Backfilling report dates
+## Backfilling report dates and ETA grades
 
 ```powershell
-dotnet run --project tools/cybenetics-import -- backfill-dates --pages work\reports\processed --into psu-database.json [--dry-run]
+dotnet run --project tools/cybenetics-import -- backfill --pages work\reports\processed --into psu-database.json [--dry-run]
 ```
 
-Fills `source.reportDate` of existing entries from saved evaluation pages (`*.htm`, `*.html`). A page matches an
-entry when it is named `<reportId>.htm`/`.html` or when the report id printed on it equals `source.reportId`;
-entries without a report id match on the report URL. Entries that already have a date, have no matching page, or
-whose pages give no date, different dates or another report URL are left untouched; the summary lists them.
-Nothing else changes (not `updated` either); the file must be in the layout `merge` writes.
+Fills `source.reportDate` and `ratingsCybenetics` of existing entries from saved evaluation pages (`*.htm`,
+`*.html`); `backfill-dates` and `backfill-eta` do only one of the two. A page matches an entry when it is named
+`<reportId>.htm`/`.html` or when the report id printed on it equals `source.reportId`; entries without a report id
+match on the report URL. Nothing else changes (not `updated` either); the file must be in the layout `merge` writes.
 
-## Downloading reports
+- **Dates:** entries that already have a date, have no matching page, or whose pages give no date, different dates
+  or another report URL are left untouched; the summary lists them.
+- **ETA grades:** always taken from the pages, replacing what the entry had (including the single
+  `ratingCybenetics` of databases before 1.0.1, which is read as the 230 V grade and reported as `changed:` when the
+  page says otherwise). A page whose badge table shows no grade at any voltage removes `ratingsCybenetics`
+  (`no ETA rating:`). Entries with no matching page, no badge table, an unknown badge or pages that disagree are left
+  untouched and listed. `backfill-dates` refuses a database that still has the old `ratingCybenetics`, because
+  rewriting it would change the ETA lines; run `backfill` or `backfill-eta` first.
+
+The run of 2026-11-02 over the 386 saved pages filled all 378 entries: 377 with grades (44 of them with different
+grades at 115 V and 230 V; 4 graded at 115 V only and 13 at 230 V only) and one without an ETA rating (EVGA 430W,
+20PS1756A). Seven of the 35 single grades of 1.0.0 did not match the 230 V badge and were corrected from the pages
+(CX750M, RM1000x, RM650e, RM750e, RM750x Shift, RM850x Shift, Rebel P10 650).
+
+## Downloading report pages
 
 ```powershell
+# Day one: up to 150 pages (the default cap), in batches of 50 with a 15-minute pause in between.
 dotnet run --project tools/cybenetics-import -- download --catalog catalog.csv --reports work\reports
+# Day two: the rest. The state file still knows what is saved; already saved pages are skipped.
+dotnet run --project tools/cybenetics-import -- download --catalog catalog.csv --reports work\reports --max-per-day 300
 ```
 
-Downloads `pdfUrl` to `<reports>\<reportId>.pdf` for rows whose file does not exist yet: one request at a time, at
-least 5 seconds apart, User-Agent `ShellyHwinfoBridge-import/0.1 (+https://github.com/eksdeexD/ShellyHwinfoBridge)`,
-https only, nothing but the listed URLs. A response that is not a PDF is not saved; a 401, 403 or 429 stops the run.
+Downloads each row's `reportUrl` (the public report page; https only, nothing but the listed URLs) to
+`<reports>\<reportId>.htm` when neither `<reportId>.htm` nor `<reportId>.html` exists yet. This is what Cybenetics'
+written permission of 2026-11-02 covers ("slow down and spread over several days"), and what the importer reads.
+The tool never downloads PDFs.
 
-**Check the site's terms first.** Cybenetics' database pages state that automated data collection, including by
-AI agents, requires their prior written permission. Do not run `download` against cybenetics.com without that
-permission; download the PDFs by hand into the reports folder instead (the import commands never go online).
+- **One request at a time, at least 15 seconds apart**, also across runs (the time of the last request is kept).
+- **User-Agent** `ShellyHwinfoBridge-import/1.0 (+https://github.com/eksdeexD/ShellyHwinfoBridge; zapador@zapador.net)`.
+- **Batches:** after every `--batch-size` requests (default 50) the run pauses for `--batch-pause` (default `15m`;
+  also `900s`, `1h`, or plain seconds) and prints when it resumes. The 15-second interval applies within a batch.
+- **Daily cap:** at most `--max-per-day` requests (default 150; a positive number, there is no "unlimited") per local
+  calendar date. `download-state.json` in the reports folder counts the requests per date, so a rerun the same day
+  continues from that count and the count starts again after local midnight. When the cap is reached the run stops
+  with a message naming the next allowed day (exit code 0).
+- **No retries:** a response other than 200, or an HTML page without the report tables and the "Testing Date" row
+  (a challenge or block page), stops the run at once, says so, saves nothing for that row and makes no further
+  request (exit code 1). Rerun it later, on another day if need be; the state file and the saved pages carry over.
+
+Only run `download` for the units on the list sent to Cybenetics (the reviewed catalogue), and never from an AI agent.
 
 ## How the parser works
 
@@ -203,5 +261,5 @@ or the newest (2024–2025) report layouts, so check every new entry against the
   is normally the higher one.
 - **Efficiency sanity.** DC/AC should rise from light load to a peak around 40–60 % load and fall slightly at
   110 %, consistent with the report's efficiency column.
-- **Metadata.** Model, revision/platform, wattage, 80 Plus and Cybenetics ratings, report id and URL must match
-  the report.
+- **Metadata.** Model, revision/platform, wattage, 80 Plus rating, the ETA grade per voltage, report id, URL and
+  date must match the report.

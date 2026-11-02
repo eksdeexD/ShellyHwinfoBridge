@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json.Serialization;
 using ShellyHwinfoBridge.Core.Curves;
 
@@ -40,8 +41,38 @@ public sealed class PsuEntry
     /// <summary>Gets or sets the 80 Plus rating name (White, Bronze, Silver, Gold, Platinum, Titanium or None).</summary>
     public string Rating80Plus { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the Cybenetics ETA rating, if known.</summary>
-    public string? RatingCybenetics { get; set; }
+    /// <summary>
+    /// Gets or sets the Cybenetics ETA grades as the report prints them, keyed by input voltage ("115", "230") like
+    /// <see cref="Curves"/>: a unit can hold different grades at 115 V and 230 V (e.g. <c>{"230": "Gold", "115": "Platinum"}</c>).
+    /// Optional; <c>null</c> (left out of the JSON) for units without a published ETA rating. Each value is one of
+    /// <see cref="PsuDatabaseValidator.AllowedEtaRatings"/>. Shown as "Cybenetics ETA &lt;grade&gt;" with its voltage.
+    /// </summary>
+    /// <remarks>
+    /// Replaces the single <c>ratingCybenetics</c> of databases written before 1.0.1, which is still read (as the
+    /// 230 V grade) but never written; 1.0.0 clients skip this member like any unknown one.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? RatingsCybenetics { get; set; }
+
+    /// <summary>
+    /// Reads the single <c>ratingCybenetics</c> of older databases into <see cref="RatingsCybenetics"/> as the 230 V
+    /// grade, unless that already has one. Always <c>null</c> when read, so it is never written.
+    /// </summary>
+    [JsonPropertyName("ratingCybenetics")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public string? LegacyRatingCybenetics
+    {
+        get => null;
+        set
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                RatingsCybenetics ??= [];
+                RatingsCybenetics.TryAdd(VoltageKey(InputVoltage.V230), value.Trim());
+            }
+        }
+    }
 
     /// <summary>Gets or sets the data source attribution.</summary>
     public PsuSource? Source { get; set; }
@@ -49,8 +80,30 @@ public sealed class PsuEntry
     /// <summary>Gets or sets the curves keyed by voltage ("115", "230"); each is a list of [AC, DC] pairs.</summary>
     public Dictionary<string, List<double[]>>? Curves { get; set; }
 
-    /// <summary>Gets a display name: model plus revision, if any.</summary>
-    public string DisplayName => string.IsNullOrWhiteSpace(Revision) ? Model : $"{Model} ({Revision})";
+    /// <summary>
+    /// Gets a display name: the model plus the revision in parentheses when there is one ("RM1000e (ATX v3.1)").
+    /// A parenthesised part of the revision is joined with a comma ("ATX v3.0 (2024)" gives "(ATX v3.0, 2024)"), and
+    /// the revision is left out when the model text already contains it (case-insensitive).
+    /// </summary>
+    [JsonIgnore]
+    public string DisplayName
+    {
+        get
+        {
+            var revision = Revision?.Trim();
+            if (string.IsNullOrEmpty(revision) || Model.Contains(revision, StringComparison.OrdinalIgnoreCase))
+            {
+                return Model;
+            }
+
+            var flat = System.Text.RegularExpressions.Regex.Replace(revision, @"\s*\(([^()]*)\)", ", $1").Trim(' ', ',');
+            return $"{Model} ({flat})";
+        }
+    }
+
+    /// <summary>Gets the brand plus <see cref="DisplayName"/> ("Corsair RM1000e (ATX v3.1)").</summary>
+    [JsonIgnore]
+    public string FullName => $"{Brand} {DisplayName}".Trim();
 
     /// <summary>Returns the curve for a voltage, or <c>null</c> if the entry has none or it is invalid.</summary>
     /// <param name="voltage">The input voltage.</param>
@@ -75,6 +128,21 @@ public sealed class PsuEntry
         var c115 = GetCurve(InputVoltage.V115);
         var c230 = GetCurve(InputVoltage.V230);
         return c115 is null && c230 is null ? null : new PsuCurveSet(c115, c230);
+    }
+
+    /// <summary>
+    /// Returns the Cybenetics ETA grade the report gives at a voltage, spelled as in
+    /// <see cref="PsuDatabaseValidator.AllowedEtaRatings"/> ("Gold"), or <c>null</c> when the unit has none at that voltage.
+    /// </summary>
+    /// <param name="voltage">The input voltage.</param>
+    public string? GetEtaRating(InputVoltage voltage)
+    {
+        if (RatingsCybenetics is null || !RatingsCybenetics.TryGetValue(VoltageKey(voltage), out var grade) || string.IsNullOrWhiteSpace(grade))
+        {
+            return null;
+        }
+
+        return PsuDatabaseValidator.AllowedEtaRatings.FirstOrDefault(r => r.Equals(grade.Trim(), StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Returns the JSON key used for a voltage ("115" or "230").</summary>

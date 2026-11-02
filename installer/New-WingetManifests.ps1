@@ -50,7 +50,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not $OutputRoot) { $OutputRoot = Join-Path $repoRoot 'winget' }
 
-$manifestVersion = '1.9.0'
+$manifestVersion = '1.12.0'
 $packageId = 'Zapador.ShellyHwinfoBridge'
 $repoUrl = 'https://github.com/eksdeexD/ShellyHwinfoBridge'
 

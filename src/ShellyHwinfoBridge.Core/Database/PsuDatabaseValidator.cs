@@ -26,6 +26,13 @@ public static class PsuDatabaseValidator
     public static IReadOnlyList<string> AllowedRatings { get; } =
         [.. Enum.GetNames<EightyPlusRating>(), "None"];
 
+    /// <summary>
+    /// Accepted values of <see cref="PsuEntry.RatingsCybenetics"/> (case-insensitive), the Cybenetics ETA grades from
+    /// best to lowest.
+    /// </summary>
+    public static IReadOnlyList<string> AllowedEtaRatings { get; } =
+        ["Diamond", "Titanium", "Platinum", "Gold", "Silver", "Bronze", "Standard"];
+
     /// <summary>Parses and validates JSON text.</summary>
     /// <param name="json">The JSON text.</param>
     /// <param name="database">The parsed database when valid; otherwise <c>null</c>.</param>
@@ -112,6 +119,20 @@ public static class PsuDatabaseValidator
         if (!AllowedRatings.Contains(entry.Rating80Plus ?? string.Empty, StringComparer.OrdinalIgnoreCase))
         {
             errors.Add(new($"{path}.rating80Plus", $"Must be one of {string.Join(", ", AllowedRatings)}."));
+        }
+
+        // ratingsCybenetics is optional; when present it maps "115"/"230" to an ETA grade.
+        foreach (var (key, grade) in entry.RatingsCybenetics ?? [])
+        {
+            var etaPath = $"{path}.ratingsCybenetics.{key}";
+            if (key != "115" && key != "230")
+            {
+                errors.Add(new(etaPath, "ETA keys must be \"115\" or \"230\"."));
+            }
+            else if (!AllowedEtaRatings.Contains(grade ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+            {
+                errors.Add(new(etaPath, $"Must be one of {string.Join(", ", AllowedEtaRatings)}."));
+            }
         }
 
         if (entry.Source is null)

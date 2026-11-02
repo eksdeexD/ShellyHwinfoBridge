@@ -32,7 +32,6 @@ public sealed record CatalogRow(int LineNumber, IReadOnlyDictionary<string, stri
         ["revision"] = this["revision"],
         ["wattage"] = this["wattage"],
         ["rating80plus"] = this["rating80Plus"],
-        ["ratingcybenetics"] = this["ratingCybenetics"],
         ["reportid"] = this["reportId"],
         ["url"] = this["reportUrl"],
     };
@@ -40,13 +39,15 @@ public sealed record CatalogRow(int LineNumber, IReadOnlyDictionary<string, stri
 
 /// <summary>
 /// Reads the catalogue CSV (RFC 4180: comma separated, optional double quotes, a header row with the columns
-/// <c>id,brand,series,model,revision,wattage,rating80Plus,ratingCybenetics,reportId,reportUrl,pdfUrl,tier,notes</c>).
+/// <c>id,brand,series,model,revision,wattage,rating80Plus,reportId,reportUrl,tier,notes</c>; other columns, such as the
+/// <c>ratingCybenetics</c> and <c>pdfUrl</c> of older catalogues, are read but ignored: the ETA grades come from the report
+/// pages, and the download fetches <c>reportUrl</c>).
 /// </summary>
 public static partial class Catalog
 {
     /// <summary>The columns every catalogue must have.</summary>
     public static IReadOnlyList<string> Columns { get; } =
-        ["id", "brand", "series", "model", "revision", "wattage", "rating80Plus", "ratingCybenetics", "reportId", "reportUrl", "pdfUrl", "tier", "notes"];
+        ["id", "brand", "series", "model", "revision", "wattage", "rating80Plus", "reportId", "reportUrl", "tier", "notes"];
 
     /// <summary>Reads a catalogue file.</summary>
     /// <param name="path">The CSV file.</param>
@@ -94,6 +95,13 @@ public static partial class Catalog
     /// <summary>Returns whether a value is safe to use as a file name (letters, digits, '.', '_', '-').</summary>
     /// <param name="value">The value.</param>
     public static bool IsSafeFileName(string value) => SafeNameRegex().IsMatch(value) && !value.StartsWith('.');
+
+    /// <summary>
+    /// Returns whether a report id is a catalogue placeholder, <c>psu-&lt;unit number&gt;</c> (e.g. <c>psu-2399</c>): the
+    /// Cybenetics overview has no report ids, so a fetch list names the saved page after the unit number instead.
+    /// </summary>
+    /// <param name="reportId">The catalogue's report id.</param>
+    public static bool IsPlaceholderReportId(string? reportId) => reportId is not null && PlaceholderReportIdRegex().IsMatch(reportId.Trim());
 
     /// <summary>Quotes a value for a CSV field when needed.</summary>
     /// <param name="value">The value.</param>
@@ -168,4 +176,7 @@ public static partial class Catalog
 
     [GeneratedRegex(@"^[A-Za-z0-9._-]{1,100}$", RegexOptions.CultureInvariant)]
     private static partial Regex SafeNameRegex();
+
+    [GeneratedRegex(@"^psu-\d+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PlaceholderReportIdRegex();
 }

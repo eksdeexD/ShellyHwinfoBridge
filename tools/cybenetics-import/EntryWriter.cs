@@ -29,8 +29,11 @@ public sealed class EntryMetadata
     /// <summary>Gets or sets the 80 Plus rating.</summary>
     public string Rating80Plus { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the Cybenetics rating, if known.</summary>
-    public string? RatingCybenetics { get; set; }
+    /// <summary>
+    /// Gets or sets the Cybenetics ETA grades by voltage ("115", "230"), as the report page shows them; <c>null</c> or
+    /// empty when the unit has no published ETA rating.
+    /// </summary>
+    public Dictionary<string, string>? RatingsCybenetics { get; set; }
 
     /// <summary>Gets or sets the Cybenetics report id.</summary>
     public string? ReportId { get; set; }
@@ -43,7 +46,8 @@ public sealed class EntryMetadata
 
     /// <summary>
     /// Builds and checks metadata from named values (keys, case-insensitive: id, brand, series, model, revision,
-    /// wattage, rating80plus, ratingcybenetics, reportid, url, reportdate). reportdate is optional and may be given as
+    /// wattage, rating80plus, eta115, eta230, reportid, url, reportdate). eta115/eta230 (the ETA grade at that voltage,
+    /// one of Diamond, Titanium, Platinum, Gold, Silver, Bronze, Standard) and reportdate are optional; reportdate may be given as
     /// yyyy-MM-dd or as printed in a report ("Jul 16, 2021"); it is stored as yyyy-MM-dd.
     /// </summary>
     /// <param name="values">The values.</param>
@@ -79,7 +83,16 @@ public sealed class EntryMetadata
         }
 
         var revision = Get("revision");
-        var ratingCybenetics = Get("ratingcybenetics");
+        var eta = new Dictionary<string, string>();
+        foreach (var volts in new[] { "230", "115" })
+        {
+            if (Get("eta" + volts) is { Length: > 0 } grade)
+            {
+                eta[volts] = PsuDatabaseValidator.AllowedEtaRatings.FirstOrDefault(n => n.Equals(grade, StringComparison.OrdinalIgnoreCase))
+                    ?? throw new ArgumentException($"--eta{volts} must be one of {string.Join(", ", PsuDatabaseValidator.AllowedEtaRatings)}.");
+            }
+        }
+
         var reportId = Get("reportid");
         string? reportDate = null;
         if (!string.IsNullOrWhiteSpace(Get("reportdate")) && !HtmlReportParser.TryParseReportDate(Get("reportdate"), out reportDate))
@@ -96,7 +109,7 @@ public sealed class EntryMetadata
             Revision = string.IsNullOrWhiteSpace(revision) ? null : revision,
             Wattage = watts,
             Rating80Plus = canonical,
-            RatingCybenetics = string.IsNullOrWhiteSpace(ratingCybenetics) ? null : ratingCybenetics,
+            RatingsCybenetics = eta.Count == 0 ? null : eta,
             ReportId = string.IsNullOrWhiteSpace(reportId) ? null : reportId,
             Url = url,
             ReportDate = reportDate,
@@ -123,7 +136,7 @@ public static class EntryWriter
             Revision = string.IsNullOrWhiteSpace(metadata.Revision) ? null : metadata.Revision,
             Wattage = metadata.Wattage,
             Rating80Plus = metadata.Rating80Plus,
-            RatingCybenetics = string.IsNullOrWhiteSpace(metadata.RatingCybenetics) ? null : metadata.RatingCybenetics,
+            RatingsCybenetics = metadata.RatingsCybenetics is { Count: > 0 } eta ? new Dictionary<string, string>(eta) : null,
             Source = new PsuSource
             {
                 Name = "Cybenetics",
@@ -146,7 +159,8 @@ public static class EntryWriter
 
     /// <summary>
     /// Formats the entry like <c>psu-database.json</c> (two-space indent, one [AC, DC] pair per line;
-    /// <c>source.reportDate</c> after <c>source.url</c>, omitted when <c>null</c>).
+    /// <c>ratingsCybenetics</c> after <c>rating80Plus</c> and <c>source.reportDate</c> after <c>source.url</c>, each
+    /// omitted when empty).
     /// </summary>
     /// <param name="entry">The entry.</param>
     public static string Format(PsuEntry entry)
@@ -161,7 +175,13 @@ public static class EntryWriter
         Field(sb, 1, "revision", Str(entry.Revision));
         Field(sb, 1, "wattage", entry.Wattage.ToString(CultureInfo.InvariantCulture));
         Field(sb, 1, "rating80Plus", Str(entry.Rating80Plus));
-        Field(sb, 1, "ratingCybenetics", Str(entry.RatingCybenetics));
+        // ratingsCybenetics follows rating80Plus on one line, 230 V first like the curves, and is left out when empty.
+        if (entry.RatingsCybenetics is { Count: > 0 } eta)
+        {
+            var grades = eta.OrderByDescending(g => g.Key, StringComparer.Ordinal).Select(g => $"{Str(g.Key)}: {Str(g.Value)}");
+            Field(sb, 1, "ratingsCybenetics", "{ " + string.Join(", ", grades) + " }");
+        }
+
         sb.Append("  \"source\": {\n");
         Field(sb, 2, "name", Str(entry.Source?.Name));
         Field(sb, 2, "reportId", Str(entry.Source?.ReportId));

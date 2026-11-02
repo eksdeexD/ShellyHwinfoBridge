@@ -1,12 +1,14 @@
 using System.Globalization;
 using ShellyHwinfoBridge.Core.App;
 using ShellyHwinfoBridge.Core.Curves;
+using ShellyHwinfoBridge.Core.Database;
 using ShellyHwinfoBridge.Core.Energy;
 using ShellyHwinfoBridge.Core.Polling;
 using ShellyHwinfoBridge.Core.Presentation;
 using ShellyHwinfoBridge.Core.Sensors;
 using ShellyHwinfoBridge.Core.Settings;
 using ShellyHwinfoBridge.Core.Shelly;
+using ShellyHwinfoBridge.Core.Tests.TestSupport;
 
 namespace ShellyHwinfoBridge.Core.Tests.Presentation;
 
@@ -33,11 +35,11 @@ public class MainWindowPresenterTests
         Assert.True(view.IsConfigured);
         Assert.Equal(new StatusPillState(Tone.Success, "Shelly online"), view.Status);
         Assert.Equal(new StatCardState("PC Power (AC)", "312.4 W", "from Shelly plug", Tone.Ink, false), view.Ac);
-        Assert.Equal(new StatCardState("PC Power (DC)", "294.8 W", "via TX-700 curve", Tone.Accent, false), view.Dc);
+        Assert.Equal(new StatCardState("PC Power (DC)", "294.8 W", "via measured curve", Tone.Accent, false), view.Dc);
         Assert.Equal(new StatCardState("PC PSU Loss", "17.6 W", "94.4 % efficiency", Tone.Ink, false), view.Loss);
         Assert.Equal(("PC Other Components", "48.1 W", "DC minus CPU, GPU, RAM", false), (view.Other.Caption, view.Other.Value, view.Other.Sub, view.Other.Placeholder));
         Assert.Equal(OtherCardKind.Value, view.Other.OtherState!.Kind);
-        Assert.Equal("Seasonic Prime Fanless TX-700 · 230 V curve · Cybenetics", view.PsuLine);
+        Assert.Equal("Seasonic Prime Fanless TX-700 · 230 V curve · Cybenetics · report 2021-07-16", view.PsuLine);
         Assert.Equal("CPU Package Power, GPU Power, DIMM1 Power, DIMM3 Power", view.SensorsLine);
         Assert.Equal("running · sensors visible", view.HwinfoLine);
         Assert.Equal(new EnergyTotalsState("2.41 kWh", "TODAY", "48.7 kWh", "THIS MONTH"), view.Energy);
@@ -207,10 +209,41 @@ public class MainWindowPresenterTests
             MainWindowPresenter.Build(At(volts), RuntimeState.Running, OnlineState.Online, BriefExample.Hwinfo(), Totals, settings, db, EnUs);
 
         Assert.Equal("Testbrand EU-700 · 230 V curve · Cybenetics", View(226.9).PsuLine);
-        Assert.Equal("Testbrand EU-700 · 230 V curve (115 V data not available for this unit) · Cybenetics", View(118.2).PsuLine);
+        Assert.Equal("Testbrand EU-700 · 230 V curve (no 115 V data) · Cybenetics", View(118.2).PsuLine);
 
         settings.VoltageMode = InputVoltageMode.V115;
-        Assert.Equal("Testbrand EU-700 · 230 V curve (115 V data not available for this unit) · Cybenetics", View(226.9).PsuLine);
+        Assert.Equal("Testbrand EU-700 · 230 V curve (no 115 V data) · Cybenetics", View(226.9).PsuLine);
+    }
+
+    [Fact]
+    public void PsuLineNamesTheRevision()
+    {
+        var settings = BriefExample.Settings();
+        settings.Psu = new PsuSettings { Mode = PsuSelectionMode.Database, DatabaseId = "cooler-master-mwe-gold-1050-v2-atx-v2-52-2021" };
+        var entry = PsuDatabaseLoader.LoadEmbedded().Psus.Single(p => p.Id == settings.Psu.DatabaseId);
+        Assert.StartsWith("Cooler Master MWE Gold 1050 V2 (ATX v2.52, 2021) · 230 V curve · Cybenetics · report ", MainWindowPresenter.PsuLine(settings, entry, 226.9, EnUs), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LongestPsuLineIsTheShipped230VOnlyUnitAt115V()
+    {
+        var settings = BriefExample.Settings();
+        settings.Psu = new PsuSettings { Mode = PsuSelectionMode.Database, DatabaseId = "cooler-master-x-silent-edge-platinum-1100-230v" };
+        settings.VoltageMode = InputVoltageMode.V115;
+        var entry = PsuDatabaseLoader.LoadEmbedded().Psus.Single(p => p.Id == settings.Psu.DatabaseId);
+        Assert.Equal(
+            "Cooler Master X Silent Edge Platinum 1100 230V · 230 V curve (no 115 V data) · Cybenetics · report 2024-06-21",
+            MainWindowPresenter.PsuLine(settings, entry, 118.2, EnUs));
+    }
+
+    [Fact]
+    public void ShortCurveLabelNamesTheMissingVoltage()
+    {
+        var curve = TestCurves.Tx700At230;
+        Assert.Equal("115 V curve", PsuCurveSet.ShortCurveLabel(new PsuCurveSet(curve, curve), InputVoltage.V115));
+        Assert.Equal("230 V curve (no 115 V data)", PsuCurveSet.ShortCurveLabel(new PsuCurveSet(null, curve), InputVoltage.V115));
+        Assert.Equal("115 V curve (no 230 V data)", PsuCurveSet.ShortCurveLabel(new PsuCurveSet(curve, null), InputVoltage.V230));
+        Assert.Equal("115 V curve", PsuCurveSet.ShortCurveLabel(null, InputVoltage.V115));
     }
 
     [Fact]

@@ -6,9 +6,11 @@ on:
 
 permissions:
   contents: write
+  id-token: write       # build provenance attestations (Sigstore)
+  attestations: write   # build provenance attestations
 
 # Release assets (in release/):
-#   ShellyHwinfoBridge-<tag>-win-x64.zip      portable exe + psu-database.json
+#   ShellyHwinfoBridge-<tag>-win-x64.zip      portable exe + psu-database.json + PSU-DATA-NOTICE.md
 #   ShellyHwinfoBridge-<tag>-setup.exe        Inno Setup installer (same <tag> as the zip, e.g. v1.0.0)
 #   winget-manifests.zip                      winget manifests (non-pre-release tags only)
 #   SHA256SUMS.txt                            SHA-256 of the files above (sha256sum format)
@@ -93,7 +95,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force release | Out-Null
           $zip = "release/ShellyHwinfoBridge-$env:TAG-win-x64.zip"
-          Compress-Archive -Path publish/ShellyHwinfoBridge.exe, publish/psu-database.json -DestinationPath $zip
+          Compress-Archive -Path publish/ShellyHwinfoBridge.exe, publish/psu-database.json, publish/PSU-DATA-NOTICE.md -DestinationPath $zip
 
       - name: Build installer
         shell: pwsh
@@ -131,6 +133,14 @@ jobs:
       - name: Stage installer
         shell: pwsh
         run: Copy-Item "installer-out/ShellyHwinfoBridge-${{ github.ref_name }}-setup.exe" release/
+
+      # --- Build provenance (verify with: gh attestation verify <file> --repo eksdeexD/ShellyHwinfoBridge) ---
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/ShellyHwinfoBridge-${{ github.ref_name }}-setup.exe
+            release/ShellyHwinfoBridge-${{ github.ref_name }}-win-x64.zip
 
       # --- winget manifests (stable tags only; betas are not published to winget) ---
       - name: Generate winget manifests

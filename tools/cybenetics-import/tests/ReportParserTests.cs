@@ -203,7 +203,7 @@ public class ReportParserTests
         var exit = ImportCommand.Run(
             [
                 "report.txt", "--id", "seasonic-prime-fanless-tx-700", "--brand", "Seasonic", "--series", "Prime Fanless TX",
-                "--model", "Prime Fanless TX-700", "--wattage", "700", "--rating80plus", "titanium", "--ratingCybenetics", "Titanium",
+                "--model", "Prime Fanless TX-700", "--wattage", "700", "--rating80plus", "titanium", "--eta230", "titanium", "--eta115", "Titanium",
                 "--reportId", "21PS1872A", "--url", "https://www.cybenetics.com/evaluations/psus/1872/",
             ],
             stdout,
@@ -214,6 +214,7 @@ public class ReportParserTests
         var entry = JsonSerializer.Deserialize<PsuEntry>(stdout.ToString(), PsuDatabaseJson.Options)!;
         Assert.Equal("Titanium", entry.Rating80Plus);
         Assert.Equal("21PS1872A", entry.Source!.ReportId);
+        Assert.Equal(new Dictionary<string, string> { ["230"] = "Titanium", ["115"] = "Titanium" }, entry.RatingsCybenetics);
         Assert.Equal(Expected230.Select(p => new[] { p.Ac, p.Dc }), entry.Curves!["230"]);
         Assert.Equal(15, entry.GetCurve(InputVoltage.V115)!.Points.Count);
 
@@ -222,6 +223,27 @@ public class ReportParserTests
         Assert.Equal(seed.Curves!["230"], entry.Curves["230"]);
         Assert.Equal(seed.Curves["115"], entry.Curves["115"]);
         Assert.Contains("230 V: 15 points", stderr.ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("--eta230", "Shiny")]
+    [InlineData("--eta115", "None")]
+    [InlineData("--ratingCybenetics", "Gold")]
+    public void AnUnknownEtaGradeOrTheOldOptionIsAUsageError(string option, string value)
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exit = ImportCommand.Run(
+            [
+                "report.txt", "--id", "x", "--brand", "B", "--series", "S", "--model", "M", "--wattage", "700",
+                "--rating80plus", "Gold", "--url", "https://www.cybenetics.com/evaluations/psus/1872/", option, value,
+            ],
+            stdout,
+            stderr,
+            _ => Fixture);
+
+        Assert.Equal(ImportCommand.Usage, exit);
     }
 
     [Fact]

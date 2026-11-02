@@ -17,6 +17,11 @@ internal sealed class PsuStepView : WizardStepView
 {
     private static readonly InputVoltageMode[] VoltageModes = [InputVoltageMode.Auto, InputVoltageMode.V115, InputVoltageMode.V230];
 
+    // The fixed widths of the list's 80 Plus and Cybenetics ETA columns: "80 Plus Titanium" (117 px at 96 DPI) and
+    // "Cybenetics ETA Platinum (230 V)" / "report 21PS1872A · 2021-07-16 ↗" (222 px) with room to spare.
+    private const int EightyPlusColumnDip = 130;
+    private const int EtaColumnDip = 240;
+
     private readonly PsuStepModel _model;
     private readonly RadioCard _database = new() { Title = "From database", Description = "Measured efficiency curves from Cybenetics reports", Group = "psu-mode" };
     private readonly RadioCard _generic = new() { Title = "Generic by rating", Description = "Approximate curve from the 80 Plus minimum requirements", Group = "psu-mode" };
@@ -27,7 +32,15 @@ internal sealed class PsuStepView : WizardStepView
     private readonly ThemedDropDown _wattage = new() { Prefix = "Wattage" };
     private readonly ThemedDropDown _rating = new() { Prefix = "Rating" };
     private readonly ThemedTextBox _search = new() { Placeholder = "Search model…", AccessibleName = "Search model" };
-    private readonly SelectableList _list = new() { RowHeightDip = 54, AccessibleName = "Power supplies" };
+    private readonly SelectableList _list = new()
+    {
+        RowHeightDip = 54,
+        AccessibleName = "Power supplies",
+        ColumnWidthsDip = [EightyPlusColumnDip, EtaColumnDip],
+        ColumnHeaders = PsuStepModel.ColumnHeaders,
+    };
+
+    private readonly TextLabel _attribution = new() { Text = PsuStepModel.AttributionLine, Tone = UiTone.Secondary };
 
     // Generic mode.
     private readonly CardPanel _genericCard = new() { Title = "Generic curve" };
@@ -96,7 +109,7 @@ internal sealed class PsuStepView : WizardStepView
         Controls.AddRange(
         [
             _database, _generic, _manual,
-            _brand, _wattage, _rating, _search, _list,
+            _brand, _wattage, _rating, _search, _list, _attribution,
             _genericCard,
             _manualEntry, _formCard, _grid, _import, _export, _gridHint,
             _voltage, _voltageMode,
@@ -150,7 +163,7 @@ internal sealed class PsuStepView : WizardStepView
 
         // Database.
         var db = mode == PsuSelectionMode.Database;
-        foreach (var c in new Control[] { _brand, _wattage, _rating, _search, _list })
+        foreach (var c in new Control[] { _brand, _wattage, _rating, _search, _list, _attribution })
         {
             c.Visible = db;
         }
@@ -162,7 +175,7 @@ internal sealed class PsuStepView : WizardStepView
         if (!ReferenceEquals(_shownRows, _model.Rows))
         {
             _shownRows = _model.Rows;
-            _list.SetRows(_model.Rows.Select(r => new SelectableRow(r.Title, r.Subtitle, r.LinkText, r.Id)), _model.SelectedRowIndex);
+            _list.SetRows(_model.Rows.Select(r => new SelectableRow(r.Title, null, r.LinkText, r.Id) { Column2 = r.EightyPlus, Column3 = r.EtaLines }), _model.SelectedRowIndex);
         }
         else
         {
@@ -259,7 +272,10 @@ internal sealed class PsuStepView : WizardStepView
         _wattage.Bounds = Dip(column + gap, filtersTop, column, Theme.FieldHeight);
         _rating.Bounds = Dip(2 * (column + gap), filtersTop, column, Theme.FieldHeight);
         _search.Bounds = Dip(3 * (column + gap), filtersTop, w - (3 * (column + gap)), Theme.FieldHeight);
-        _list.Bounds = Dip(0, listTop, w, contentBottom - listTop);
+        // The list, then the Cybenetics credit at the bottom of the list area (above the voltage line).
+        var attributionTop = contentBottom - Theme.LineHeight;
+        _list.Bounds = Dip(0, listTop, w, attributionTop - 6 - listTop);
+        _attribution.Bounds = Dip(2, attributionTop, w - 2, Theme.LineHeight);
 
         // Generic: one card with the wattage and rating fields and the 20/50/100 % tiles beside them.
         _genericCard.Bounds = Dip(0, filtersTop, w, contentBottom - filtersTop);

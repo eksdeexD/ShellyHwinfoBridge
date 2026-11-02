@@ -301,7 +301,7 @@ public class WizardSessionTests
         var lines = session.Apply.SummaryLines.ToDictionary(l => l.Label, l => l.Value);
         Assert.Equal("PlugMGen3-2 (S3PL-10112EU) · 192.168.1.42", lines["Device"]);
         Assert.Equal("Seasonic Prime Fanless TX-700", lines["PSU"]);
-        Assert.Equal("Cybenetics report 21PS1872A", lines["Curve source"]);
+        Assert.Equal("Cybenetics report 21PS1872A · 2021-07-16", lines["Curve source"]);
         Assert.Equal("230 V curve (automatic, plug measured 226.9 V)", lines["Voltage"]);
         Assert.Equal("CPU Package Power (CPU), GPU Power (GPU), DIMM1 Power (RAM), DIMM3 Power (RAM)", lines["Sensors"]);
         Assert.Equal("PC Power (DC) − CPU Package Power − GPU Power − DIMM1 Power − DIMM3 Power = PC Other Components", lines["Other Components"]);
@@ -353,6 +353,31 @@ public class WizardSessionTests
         Assert.False(model.SharedMemoryOn);
         Assert.Equal(new WizardStatusLine(Tone.Warning, "Shared Memory Support is off"), model.Lines[2]);
         Assert.Null(model.Warning);
+    }
+
+    [Fact]
+    public async Task ApplyStepSummaryNamesThePsuRevision()
+    {
+        using var _ = new CultureScope("en-US");
+        var f = new WizardFixture();
+        var session = f.Session();
+        while (session.Current < WizardStep.Apply)
+        {
+            if (session.Current == WizardStep.Shelly)
+            {
+                await session.Shelly.FindAsync();
+                session.Shelly.SelectDevice(f.Devices[0]);
+            }
+            else if (session.Current == WizardStep.Psu)
+            {
+                session.Psu.Select("cooler-master-mwe-gold-1050-v2-atx-v3-1");
+            }
+
+            Assert.True(await session.GoNextAsync());
+        }
+
+        var lines = session.Apply.SummaryLines.ToDictionary(l => l.Label, l => l.Value);
+        Assert.Equal("Cooler Master MWE Gold 1050 V2 (ATX v3.1)", lines["PSU"]);
     }
 
     internal static async Task<WizardSession> AtStep(WizardFixture f, WizardStep step)

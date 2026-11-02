@@ -20,7 +20,9 @@ public class SettingsPresenterTests
 
         Assert.Equal("192.168.1.42", state.Host);
         Assert.Equal("Seasonic Prime Fanless TX-700", state.PsuTitle);
-        Assert.Equal("700 W · Titanium · Cybenetics 21PS1872A", state.PsuSubtitle);
+        Assert.Equal("700 W · 80 Plus Titanium · Cybenetics ETA Titanium (230 V)", state.PsuSubtitle);
+        Assert.Equal("report 21PS1872A · 2021-07-16 ↗", state.PsuLinkText);
+        Assert.Equal("https://www.cybenetics.com/evaluations/psus/1872/", state.PsuReportUrl);
         Assert.Equal("PC Power (DC)\r\n − CPU Package Power\r\n − GPU Power\r\n − DIMM1 Power\r\n − DIMM3 Power", state.FormulaText);
         Assert.Null(state.RetiredFormulaNote);
         Assert.Equal("PC · 192.168.1.42", state.DevicesText);
@@ -32,6 +34,58 @@ public class SettingsPresenterTests
         Assert.True(state.ShowTrayIcon);
         Assert.True(state.EnergyEnabled);
         Assert.Equal(string.Empty, state.PriceText);
+    }
+
+    [Fact]
+    public void PsuSubtitleShowsTheEtaGradeOfTheVoltageInUseAndTheReportDate()
+    {
+        var db = SyntheticDatabase("2026-11-02", 1);
+        var entry = db.Psus[0];
+        entry.RatingsCybenetics = new() { ["230"] = "Gold", ["115"] = "Platinum" };
+        _runtime.Database = db;
+        var presenter = new SettingsPresenter(_runtime, EnUs);
+        Assert.Equal("700 W · 80 Plus Titanium · Cybenetics ETA Gold (230 V)", presenter.State.PsuSubtitle);
+        Assert.Equal("report 21PS1872A · 2021-07-16 ↗", presenter.State.PsuLinkText);
+
+        presenter.SetVoltageMode(InputVoltageMode.V115);
+        Assert.Equal("700 W · 80 Plus Titanium · Cybenetics ETA Platinum (115 V)", presenter.State.PsuSubtitle);
+
+        // No 80 Plus rating: left out, never "80 Plus None".
+        entry.Rating80Plus = "None";
+        Assert.Equal("700 W · Cybenetics ETA Platinum (115 V)", presenter.State.PsuSubtitle);
+
+        // No ETA grade (at this voltage or at all): the source is named; the report stays the link on line 3.
+        entry.Rating80Plus = "Gold";
+        entry.RatingsCybenetics = new() { ["230"] = "Gold" };
+        Assert.Equal("700 W · 80 Plus Gold · Cybenetics", presenter.State.PsuSubtitle);
+        entry.RatingsCybenetics = null;
+        entry.Source!.ReportDate = null;
+        Assert.Equal("700 W · 80 Plus Gold · Cybenetics", presenter.State.PsuSubtitle);
+        Assert.Equal("report 21PS1872A ↗", presenter.State.PsuLinkText);
+
+        // A source without a URL has no link: its report id and date stay on line 2.
+        entry.Source.Url = string.Empty;
+        entry.Source.ReportDate = "2021-07-16";
+        Assert.Equal("700 W · 80 Plus Gold · Cybenetics 21PS1872A · report 2021-07-16", presenter.State.PsuSubtitle);
+        Assert.Null(presenter.State.PsuLinkText);
+        Assert.Null(presenter.State.PsuReportUrl);
+    }
+
+    [Fact]
+    public void PsuHasNoReportLinkOutsideDatabaseMode()
+    {
+        _runtime.Settings!.Psu = new Core.Settings.PsuSettings { Mode = Core.Settings.PsuSelectionMode.Generic, GenericWattage = 850, GenericRating = EightyPlusRating.Gold };
+        var state = new SettingsPresenter(_runtime, EnUs).State;
+        Assert.Equal("Approximate curve from the 80 Plus rating", state.PsuSubtitle);
+        Assert.Null(state.PsuLinkText);
+        Assert.Null(state.PsuReportUrl);
+    }
+
+    [Fact]
+    public void PsuCardNamesTheRevision()
+    {
+        _runtime.Settings!.Psu = new Core.Settings.PsuSettings { Mode = Core.Settings.PsuSelectionMode.Database, DatabaseId = "cooler-master-mwe-gold-1050-v2-atx-v3-0-2023" };
+        Assert.Equal("Cooler Master MWE Gold 1050 V2 (ATX v3.0, 2023)", new SettingsPresenter(_runtime, EnUs).State.PsuTitle);
     }
 
     [Fact]

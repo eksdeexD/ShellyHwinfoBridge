@@ -23,6 +23,31 @@ public sealed class HtmlReportParserTests : IDisposable
         Assert.DoesNotContain(report.Result.Points, p => p.Label.StartsWith("CL", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("Prime TX-1600 (ATX v3.0)", "Prime TX-1600", "ATX v3.0")]
+    [InlineData("Taichi TC-1300T (ATXv3.1)", "Taichi TC-1300T", "ATX v3.1")]
+    [InlineData("Focus GX-1000 (ATX 3.1)", "Focus GX-1000", "ATX v3.1")]
+    [InlineData("Focus GX-850 (ATX3.1)", "Focus GX-850", "ATX v3.1")]
+    [InlineData("RM750x (ΑΤΧ v3.1)", "RM750x", "ATX v3.1")]
+    [InlineData("ROG-STRIX-750G (#2)", "ROG-STRIX-750G", "#2")]
+    [InlineData("HX1500i (2022)", "HX1500i", "2022")]
+    [InlineData("Power Zone 2 1200W (EU)", "Power Zone 2 1200W", "EU")]
+    [InlineData("Power Zone 2 1200W (US)", "Power Zone 2 1200W", "US")]
+    [InlineData("Toughpower GF A3 1050W (HKC)", "Toughpower GF A3 1050W", "HKC")]
+    [InlineData("Toughpower GF A3 850W (US) (CE-Link)", "Toughpower GF A3 850W", "US (CE-Link)")]
+    [InlineData("HX1200i (ATX v3.1) (#2)", "HX1200i", "ATX v3.1 (#2)")]
+    [InlineData("RM1200e (ATX v3.1) (2026)", "RM1200e", "ATX v3.1 (2026)")]
+    [InlineData("MWE Gold 850 V2 (GX Gold 750) (#2)", "MWE Gold 850 V2 (GX Gold 750)", "#2")]
+    [InlineData("GXII 750W (ATX v3.1) (MWE Gold 750 V3)", "GXII 750W (MWE Gold 750 V3)", "ATX v3.1")]
+    [InlineData("GX II 850 GOLD (MWE Gold 850 V3)", "GX II 850 GOLD (MWE Gold 850 V3)", null)]
+    [InlineData("D23-1K0P1A (1000W)", "D23-1K0P1A (1000W)", null)]
+    [InlineData("HELA 2500Rz (230V)", "HELA 2500Rz (230V)", null)]
+    [InlineData("Rebel P20 Gen2 850 (Black/White)", "Rebel P20 Gen2 850 (Black/White)", null)]
+    [InlineData("RM850e  (ThermalProtect)", "RM850e (ThermalProtect)", null)]
+    [InlineData("Core GX-750 ATX3", "Core GX-750 ATX3", null)]
+    public void SplitModelMovesOnlyRevisionTagsToTheRevision(string text, string model, string? revision) =>
+        Assert.Equal((model, revision), HtmlReportParser.SplitModel(text));
+
     [Fact]
     public void ReadsTheMetadataOfTheSavedPage()
     {
@@ -38,6 +63,57 @@ public sealed class HtmlReportParserTests : IDisposable
         Assert.Equal("2026-01-01", metadata.ReportDate);
         Assert.Equal("2026-01-01", metadata.ToValues()["reportdate"]);
         Assert.Equal("examplebrand-fictional-fx-700-atx-v3-1", metadata.ToValues()["id"]);
+
+        // The ETA badge table: badge 16 at 115 V is Platinum, badge 29 at 230 V is Gold.
+        Assert.True(metadata.HasEtaTable);
+        Assert.Equal(new Dictionary<int, string> { [115] = "Platinum", [230] = "Gold" }, metadata.RatingsCybenetics);
+        Assert.Empty(metadata.EtaProblems);
+        Assert.Equal(("Platinum", "Gold"), (metadata.ToValues()["eta115"], metadata.ToValues()["eta230"]));
+    }
+
+    [Theory]
+    // Not tested at 115 V (d-none), Platinum at 230 V; the badge as served (full URL with a query).
+    [InlineData("""<td class="d-none">115V</td><td>230V</td>""", """<td class="d-none"></td><td><img src="https://x.example/images/28.png?v=1"></td>""", "230=Platinum", "")]
+    // Tested at both voltages, an ETA badge only at 115 V.
+    [InlineData("<td>115V</td><td>230V</td>", """<td><img src="a_files/49_x-Y.png"></td><td></td>""", "115=Bronze", "")]
+    // Tested, no ETA rating at all: the table is there, no grade.
+    [InlineData("<td>115V</td><td>230V</td>", "<td></td><td></td>", "", "")]
+    // A saved duplicate name ("36_002_qx62.png") still gives the number; a grade named in alt text wins.
+    [InlineData("<td>115V</td><td>230V</td>", """<td><img src="a_files/15_002_qx62.png"></td><td><img src="b.png" alt="ETA Diamond"></td>""", "115=Titanium,230=Diamond", "")]
+    // A badge number the parser does not know gives no grade and a problem, never a guess.
+    [InlineData("<td>115V</td><td>230V</td>", """<td><img src="a_files/14_x.png"></td><td><img src="a_files/27_x.png"></td>""", "230=Titanium", "unknown 115 V ETA badge image \"14_x.png\"")]
+    public void ReadsTheEtaGradePerVoltageFromTheBadgeTable(string header, string badges, string expected, string problem)
+    {
+        var html = $"""
+            <html><body><table class="table w-75 float-end"><tbody>
+            <tr><td></td>{header}</tr>
+            <tr><td><span class="stdWidth">Scheme: ETA-EMI PSU</span></td>{badges}</tr>
+            </tbody></table>
+            <table><tr><td>115V</td><td>230V</td></tr><tr><td><img src="a_files/19_x.png"></td><td><img src="a_files/31_x.png"></td><td>Scheme: LAMBDA PSU</td></tr></table>
+            </body></html>
+            """;
+        var metadata = HtmlReportParser.ReadMetadata(html);
+
+        Assert.True(metadata.HasEtaTable);
+        Assert.Equal(expected, string.Join(",", metadata.RatingsCybenetics.OrderBy(g => g.Key).Select(g => $"{g.Key}={g.Value}")));
+        if (problem.Length == 0)
+        {
+            Assert.Empty(metadata.EtaProblems);
+        }
+        else
+        {
+            Assert.Contains(problem, Assert.Single(metadata.EtaProblems), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void APageWithoutTheEtaTableHasNoGradesAndTheOldTextFormIsNotRead()
+    {
+        // "ETA Gold" in running text is not a per-voltage grade; only the badge table counts.
+        var metadata = HtmlReportParser.ReadMetadata("<html><body><p>ETA Gold</p><img src=\"eta_platinum.png\"></body></html>");
+        Assert.False(metadata.HasEtaTable);
+        Assert.Empty(metadata.RatingsCybenetics);
+        Assert.False(metadata.ToValues().ContainsKey("eta230"));
     }
 
     [Fact]
@@ -54,6 +130,9 @@ public sealed class HtmlReportParserTests : IDisposable
         Assert.Equal(("Examplebrand", "Fictional FX-700", "ATX v3.1", 700), (entry.Brand, entry.Model, entry.Revision, entry.Wattage));
         Assert.Equal(("Cybenetics", "99PS9872A", "https://reports.example/evaluations/psus/9872/"), (entry.Source!.Name, entry.Source.ReportId, entry.Source.Url));
         Assert.Equal("2026-01-01", entry.Source.ReportDate);
+        Assert.Equal(new Dictionary<string, string> { ["230"] = "Gold", ["115"] = "Platinum" }, entry.RatingsCybenetics);
+        Assert.Contains("  \"rating80Plus\": \"Titanium\",\n  \"ratingsCybenetics\": { \"230\": \"Gold\", \"115\": \"Platinum\" },\n  \"source\"", stdout.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("\"ratingCybenetics\"", stdout.ToString(), StringComparison.Ordinal);
         Assert.Contains(
             "  \"source\": {\n    \"name\": \"Cybenetics\",\n    \"reportId\": \"99PS9872A\",\n"
             + "    \"url\": \"https://reports.example/evaluations/psus/9872/\",\n    \"reportDate\": \"2026-01-01\"\n  },\n",
@@ -115,6 +194,23 @@ public sealed class HtmlReportParserTests : IDisposable
         Assert.Equal("2021-07-16", metadata.ReportDate);
         Assert.Equal("21PS1872A", metadata.ReportId);
         Assert.Null(HtmlReportParser.ReadMetadata(html.Replace("Testing Date", "Test day", StringComparison.Ordinal)).ReportDate);
+    }
+
+    [Theory]
+    [InlineData("19PS57A", "19PS57A")]
+    [InlineData("21PS1872A", "21PS1872A")]
+    [InlineData("", null)]
+    public void ReadsReportIdsWithATwoDigitNumberAndNoneWhenTheFieldIsEmpty(string printed, string? expected)
+    {
+        // The earliest reports (units below 100) have a two-digit number ("19PS57A"); many 2017-2019 pages
+        // print the label with nothing after it.
+        var html = $"""
+            <html><body>
+            <ul class="dates"><li>Test Result Report ID: {printed}</li><li>Certificate Issue Date: <span>Apr 1, 2018</span></li></ul>
+            </body></html>
+            """;
+
+        Assert.Equal(expected, HtmlReportParser.ReadMetadata(html).ReportId);
     }
 
     [Fact]
@@ -191,8 +287,8 @@ public sealed class HtmlReportParserTests : IDisposable
         var catalog = Path.Combine(_dir, "catalog-230.csv");
         File.WriteAllLines(catalog,
         [
-            "id,brand,series,model,revision,wattage,rating80Plus,ratingCybenetics,reportId,reportUrl,pdfUrl,tier,notes",
-            "examplebrand-eu-700,,Fictional EU,,,,Titanium,,99PS9873A,,,1,",
+            "id,brand,series,model,revision,wattage,rating80Plus,reportId,reportUrl,tier,notes",
+            "examplebrand-eu-700,,Fictional EU,,,,Titanium,99PS9873A,,1,",
         ]);
         var output = Path.Combine(_dir, "out-230");
         using var stdout = new StringWriter();
@@ -203,6 +299,7 @@ public sealed class HtmlReportParserTests : IDisposable
         Assert.True(exit == ImportCommand.Ok, stderr.ToString());
         var entry = JsonSerializer.Deserialize<PsuEntry>(File.ReadAllText(Path.Combine(output, "examplebrand-eu-700.json")), PsuDatabaseJson.Options)!;
         Assert.Equal(["230"], entry.Curves!.Keys);
+        Assert.Equal(new Dictionary<string, string> { ["230"] = "Platinum" }, entry.RatingsCybenetics);
         var line = File.ReadAllLines(Path.Combine(output, BatchCommand.SummaryFileName))[1];
         Assert.StartsWith("examplebrand-eu-700,99PS9873A,ok,15,0,1,", line, StringComparison.Ordinal);
         Assert.Contains("single-voltage entry", line, StringComparison.Ordinal);
@@ -242,6 +339,28 @@ public sealed class HtmlReportParserTests : IDisposable
         Assert.Empty(result.Warnings);
         Assert.Equal(["50%", "20W"], result.Points.Select(p => p.Label));
         Assert.Equal([(30.0, 20.1), (842.005, 799.905)], result.Curves[230]);
+    }
+
+    [Fact]
+    public void ReadsAPaneWhoseRowsLackTheTableStartTag()
+    {
+        // One saved page (unit 236) has a light-load pane that starts with "</tr><tr>" instead of "<table>": its
+        // rows sit directly in the pane's div. They count like a table's rows; the 115 V pane is a normal table.
+        const string Html = """
+            <div class="tab-pane" id="nav-abc-20-80-115"><div class="row"><div class="col-lg-12 mt-2"><table><tr><td>Test #</td><td>12V</td><td>5V</td><td>3.3V</td><td>5VSB</td><td>DC/AC (Watts)</td><td>Efficiency</td><td>Fan Speed (RPM)</td><td>PSU Noise (dB[A])</td><td>PF/AC Volts</td></tr>
+            <tr><td rowspan="2">1</td><td>1.2A</td><td>0.5A</td><td>0.5A</td><td>0.2A</td><td>19.7</td><td rowspan="2">68.947%</td><td rowspan="2">0</td><td rowspan="2"></td><td>0.76</td></tr>
+            <tr><td>12.1V</td><td>5.0V</td><td>3.3V</td><td>5.1V</td><td>28.573</td><td>115.07V</td></tr></table></div></div></div>
+            <div class="tab-pane" id="nav-abc-20-80-230"><div class="row"><div class="col-lg-12 mt-2"></tr><tr><td>Test #</td><td>12V</td> <td>5V</td> <td>3.3V</td> <td>5VSB</td> <td>DC/AC (Watts)</td> <td>Efficiency</td> <td>Fan Speed (RPM)</td> <td>PSU Noise (dB[A])</td> <td>PF/AC Volts</td> </tr>
+            <tr><td rowspan="2">1</td> <td>1.2A</td><td>0.5A</td> <td>0.5A</td> <td>0.2A</td> <td>19.7</td> <td rowspan="2">71.428%</td> <td rowspan="2">0000</td> <td rowspan="2"></td> <td>0.49</td> </tr>
+            <tr><td>12.1V</td> <td>5.0V</td> <td>3.3V</td> <td>5.1V</td> <td>27.58</td> <td>230.23V</td> </tr></table>
+            </div></div></div>
+            """;
+
+        var result = HtmlReportParser.Parse(Html, ratedWattage: 650).Result;
+
+        Assert.Empty(result.Warnings);
+        Assert.Equal((28.573, 19.7), Assert.Single(result.Curves[115]));
+        Assert.Equal((27.58, 19.7), Assert.Single(result.Curves[230]));
     }
 
     [Fact]

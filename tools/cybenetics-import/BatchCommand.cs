@@ -4,7 +4,7 @@ namespace CybeneticsImport;
 
 /// <summary>
 /// <c>batch --catalog &lt;csv&gt; --reports &lt;dir&gt; --out &lt;dir&gt;</c>: imports every catalogue row from
-/// <c>&lt;reports&gt;\&lt;reportId&gt;.pdf</c> (plus <c>&lt;reportId&gt;-115.pdf</c> when present) and writes one entry JSON
+/// <c>&lt;reports&gt;\&lt;reportId&gt;.htm</c> or <c>.html</c> (a saved report page), else <c>&lt;reportId&gt;.pdf</c> (plus <c>&lt;reportId&gt;-115.pdf</c> when present) and writes one entry JSON
 /// per row and <c>summary.csv</c>.
 /// </summary>
 public static class BatchCommand
@@ -68,8 +68,10 @@ public static class BatchCommand
             return ("error", $"catalogue line {row.LineNumber}: duplicate id {row.Id}.", null);
         }
 
-        // A saved evaluation page (<reportId>.html) is preferred over the PDF: its tables are structured.
-        var html = Path.Combine(reports, row.ReportId + ".html");
+        // A saved evaluation page (<reportId>.htm as the download command saves it, or .html) is preferred over the
+        // PDF: its tables are structured.
+        var html = new[] { ".htm", ".html" }.Select(e => Path.Combine(reports, row.ReportId + e)).FirstOrDefault(File.Exists)
+            ?? Path.Combine(reports, row.ReportId + ".html");
         var main = File.Exists(html) ? html : Path.Combine(reports, row.ReportId + ".pdf");
         var us = Path.Combine(reports, row.ReportId + "-115.pdf");
         var inputs = new List<ImportInput>();
@@ -94,18 +96,24 @@ public static class BatchCommand
         }
         else
         {
-            return ("error", $"missing {row.ReportId}.html or {main}", null);
+            return ("error", $"missing {row.ReportId}.htm, {row.ReportId}.html or {main}", null);
         }
 
         EntryMetadata metadata;
+        var notes = new List<string>();
         try
         {
             // Empty catalogue cells are completed from the saved page, when there is one.
-            metadata = EntryMetadata.FromValues(EntryImporter.WithPageMetadata(row.ToValues(), inputs));
+            metadata = EntryMetadata.FromValues(ResolveValues(row, inputs, notes));
         }
         catch (ArgumentException ex)
         {
             return ("error", $"catalogue line {row.LineNumber}: {ex.Message}", null);
+        }
+
+        foreach (var note in notes)
+        {
+            log.WriteLine("warning: " + note);
         }
 
         log.WriteLine($"--- {metadata.Id} ({string.Join(", ", inputs.Select(i => Path.GetFileName(i.Path)))})");
@@ -126,7 +134,46 @@ public static class BatchCommand
         }
 
         File.WriteAllText(Path.Combine(outDir, metadata.Id + ".json"), EntryWriter.Format(result.Entry));
-        var message = result.Warnings.Count == 0 ? string.Empty : string.Join(" | ", result.Warnings);
+        var message = string.Join(" | ", notes.Concat(result.Warnings));
         return ("ok", message, result);
+    }
+
+    /// <summary>
+    /// Returns a row's metadata values completed from the saved page (see <see cref="EntryImporter.WithPageMetadata"/>).
+    /// Two catalogue values give way to the page: a placeholder report id (<c>psu-2399</c>, see
+    /// <see cref="Catalog.IsPlaceholderReportId"/>) is replaced by the "Report ID" the page prints, or left out with a
+    /// note when the page has none; and with an empty revision, the revision tags of the model text (see
+    /// <see cref="HtmlReportParser.SplitModel"/>) become the revision, from the catalogue's model or else the page's,
+    /// and leave the model.
+    /// </summary>
+    /// <param name="row">The catalogue row.</param>
+    /// <param name="inputs">The row's inputs.</param>
+    /// <param name="notes">Receives warnings worth a look.</param>
+    internal static Dictionary<string, string?> ResolveValues(CatalogRow row, IReadOnlyList<ImportInput> inputs, List<string> notes)
+    {
+        var values = row.ToValues();
+        var placeholder = Catalog.IsPlaceholderReportId(row.ReportId);
+        if (placeholder)
+        {
+            values["reportid"] = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(values["revision"]) && !string.IsNullOrWhiteSpace(values["model"]))
+        {
+            var (model, revision) = HtmlReportParser.SplitModel(values["model"]!);
+            if (revision is not null)
+            {
+                (values["model"], values["revision"]) = (model, revision);
+            }
+        }
+
+        var resolved = EntryImporter.WithPageMetadata(values, inputs);
+        if (placeholder && string.IsNullOrWhiteSpace(resolved.GetValueOrDefault("reportid")))
+        {
+            resolved["reportid"] = null;
+            notes.Add($"{row.Id}: the catalogue's reportId {row.ReportId} is a placeholder and the page prints no report id; source.reportId is left out.");
+        }
+
+        return resolved;
     }
 }
