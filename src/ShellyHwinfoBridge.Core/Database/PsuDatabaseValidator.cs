@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using ShellyHwinfoBridge.Core.Curves;
 
@@ -14,7 +15,7 @@ public sealed record DatabaseValidationError(string Path, string Message)
 
 /// <summary>
 /// Validates a PSU database before it is used or replaces the local copy: schema version 1, required fields,
-/// unique ids, attribution present, and every curve passing <see cref="CurveValidator"/>.
+/// unique ids, attribution present (with an optional yyyy-MM-dd report date), and every curve passing <see cref="CurveValidator"/>.
 /// </summary>
 public static class PsuDatabaseValidator
 {
@@ -126,6 +127,12 @@ public static class PsuDatabaseValidator
             {
                 errors.Add(new($"{path}.source.url", "Must be an absolute http(s) URL."));
             }
+
+            // source.reportDate is optional; when present it must be a real calendar date written as yyyy-MM-dd.
+            if (entry.Source.ReportDate is not null && !IsIsoDate(entry.Source.ReportDate))
+            {
+                errors.Add(new($"{path}.source.reportDate", "Must be a date written as yyyy-MM-dd."));
+            }
         }
 
         ValidateCurves(entry, path, errors);
@@ -167,6 +174,12 @@ public static class PsuDatabaseValidator
             }
         }
     }
+
+    /// <summary>Returns whether a value is a calendar date written exactly as yyyy-MM-dd.</summary>
+    /// <param name="value">The value.</param>
+    public static bool IsIsoDate(string? value) =>
+        value is { Length: 10 } &&
+        DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
 
     private static void Require(string? value, string path, List<DatabaseValidationError> errors)
     {

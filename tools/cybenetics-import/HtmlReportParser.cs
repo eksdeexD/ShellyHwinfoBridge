@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
@@ -16,8 +17,23 @@ public sealed class PageMetadata
     /// <summary>Gets or sets the platform revision taken from a model suffix such as "(ATX v3.0)".</summary>
     public string? Revision { get; set; }
 
-    /// <summary>Gets or sets the testing date as printed ("Jul 16, 2021"); informational, not part of the entry.</summary>
+    /// <summary>
+    /// Gets or sets the testing date as printed ("Jul 16, 2021"): the value of the "Testing Date" row of the
+    /// "Cybenetics Testing Information" table. See <see cref="ReportDate"/> for the other dates a page carries.
+    /// </summary>
     public string? TestingDate { get; set; }
+
+    /// <summary>
+    /// Gets the report date written to <c>source.reportDate</c>: <see cref="TestingDate"/> as yyyy-MM-dd, or <c>null</c>
+    /// when the page has none or it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// A page carries several dates; 21PS1872A, for example, has "Certificate Issue Date: Jul 20, 2021" under the report
+    /// id at the top, and in the "Cybenetics Testing Information" table "Date of receipt | Jul 7, 2021" (the sample
+    /// arrived), "Testing Date | Jul 16, 2021" (the measurements were taken) and "Report Issued Date | Jul 20, 2021".
+    /// Only the row labelled exactly "Testing Date" is used, so the entry carries the date the tested sample was measured.
+    /// </remarks>
+    public string? ReportDate => HtmlReportParser.TryParseReportDate(TestingDate, out var iso) ? iso : null;
 
     /// <summary>Gets or sets the rated wattage ("Rated Power (W)" row).</summary>
     public int? Wattage { get; set; }
@@ -54,6 +70,7 @@ public sealed class PageMetadata
         Add("url", Url);
         Add("rating80plus", Rating80Plus);
         Add("ratingcybenetics", RatingCybenetics);
+        Add("reportdate", ReportDate);
         if (Brand is not null && Model is not null)
         {
             Add("id", Slug((Model.StartsWith(Brand, StringComparison.OrdinalIgnoreCase) ? Model : Brand + " " + Model) + " " + Revision));
@@ -104,6 +121,41 @@ public static partial class HtmlReportParser
         var buffer = new char[2048];
         var head = new string(buffer, 0, reader.Read(buffer, 0, buffer.Length)).TrimStart('﻿', ' ', '\t', '\r', '\n');
         return head.StartsWith("<!doctype html", StringComparison.OrdinalIgnoreCase) || head.StartsWith("<html", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Converts a date as Cybenetics prints it ("Jul 16, 2021", "Sep 3, 2024", also "July 16, 2021") or an ISO date
+    /// ("2021-07-16") to yyyy-MM-dd.
+    /// </summary>
+    /// <param name="printed">The date text; surrounding whitespace is ignored.</param>
+    /// <param name="iso">The date as yyyy-MM-dd when it could be read; otherwise <c>null</c>.</param>
+    public static bool TryParseReportDate(string? printed, [NotNullWhen(true)] out string? iso)
+    {
+        iso = null;
+        if (string.IsNullOrWhiteSpace(printed))
+        {
+            return false;
+        }
+
+        string[] formats = ["MMM d, yyyy", "MMMM d, yyyy", "MMM d yyyy", "MMMM d yyyy", "yyyy-MM-dd"];
+        var text = WhitespaceRegex().Replace(printed, " ").Trim();
+        if (!DateOnly.TryParseExact(text, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            return false;
+        }
+
+        iso = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return true;
+    }
+
+    /// <summary>Reads only the metadata (brand, model, dates, report id, URL, ratings) of a saved evaluation page.</summary>
+    /// <param name="html">The page source.</param>
+    public static PageMetadata ReadMetadata(string html)
+    {
+        ArgumentNullException.ThrowIfNull(html);
+        var document = new HtmlDocument();
+        document.LoadHtml(html);
+        return ReadMetadata(document);
     }
 
     /// <summary>Parses a saved evaluation page.</summary>
@@ -399,6 +451,7 @@ public static partial class HtmlReportParser
                     metadata.Revision = split.Success ? split.Groups["rev"].Value : null;
                     break;
                 case "testing date":
+                    // Only this label: "Date of receipt", "Report Issued Date" and "Certificate Issue Date" are other dates.
                     metadata.TestingDate ??= cells[1];
                     break;
                 case "rated power (w)" or "rated power":

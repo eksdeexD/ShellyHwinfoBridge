@@ -38,9 +38,13 @@ public sealed class EntryMetadata
     /// <summary>Gets or sets the report URL.</summary>
     public string Url { get; set; } = string.Empty;
 
+    /// <summary>Gets or sets the report (testing) date as yyyy-MM-dd, or <c>null</c> when unknown.</summary>
+    public string? ReportDate { get; set; }
+
     /// <summary>
     /// Builds and checks metadata from named values (keys, case-insensitive: id, brand, series, model, revision,
-    /// wattage, rating80plus, ratingcybenetics, reportid, url).
+    /// wattage, rating80plus, ratingcybenetics, reportid, url, reportdate). reportdate is optional and may be given as
+    /// yyyy-MM-dd or as printed in a report ("Jul 16, 2021"); it is stored as yyyy-MM-dd.
     /// </summary>
     /// <param name="values">The values.</param>
     /// <exception cref="ArgumentException">A required value is missing or malformed.</exception>
@@ -77,6 +81,12 @@ public sealed class EntryMetadata
         var revision = Get("revision");
         var ratingCybenetics = Get("ratingcybenetics");
         var reportId = Get("reportid");
+        string? reportDate = null;
+        if (!string.IsNullOrWhiteSpace(Get("reportdate")) && !HtmlReportParser.TryParseReportDate(Get("reportdate"), out reportDate))
+        {
+            throw new ArgumentException("--reportDate must be a date such as 2021-07-16 or \"Jul 16, 2021\".");
+        }
+
         return new EntryMetadata
         {
             Id = Get("id")!,
@@ -89,6 +99,7 @@ public sealed class EntryMetadata
             RatingCybenetics = string.IsNullOrWhiteSpace(ratingCybenetics) ? null : ratingCybenetics,
             ReportId = string.IsNullOrWhiteSpace(reportId) ? null : reportId,
             Url = url,
+            ReportDate = reportDate,
         };
     }
 }
@@ -113,7 +124,13 @@ public static class EntryWriter
             Wattage = metadata.Wattage,
             Rating80Plus = metadata.Rating80Plus,
             RatingCybenetics = string.IsNullOrWhiteSpace(metadata.RatingCybenetics) ? null : metadata.RatingCybenetics,
-            Source = new PsuSource { Name = "Cybenetics", ReportId = metadata.ReportId, Url = metadata.Url },
+            Source = new PsuSource
+            {
+                Name = "Cybenetics",
+                ReportId = metadata.ReportId,
+                Url = metadata.Url,
+                ReportDate = string.IsNullOrWhiteSpace(metadata.ReportDate) ? null : metadata.ReportDate,
+            },
             Curves = curves
                 .Where(c => c.Value.Count > 0)
                 .ToDictionary(
@@ -127,7 +144,10 @@ public static class EntryWriter
     public static IReadOnlyList<DatabaseValidationError> Validate(PsuEntry entry) =>
         PsuDatabaseValidator.Validate(new PsuDatabase { SchemaVersion = PsuDatabaseValidator.SupportedSchemaVersion, Psus = [entry] });
 
-    /// <summary>Formats the entry like <c>psu-database.json</c> (two-space indent, one [AC, DC] pair per line).</summary>
+    /// <summary>
+    /// Formats the entry like <c>psu-database.json</c> (two-space indent, one [AC, DC] pair per line;
+    /// <c>source.reportDate</c> after <c>source.url</c>, omitted when <c>null</c>).
+    /// </summary>
     /// <param name="entry">The entry.</param>
     public static string Format(PsuEntry entry)
     {
@@ -145,7 +165,14 @@ public static class EntryWriter
         sb.Append("  \"source\": {\n");
         Field(sb, 2, "name", Str(entry.Source?.Name));
         Field(sb, 2, "reportId", Str(entry.Source?.ReportId));
-        Field(sb, 2, "url", Str(entry.Source?.Url), last: true);
+        // reportDate follows url and is left out when unknown, so entries without one keep their shape.
+        var reportDate = entry.Source?.ReportDate;
+        Field(sb, 2, "url", Str(entry.Source?.Url), last: reportDate is null);
+        if (reportDate is not null)
+        {
+            Field(sb, 2, "reportDate", Str(reportDate), last: true);
+        }
+
         sb.Append("  },\n");
         sb.Append("  \"curves\": {\n");
         var curves = (entry.Curves ?? []).OrderByDescending(c => c.Key, StringComparer.Ordinal).ToList();

@@ -24,6 +24,7 @@ public sealed class PsuDatabaseTests : IDisposable
         Assert.Equal("Cybenetics", tx.Source!.Name);
         Assert.Equal("21PS1872A", tx.Source.ReportId);
         Assert.Equal("https://www.cybenetics.com/evaluations/psus/1872/", tx.Source.Url);
+        Assert.Equal("2021-07-16", tx.Source.ReportDate);
         Assert.Equal(15, tx.GetCurve(InputVoltage.V230)!.Points.Count);
         Assert.Equal(15, tx.GetCurve(InputVoltage.V115)!.Points.Count);
 
@@ -32,6 +33,8 @@ public sealed class PsuDatabaseTests : IDisposable
             Assert.Equal("Cybenetics", p.Source!.Name);
             Assert.False(string.IsNullOrEmpty(p.Source.Url));
             Assert.StartsWith("https://www.cybenetics.com/", p.Source.Url, StringComparison.Ordinal);
+            // Cybenetics' terms require the report date next to the link: every shipped entry carries one.
+            Assert.True(PsuDatabaseValidator.IsIsoDate(p.Source.ReportDate), p.Id + " source.reportDate");
             // Single-voltage reports carry only the 230 V curve; the key of a missing curve is omitted, never null.
             Assert.True(p.GetCurve(InputVoltage.V230)!.Points.Count >= 2, p.Id + " 230 V curve");
             Assert.All(p.Curves!, c => Assert.NotNull(c.Value));
@@ -196,6 +199,103 @@ public sealed class PsuDatabaseTests : IDisposable
         Assert.Equal(["seasonic-prime-fanless-tx-700"], q.Search("TX-700").Select(e => e.Id));
         Assert.Empty(q.Search("nothing here"));
         Assert.NotNull(q.FindById("CORSAIR-HX1000I"));
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("2021-07-16", true)]
+    [InlineData("2024-02-29", true)]
+    [InlineData("", false)]
+    [InlineData("2021-7-16", false)]
+    [InlineData("16.07.2021", false)]
+    [InlineData("Jul 16, 2021", false)]
+    [InlineData("2023-02-29", false)]
+    [InlineData(" 2021-07-16", false)]
+    public void ValidatorChecksTheReportDateFormatWhenPresent(string? reportDate, bool valid)
+    {
+        var entry = Entry("a", "Brand", "Series", "A 750", 750, "Gold", null);
+        entry.Source!.ReportDate = reportDate;
+        var paths = PsuDatabaseValidator.Validate(new PsuDatabase { SchemaVersion = 1, Psus = [entry] }).Select(e => e.Path).ToList();
+        Assert.Equal(valid ? [] : ["psus[0].source.reportDate"], paths);
+    }
+
+    [Fact]
+    public void ReportDateIsWrittenAfterTheUrlAndLeftOutWhenNull()
+    {
+        var entry = Entry("a", "Brand", "Series", "A 750", 750, "Gold", null);
+        var db = new PsuDatabase { SchemaVersion = 1, Psus = [entry] };
+        Assert.DoesNotContain("reportDate", PsuDatabaseJson.Serialize(db), StringComparison.Ordinal);
+
+        entry.Source!.ReportDate = "2021-07-16";
+        var json = PsuDatabaseJson.Serialize(db);
+        var url = json.IndexOf("\"url\"", StringComparison.Ordinal);
+        var date = json.IndexOf("\"reportDate\": \"2021-07-16\"", StringComparison.Ordinal);
+        Assert.True(url >= 0 && date > url, json);
+        Assert.Equal("2021-07-16", PsuDatabaseJson.Deserialize(json).Psus[0].Source!.ReportDate);
+    }
+
+    [Fact]
+    public void ADatabaseWithoutReportDatesStillLoads()
+    {
+        const string json = """
+            {
+              "schemaVersion": 1,
+              "updated": "2026-10-31",
+              "psus": [
+                {
+                  "id": "a", "brand": "Brand", "series": "Series", "model": "A 750", "revision": null, "wattage": 750,
+                  "rating80Plus": "Gold", "ratingCybenetics": null,
+                  "source": { "name": "Cybenetics", "reportId": "21PS1872A", "url": "https://www.cybenetics.com/evaluations/psus/1872/" },
+                  "curves": { "230": [[100, 90], [200, 185]] }
+                }
+              ]
+            }
+            """;
+        Assert.Empty(PsuDatabaseValidator.ValidateJson(json, out var db));
+        Assert.Null(db!.Psus[0].Source!.ReportDate);
+    }
+
+    [Fact]
+    public void A100ClientIgnoresTheReportDateField()
+    {
+        // 1.0.0 deserialises with these options into a PsuSource without ReportDate; System.Text.Json skips unknown
+        // members by default, so a database with reportDate must still load there. V100Source mirrors that shape.
+        Assert.Equal(System.Text.Json.Serialization.JsonUnmappedMemberHandling.Skip, PsuDatabaseJson.Options.UnmappedMemberHandling);
+        const string json = """
+            { "name": "Cybenetics", "reportId": "21PS1872A", "url": "https://www.cybenetics.com/evaluations/psus/1872/", "reportDate": "2021-07-16" }
+            """;
+        var source = System.Text.Json.JsonSerializer.Deserialize<V100Source>(json, PsuDatabaseJson.Options)!;
+        Assert.Equal("21PS1872A", source.ReportId);
+        Assert.Equal("https://www.cybenetics.com/evaluations/psus/1872/", source.Url);
+
+        // And the whole shipped database, with its dates, loads into the 1.0.0 model.
+        var repoFile = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", PsuDatabaseLoader.FileName);
+        var old = System.Text.Json.JsonSerializer.Deserialize<V100Database>(File.ReadAllText(repoFile), PsuDatabaseJson.Options)!;
+        Assert.Equal(PsuDatabaseLoader.LoadEmbedded().Psus.Count, old.Psus.Count);
+        Assert.All(old.Psus, p => Assert.False(string.IsNullOrEmpty(p.Source!.Url)));
+    }
+
+    private sealed class V100Database
+    {
+        public int SchemaVersion { get; set; }
+
+        public List<V100Entry> Psus { get; set; } = [];
+    }
+
+    private sealed class V100Entry
+    {
+        public string Id { get; set; } = string.Empty;
+
+        public V100Source? Source { get; set; }
+    }
+
+    private sealed class V100Source
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public string? ReportId { get; set; }
+
+        public string Url { get; set; } = string.Empty;
     }
 
     private static PsuEntry Entry(string id, string brand, string series, string model, int watts, string rating, string? revision) => new()

@@ -14,7 +14,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "19PS150A",
-        "url": "https://www.cybenetics.com/evaluations/psus/150/"
+        "url": "https://www.cybenetics.com/evaluations/psus/150/",
+        "reportDate": "2018-07-27"
       },
       "curves": {
         "230": [
@@ -65,7 +66,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2966A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2966/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2966/",
+        "reportDate": "2025-09-12"
       },
       "curves": {
         "230": [
@@ -116,7 +118,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2968A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2968/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2968/",
+        "reportDate": "2025-09-19"
       },
       "curves": {
         "230": [
@@ -167,7 +170,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2967A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2967/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2967/",
+        "reportDate": "2025-09-17"
       },
       "curves": {
         "230": [
@@ -218,7 +222,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1974A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1974/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1974/",
+        "reportDate": "2022-02-09"
       },
       "curves": {
         "230": [
@@ -269,7 +274,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2695A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2695/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2695/",
+        "reportDate": "2024-12-27"
       },
       "curves": {
         "230": [
@@ -320,7 +326,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3035A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3035/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3035/",
+        "reportDate": "2025-11-17"
       },
       "curves": {
         "230": [
@@ -371,7 +378,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2621A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2621/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2621/",
+        "reportDate": "2024-10-25"
       },
       "curves": {
         "230": [
@@ -422,7 +430,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2746A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2746/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2746/",
+        "reportDate": "2025-02-18"
       },
       "curves": {
         "230": [
@@ -473,7 +482,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2751A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2751/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2751/",
+        "reportDate": "2025-02-21"
       },
       "curves": {
         "230": [
@@ -524,7 +534,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2708A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2708/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2708/",
+        "reportDate": "2025-01-14"
       },
       "curves": {
         "230": [
@@ -575,7 +586,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3141A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3141/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3141/",
+        "reportDate": "2026-02-07"
       },
       "curves": {
         "230": [
@@ -626,7 +638,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3257A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3257/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3257/",
+        "reportDate": "2026-04-09"
       },
       "curves": {
         "230": [
@@ -677,7 +690,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3259A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3259/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3259/",
+        "reportDate": "2026-04-14"
       },
       "curves": {
         "230": [
@@ -728,7 +742,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3258A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3258/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3258/",
+        "reportDate": "2026-04-15"
       },
       "curves": {
         "230": [
@@ -779,7 +794,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2542A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2542/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2542/",
+        "reportDate": "2024-08-20"
       },
       "curves": {
         "230": [
@@ -830,7 +846,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3098A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3098/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3098/",
+        "reportDate": "2026-01-10"
       },
       "curves": {
         "230": [
@@ -881,7 +898,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2830A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2830/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2830/",
+        "reportDate": "2025-05-29"
       },
       "curves": {
         "230": [
@@ -932,7 +950,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3095A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3095/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3095/",
+        "reportDate": "2026-01-07"
       },
       "curves": {
         "230": [
@@ -983,7 +1002,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2673A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2673/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2673/",
+        "reportDate": "2024-12-06"
       },
       "curves": {
         "230": [
@@ -1034,7 +1054,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2669A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2669/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2669/",
+        "reportDate": "2024-12-03"
       },
       "curves": {
         "230": [
@@ -1085,7 +1106,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2548A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2548/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2548/",
+        "reportDate": "2024-08-24"
       },
       "curves": {
         "230": [
@@ -1133,7 +1155,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3106A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3106/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3106/",
+        "reportDate": "2026-01-14"
       },
       "curves": {
         "230": [
@@ -1184,7 +1207,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2623A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2623/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2623/",
+        "reportDate": "2024-10-25"
       },
       "curves": {
         "230": [
@@ -1218,7 +1242,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2737A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2737/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2737/",
+        "reportDate": "2025-02-11"
       },
       "curves": {
         "230": [
@@ -1269,7 +1294,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3114A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3114/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3114/",
+        "reportDate": "2026-02-25"
       },
       "curves": {
         "230": [
@@ -1320,7 +1346,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3116A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3116/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3116/",
+        "reportDate": "2026-02-24"
       },
       "curves": {
         "230": [
@@ -1371,7 +1398,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2523A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2523/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2523/",
+        "reportDate": "2024-08-01"
       },
       "curves": {
         "230": [
@@ -1422,7 +1450,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2069A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2069/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2069/",
+        "reportDate": "2022-09-23"
       },
       "curves": {
         "230": [
@@ -1473,7 +1502,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2053A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2053/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2053/",
+        "reportDate": "2022-08-26"
       },
       "curves": {
         "230": [
@@ -1524,7 +1554,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2045A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2045/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2045/",
+        "reportDate": "2022-07-22"
       },
       "curves": {
         "230": [
@@ -1575,7 +1606,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2042A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2042/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2042/",
+        "reportDate": "2022-07-18"
       },
       "curves": {
         "230": [
@@ -1626,7 +1658,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2759A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2759/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2759/",
+        "reportDate": "2025-03-05"
       },
       "curves": {
         "230": [
@@ -1677,7 +1710,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2100A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2100/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2100/",
+        "reportDate": "2022-12-13"
       },
       "curves": {
         "230": [
@@ -1728,7 +1762,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2564A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2564/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2564/",
+        "reportDate": "2024-09-10"
       },
       "curves": {
         "230": [
@@ -1779,7 +1814,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "19PS808A",
-        "url": "https://www.cybenetics.com/evaluations/psus/808/"
+        "url": "https://www.cybenetics.com/evaluations/psus/808/",
+        "reportDate": "2019-04-09"
       },
       "curves": {
         "230": [
@@ -1830,7 +1866,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "19PS807A",
-        "url": "https://www.cybenetics.com/evaluations/psus/807/"
+        "url": "https://www.cybenetics.com/evaluations/psus/807/",
+        "reportDate": "2019-08-30"
       },
       "curves": {
         "230": [
@@ -1881,7 +1918,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1594A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1594/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1594/",
+        "reportDate": "2020-02-05"
       },
       "curves": {
         "230": [
@@ -1932,7 +1970,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2052A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2052/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2052/",
+        "reportDate": "2022-08-05"
       },
       "curves": {
         "230": [
@@ -1983,7 +2022,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2048A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2048/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2048/",
+        "reportDate": "2022-07-29"
       },
       "curves": {
         "230": [
@@ -2034,7 +2074,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2566A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2566/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2566/",
+        "reportDate": "2024-09-11"
       },
       "curves": {
         "230": [
@@ -2085,7 +2126,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2787A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2787/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2787/",
+        "reportDate": "2025-04-15"
       },
       "curves": {
         "230": [
@@ -2136,7 +2178,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "19PS444A",
-        "url": "https://www.cybenetics.com/evaluations/psus/444/"
+        "url": "https://www.cybenetics.com/evaluations/psus/444/",
+        "reportDate": "2018-02-05"
       },
       "curves": {
         "230": [
@@ -2187,7 +2230,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/445/"
+        "url": "https://www.cybenetics.com/evaluations/psus/445/",
+        "reportDate": "2018-02-06"
       },
       "curves": {
         "230": [
@@ -2238,7 +2282,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/503/"
+        "url": "https://www.cybenetics.com/evaluations/psus/503/",
+        "reportDate": "2018-10-14"
       },
       "curves": {
         "230": [
@@ -2289,7 +2334,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "19PS620A",
-        "url": "https://www.cybenetics.com/evaluations/psus/620/"
+        "url": "https://www.cybenetics.com/evaluations/psus/620/",
+        "reportDate": "2019-03-31"
       },
       "curves": {
         "230": [
@@ -2340,7 +2386,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2783A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2783/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2783/",
+        "reportDate": "2025-04-10"
       },
       "curves": {
         "230": [
@@ -2391,7 +2438,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/448/"
+        "url": "https://www.cybenetics.com/evaluations/psus/448/",
+        "reportDate": "2018-08-06"
       },
       "curves": {
         "230": [
@@ -2442,7 +2490,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3346A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3346/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3346/",
+        "reportDate": "2026-07-03"
       },
       "curves": {
         "230": [
@@ -2493,7 +2542,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3231A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3231/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3231/",
+        "reportDate": "2026-04-07"
       },
       "curves": {
         "230": [
@@ -2544,7 +2594,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3264A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3264/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3264/",
+        "reportDate": "2026-04-24"
       },
       "curves": {
         "230": [
@@ -2595,7 +2646,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3265A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3265/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3265/",
+        "reportDate": "2026-04-21"
       },
       "curves": {
         "230": [
@@ -2646,7 +2698,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3254A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3254/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3254/",
+        "reportDate": "2026-04-17"
       },
       "curves": {
         "230": [
@@ -2680,7 +2733,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3347A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3347/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3347/",
+        "reportDate": "2026-07-14"
       },
       "curves": {
         "230": [
@@ -2731,7 +2785,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3381A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3381/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3381/",
+        "reportDate": "2026-08-05"
       },
       "curves": {
         "230": [
@@ -2782,7 +2837,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3380A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3380/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3380/",
+        "reportDate": "2026-08-03"
       },
       "curves": {
         "230": [
@@ -2833,7 +2889,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1712A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1712/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1712/",
+        "reportDate": "2020-09-09"
       },
       "curves": {
         "230": [
@@ -2884,7 +2941,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2086A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2086/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2086/",
+        "reportDate": "2022-11-02"
       },
       "curves": {
         "230": [
@@ -2935,7 +2993,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1709A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1709/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1709/",
+        "reportDate": "2020-09-09"
       },
       "curves": {
         "230": [
@@ -2986,7 +3045,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2085A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2085/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2085/",
+        "reportDate": "2022-11-03"
       },
       "curves": {
         "230": [
@@ -3037,7 +3097,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1708A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1708/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1708/",
+        "reportDate": "2020-09-03"
       },
       "curves": {
         "230": [
@@ -3088,7 +3149,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1707A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1707/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1707/",
+        "reportDate": "2020-09-02"
       },
       "curves": {
         "230": [
@@ -3139,7 +3201,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1821A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1821/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1821/",
+        "reportDate": "2021-03-29"
       },
       "curves": {
         "230": [
@@ -3190,7 +3253,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2156A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2156/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2156/",
+        "reportDate": "2023-03-22"
       },
       "curves": {
         "230": [
@@ -3241,7 +3305,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2146A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2146/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2146/",
+        "reportDate": "2023-03-03"
       },
       "curves": {
         "230": [
@@ -3292,7 +3357,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2953A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2953/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2953/",
+        "reportDate": "2025-08-30"
       },
       "curves": {
         "230": [
@@ -3343,7 +3409,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2952A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2952/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2952/",
+        "reportDate": "2025-08-28"
       },
       "curves": {
         "230": [
@@ -3394,7 +3461,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3005A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3005/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3005/",
+        "reportDate": "2025-10-17"
       },
       "curves": {
         "230": [
@@ -3445,7 +3513,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1718A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1718/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1718/",
+        "reportDate": "2020-09-18"
       },
       "curves": {
         "230": [
@@ -3494,7 +3563,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3313A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3313/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3313/",
+        "reportDate": "2026-06-12"
       },
       "curves": {
         "230": [
@@ -3545,7 +3615,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3312A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3312/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3312/",
+        "reportDate": "2026-06-09"
       },
       "curves": {
         "230": [
@@ -3595,7 +3666,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2676A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2676/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2676/",
+        "reportDate": "2024-12-10"
       },
       "curves": {
         "230": [
@@ -3646,7 +3718,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3042A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3042/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3042/",
+        "reportDate": "2025-11-20"
       },
       "curves": {
         "230": [
@@ -3697,7 +3770,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3041A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3041/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3041/",
+        "reportDate": "2025-11-17"
       },
       "curves": {
         "230": [
@@ -3748,7 +3822,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2681A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2681/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2681/",
+        "reportDate": "2024-12-18"
       },
       "curves": {
         "230": [
@@ -3799,7 +3874,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2679A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2679/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2679/",
+        "reportDate": "2024-12-13"
       },
       "curves": {
         "230": [
@@ -3850,7 +3926,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1987A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1987/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1987/",
+        "reportDate": "2022-03-09"
       },
       "curves": {
         "230": [
@@ -3901,7 +3978,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1797A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1797/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1797/",
+        "reportDate": "2021-02-23"
       },
       "curves": {
         "230": [
@@ -3952,7 +4030,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1796A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1796/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1796/",
+        "reportDate": "2021-02-22"
       },
       "curves": {
         "230": [
@@ -4003,7 +4082,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1795A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1795/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1795/",
+        "reportDate": "2021-02-22"
       },
       "curves": {
         "230": [
@@ -4054,7 +4134,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1988A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1988/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1988/",
+        "reportDate": "2022-03-08"
       },
       "curves": {
         "230": [
@@ -4105,7 +4186,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2159A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2159/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2159/",
+        "reportDate": "2023-03-24"
       },
       "curves": {
         "230": [
@@ -4156,7 +4238,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2157A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2157/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2157/",
+        "reportDate": "2023-03-22"
       },
       "curves": {
         "230": [
@@ -4207,7 +4290,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2834A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2834/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2834/",
+        "reportDate": "2025-05-30"
       },
       "curves": {
         "230": [
@@ -4258,7 +4342,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3127A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3127/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3127/",
+        "reportDate": "2026-01-16"
       },
       "curves": {
         "230": [
@@ -4309,7 +4394,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2851A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2851/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2851/",
+        "reportDate": "2025-06-16"
       },
       "curves": {
         "230": [
@@ -4360,7 +4446,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2848A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2848/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2848/",
+        "reportDate": "2025-06-12"
       },
       "curves": {
         "230": [
@@ -4411,7 +4498,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2844A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2844/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2844/",
+        "reportDate": "2025-06-06"
       },
       "curves": {
         "230": [
@@ -4462,7 +4550,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2841A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2841/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2841/",
+        "reportDate": "2025-06-03"
       },
       "curves": {
         "230": [
@@ -4513,7 +4602,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS277A",
-        "url": "https://www.cybenetics.com/evaluations/psus/277/"
+        "url": "https://www.cybenetics.com/evaluations/psus/277/",
+        "reportDate": "2018-01-21"
       },
       "curves": {
         "230": [
@@ -4564,7 +4654,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1622A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1622/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1622/",
+        "reportDate": "2020-03-17"
       },
       "curves": {
         "230": [
@@ -4615,7 +4706,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1621A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1621/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1621/",
+        "reportDate": "2020-03-12"
       },
       "curves": {
         "230": [
@@ -4666,7 +4758,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2082A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2082/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2082/",
+        "reportDate": "2022-10-20"
       },
       "curves": {
         "230": [
@@ -4700,7 +4793,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1687A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1687/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1687/",
+        "reportDate": "2020-07-20"
       },
       "curves": {
         "230": [
@@ -4734,7 +4828,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3108A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3108/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3108/",
+        "reportDate": "2026-02-10"
       },
       "curves": {
         "230": [
@@ -4785,7 +4880,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3295A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3295/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3295/",
+        "reportDate": "2026-05-25"
       },
       "curves": {
         "230": [
@@ -4836,7 +4932,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3407A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3407/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3407/",
+        "reportDate": "2026-08-28"
       },
       "curves": {
         "230": [
@@ -4887,7 +4984,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3299A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3299/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3299/",
+        "reportDate": "2026-05-28"
       },
       "curves": {
         "230": [
@@ -4938,7 +5036,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3109A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3109/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3109/",
+        "reportDate": "2026-02-11"
       },
       "curves": {
         "230": [
@@ -4989,7 +5088,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3405A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3405/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3405/",
+        "reportDate": "2026-08-21"
       },
       "curves": {
         "230": [
@@ -5040,7 +5140,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2484A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2484/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2484/",
+        "reportDate": "2024-06-19"
       },
       "curves": {
         "230": [
@@ -5091,7 +5192,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2765A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2765/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2765/",
+        "reportDate": "2025-03-13"
       },
       "curves": {
         "230": [
@@ -5142,7 +5244,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2478A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2478/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2478/",
+        "reportDate": "2024-06-17"
       },
       "curves": {
         "230": [
@@ -5193,7 +5296,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2428A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2428/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2428/",
+        "reportDate": "2024-04-26"
       },
       "curves": {
         "230": [
@@ -5244,7 +5348,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2482A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2482/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2482/",
+        "reportDate": "2024-06-20"
       },
       "curves": {
         "230": [
@@ -5295,7 +5400,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2433A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2433/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2433/",
+        "reportDate": "2024-05-03"
       },
       "curves": {
         "230": [
@@ -5346,7 +5452,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2508A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2508/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2508/",
+        "reportDate": "2024-07-15"
       },
       "curves": {
         "230": [
@@ -5397,7 +5504,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2512A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2512/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2512/",
+        "reportDate": "2024-07-22"
       },
       "curves": {
         "230": [
@@ -5448,7 +5556,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1991A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1991/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1991/",
+        "reportDate": "2022-03-17"
       },
       "curves": {
         "230": [
@@ -5481,7 +5590,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2483A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2483/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2483/",
+        "reportDate": "2024-06-19"
       },
       "curves": {
         "230": [
@@ -5515,7 +5625,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2526A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2526/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2526/",
+        "reportDate": "2024-08-07"
       },
       "curves": {
         "230": [
@@ -5549,7 +5660,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3434A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3434/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3434/",
+        "reportDate": "2026-09-25"
       },
       "curves": {
         "230": [
@@ -5600,7 +5712,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1858A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1858/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1858/",
+        "reportDate": "2021-06-17"
       },
       "curves": {
         "230": [
@@ -5651,7 +5764,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2148A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2148/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2148/",
+        "reportDate": "2023-03-07"
       },
       "curves": {
         "230": [
@@ -5702,7 +5816,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2476A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2476/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2476/",
+        "reportDate": "2024-06-13"
       },
       "curves": {
         "230": [
@@ -5753,7 +5868,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2572A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2572/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2572/",
+        "reportDate": "2024-09-18"
       },
       "curves": {
         "230": [
@@ -5804,7 +5920,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1854A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1854/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1854/",
+        "reportDate": "2021-06-04"
       },
       "curves": {
         "230": [
@@ -5855,7 +5972,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3436A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3436/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3436/",
+        "reportDate": "2026-10-07"
       },
       "curves": {
         "230": [
@@ -5904,7 +6022,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2259A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2259/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2259/",
+        "reportDate": "2023-10-12"
       },
       "curves": {
         "230": [
@@ -5955,7 +6074,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2825A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2825/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2825/",
+        "reportDate": "2025-05-23"
       },
       "curves": {
         "230": [
@@ -6006,7 +6126,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3435A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3435/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3435/",
+        "reportDate": "2026-10-02"
       },
       "curves": {
         "230": [
@@ -6056,7 +6177,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2735A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2735/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2735/",
+        "reportDate": "2025-02-06"
       },
       "curves": {
         "230": [
@@ -6107,7 +6229,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2649A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2649/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2649/",
+        "reportDate": "2024-11-14"
       },
       "curves": {
         "230": [
@@ -6158,7 +6281,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2776A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2776/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2776/",
+        "reportDate": "2025-04-02"
       },
       "curves": {
         "230": [
@@ -6209,7 +6333,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2656A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2656/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2656/",
+        "reportDate": "2024-11-21"
       },
       "curves": {
         "230": [
@@ -6260,7 +6385,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2598A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2598/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2598/",
+        "reportDate": "2024-10-08"
       },
       "curves": {
         "230": [
@@ -6311,7 +6437,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/673/"
+        "url": "https://www.cybenetics.com/evaluations/psus/673/",
+        "reportDate": "2019-11-04"
       },
       "curves": {
         "230": [
@@ -6362,7 +6489,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2109A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2109/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2109/",
+        "reportDate": "2023-01-10"
       },
       "curves": {
         "230": [
@@ -6413,7 +6541,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/688/"
+        "url": "https://www.cybenetics.com/evaluations/psus/688/",
+        "reportDate": "2019-04-18"
       },
       "curves": {
         "230": [
@@ -6464,7 +6593,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2163A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2163/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2163/",
+        "reportDate": "2023-03-31"
       },
       "curves": {
         "230": [
@@ -6515,7 +6645,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2597A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2597/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2597/",
+        "reportDate": "2024-10-07"
       },
       "curves": {
         "230": [
@@ -6548,7 +6679,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2485A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2485/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2485/",
+        "reportDate": "2024-06-21"
       },
       "curves": {
         "230": [
@@ -6582,7 +6714,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2603A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2603/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2603/",
+        "reportDate": "2024-10-10"
       },
       "curves": {
         "230": [
@@ -6633,7 +6766,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2493A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2493/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2493/",
+        "reportDate": "2024-06-27"
       },
       "curves": {
         "230": [
@@ -6684,7 +6818,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2310A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2310/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2310/",
+        "reportDate": "2023-12-18"
       },
       "curves": {
         "230": [
@@ -6735,7 +6870,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2057A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2057/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2057/",
+        "reportDate": "2022-09-05"
       },
       "curves": {
         "230": [
@@ -6786,7 +6922,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/546/"
+        "url": "https://www.cybenetics.com/evaluations/psus/546/",
+        "reportDate": "2018-11-20"
       },
       "curves": {
         "230": [
@@ -6837,7 +6974,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1631A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1631/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1631/",
+        "reportDate": "2020-04-01"
       },
       "curves": {
         "230": [
@@ -6888,7 +7026,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/184/"
+        "url": "https://www.cybenetics.com/evaluations/psus/184/",
+        "reportDate": "2018-09-27"
       },
       "curves": {
         "230": [
@@ -6939,7 +7078,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1811A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1811/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1811/",
+        "reportDate": "2021-03-18"
       },
       "curves": {
         "230": [
@@ -6990,7 +7130,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1808A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1808/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1808/",
+        "reportDate": "2021-03-11"
       },
       "curves": {
         "230": [
@@ -7041,7 +7182,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1806A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1806/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1806/",
+        "reportDate": "2021-03-10"
       },
       "curves": {
         "230": [
@@ -7092,7 +7234,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2903A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2903/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2903/",
+        "reportDate": "2025-07-22"
       },
       "curves": {
         "230": [
@@ -7143,7 +7286,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS170A",
-        "url": "https://www.cybenetics.com/evaluations/psus/170/"
+        "url": "https://www.cybenetics.com/evaluations/psus/170/",
+        "reportDate": "2018-01-06"
       },
       "curves": {
         "230": [
@@ -7194,7 +7338,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2513A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2513/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2513/",
+        "reportDate": "2024-07-22"
       },
       "curves": {
         "230": [
@@ -7245,7 +7390,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2699A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2699/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2699/",
+        "reportDate": "2025-01-07"
       },
       "curves": {
         "230": [
@@ -7296,7 +7442,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2510A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2510/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2510/",
+        "reportDate": "2024-07-17"
       },
       "curves": {
         "230": [
@@ -7347,7 +7494,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2733A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2733/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2733/",
+        "reportDate": "2025-02-05"
       },
       "curves": {
         "230": [
@@ -7398,7 +7546,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2694A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2694/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2694/",
+        "reportDate": "2024-12-30"
       },
       "curves": {
         "230": [
@@ -7449,7 +7598,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1913A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1913/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1913/",
+        "reportDate": "2021-09-30"
       },
       "curves": {
         "230": [
@@ -7500,7 +7650,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2099A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2099/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2099/",
+        "reportDate": "2022-12-07"
       },
       "curves": {
         "230": [
@@ -7551,7 +7702,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3006A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3006/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3006/",
+        "reportDate": "2025-10-17"
       },
       "curves": {
         "230": [
@@ -7602,7 +7754,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1892A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1892/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1892/",
+        "reportDate": "2021-09-06"
       },
       "curves": {
         "230": [
@@ -7653,7 +7806,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1798A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1798/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1798/",
+        "reportDate": "2021-02-26"
       },
       "curves": {
         "230": [
@@ -7704,7 +7858,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2396A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2396/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2396/",
+        "reportDate": "2024-03-22"
       },
       "curves": {
         "230": [
@@ -7755,7 +7910,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2183A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2183/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2183/",
+        "reportDate": "2023-05-25"
       },
       "curves": {
         "230": [
@@ -7806,7 +7962,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1733A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1733/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1733/",
+        "reportDate": "2020-10-09"
       },
       "curves": {
         "230": [
@@ -7857,7 +8014,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2628A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2628/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2628/",
+        "reportDate": "2024-11-02"
       },
       "curves": {
         "230": [
@@ -7908,7 +8066,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1734A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1734/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1734/",
+        "reportDate": "2020-10-15"
       },
       "curves": {
         "230": [
@@ -7959,7 +8118,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/664/"
+        "url": "https://www.cybenetics.com/evaluations/psus/664/",
+        "reportDate": "2019-04-04"
       },
       "curves": {
         "230": [
@@ -8010,7 +8170,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2625A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2625/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2625/",
+        "reportDate": "2024-10-31"
       },
       "curves": {
         "230": [
@@ -8061,7 +8222,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1801A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1801/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1801/",
+        "reportDate": "2021-03-02"
       },
       "curves": {
         "230": [
@@ -8112,7 +8274,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2406A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2406/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2406/",
+        "reportDate": "2024-04-04"
       },
       "curves": {
         "230": [
@@ -8163,7 +8326,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2885A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2885/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2885/",
+        "reportDate": "2025-07-09"
       },
       "curves": {
         "230": [
@@ -8214,7 +8378,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2399A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2399/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2399/",
+        "reportDate": "2024-03-29"
       },
       "curves": {
         "230": [
@@ -8265,7 +8430,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2879A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2879/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2879/",
+        "reportDate": "2025-07-07"
       },
       "curves": {
         "230": [
@@ -8316,7 +8482,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2539A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2539/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2539/",
+        "reportDate": "2024-08-16"
       },
       "curves": {
         "230": [
@@ -8367,7 +8534,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1916A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1916/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1916/",
+        "reportDate": "2021-10-11"
       },
       "curves": {
         "230": [
@@ -8418,7 +8586,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1963A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1963/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1963/",
+        "reportDate": "2022-01-18"
       },
       "curves": {
         "230": [
@@ -8469,7 +8638,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2385A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2385/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2385/",
+        "reportDate": "2024-03-12"
       },
       "curves": {
         "230": [
@@ -8520,7 +8690,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2985A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2985/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2985/",
+        "reportDate": "2025-10-02"
       },
       "curves": {
         "230": [
@@ -8571,7 +8742,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS505A",
-        "url": "https://www.cybenetics.com/evaluations/psus/505/"
+        "url": "https://www.cybenetics.com/evaluations/psus/505/",
+        "reportDate": "2018-10-15"
       },
       "curves": {
         "230": [
@@ -8622,7 +8794,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1619A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1619/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1619/",
+        "reportDate": "2020-03-09"
       },
       "curves": {
         "230": [
@@ -8673,7 +8846,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2393A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2393/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2393/",
+        "reportDate": "2024-03-21"
       },
       "curves": {
         "230": [
@@ -8724,7 +8898,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2391A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2391/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2391/",
+        "reportDate": "2024-03-15"
       },
       "curves": {
         "230": [
@@ -8775,7 +8950,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2237A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2237/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2237/",
+        "reportDate": "2023-09-13"
       },
       "curves": {
         "230": [
@@ -8826,7 +9002,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2328A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2328/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2328/",
+        "reportDate": "2024-01-22"
       },
       "curves": {
         "230": [
@@ -8877,7 +9054,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2295A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2295/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2295/",
+        "reportDate": "2023-11-28"
       },
       "curves": {
         "230": [
@@ -8928,7 +9106,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2407A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2407/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2407/",
+        "reportDate": "2024-04-06"
       },
       "curves": {
         "230": [
@@ -8979,7 +9158,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2270A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2270/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2270/",
+        "reportDate": "2023-10-26"
       },
       "curves": {
         "230": [
@@ -9030,7 +9210,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2971A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2971/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2971/",
+        "reportDate": "2025-09-15"
       },
       "curves": {
         "230": [
@@ -9081,7 +9262,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/120/"
+        "url": "https://www.cybenetics.com/evaluations/psus/120/",
+        "reportDate": "2018-07-03"
       },
       "curves": {
         "230": [
@@ -9132,7 +9314,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/370/"
+        "url": "https://www.cybenetics.com/evaluations/psus/370/",
+        "reportDate": "2018-08-02"
       },
       "curves": {
         "230": [
@@ -9183,7 +9366,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1756A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1756/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1756/",
+        "reportDate": "2020-11-23"
       },
       "curves": {
         "230": [
@@ -9234,7 +9418,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1757A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1757/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1757/",
+        "reportDate": "2020-11-24"
       },
       "curves": {
         "230": [
@@ -9285,7 +9470,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1752A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1752/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1752/",
+        "reportDate": "2020-11-17"
       },
       "curves": {
         "230": [
@@ -9335,7 +9521,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/811/"
+        "url": "https://www.cybenetics.com/evaluations/psus/811/",
+        "reportDate": "2019-09-09"
       },
       "curves": {
         "230": [
@@ -9386,7 +9573,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1598A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1598/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1598/",
+        "reportDate": "2020-02-14"
       },
       "curves": {
         "230": [
@@ -9437,7 +9625,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1868A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1868/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1868/",
+        "reportDate": "2021-07-09"
       },
       "curves": {
         "230": [
@@ -9488,7 +9677,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2032A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2032/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2032/",
+        "reportDate": "2022-06-28"
       },
       "curves": {
         "230": [
@@ -9539,7 +9729,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1923A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1923/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1923/",
+        "reportDate": "2021-10-25"
       },
       "curves": {
         "230": [
@@ -9590,7 +9781,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1656A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1656/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1656/",
+        "reportDate": "2020-05-19"
       },
       "curves": {
         "230": [
@@ -9641,7 +9833,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/813/"
+        "url": "https://www.cybenetics.com/evaluations/psus/813/",
+        "reportDate": "2019-11-09"
       },
       "curves": {
         "230": [
@@ -9692,7 +9885,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1870A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1870/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1870/",
+        "reportDate": "2021-07-14"
       },
       "curves": {
         "230": [
@@ -9743,7 +9937,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1970A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1970/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1970/",
+        "reportDate": "2022-02-01"
       },
       "curves": {
         "230": [
@@ -9794,7 +9989,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1758A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1758/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1758/",
+        "reportDate": "2020-11-25"
       },
       "curves": {
         "230": [
@@ -9845,7 +10041,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1869A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1869/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1869/",
+        "reportDate": "2021-07-09"
       },
       "curves": {
         "230": [
@@ -9896,7 +10093,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2033A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2033/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2033/",
+        "reportDate": "2022-06-24"
       },
       "curves": {
         "230": [
@@ -9947,7 +10145,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1924A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1924/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1924/",
+        "reportDate": "2021-10-25"
       },
       "curves": {
         "230": [
@@ -9998,7 +10197,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2487A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2487/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2487/",
+        "reportDate": "2024-06-27"
       },
       "curves": {
         "230": [
@@ -10049,7 +10249,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2425A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2425/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2425/",
+        "reportDate": "2024-04-23"
       },
       "curves": {
         "230": [
@@ -10098,7 +10299,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/339/"
+        "url": "https://www.cybenetics.com/evaluations/psus/339/",
+        "reportDate": "2018-03-27"
       },
       "curves": {
         "230": [
@@ -10149,7 +10351,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/300/"
+        "url": "https://www.cybenetics.com/evaluations/psus/300/",
+        "reportDate": "2018-02-26"
       },
       "curves": {
         "230": [
@@ -10200,7 +10403,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3092A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3092/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3092/",
+        "reportDate": "2026-01-05"
       },
       "curves": {
         "230": [
@@ -10251,7 +10455,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3094A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3094/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3094/",
+        "reportDate": "2026-01-08"
       },
       "curves": {
         "230": [
@@ -10302,7 +10507,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1859A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1859/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1859/",
+        "reportDate": "2021-06-22"
       },
       "curves": {
         "230": [
@@ -10353,7 +10559,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/168/"
+        "url": "https://www.cybenetics.com/evaluations/psus/168/",
+        "reportDate": "2018-08-27"
       },
       "curves": {
         "230": [
@@ -10404,7 +10611,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/434/"
+        "url": "https://www.cybenetics.com/evaluations/psus/434/",
+        "reportDate": "2018-07-17"
       },
       "curves": {
         "230": [
@@ -10455,7 +10663,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2078A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2078/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2078/",
+        "reportDate": "2022-10-18"
       },
       "curves": {
         "230": [
@@ -10506,7 +10715,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2357A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2357/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2357/",
+        "reportDate": "2024-02-15"
       },
       "curves": {
         "230": [
@@ -10557,7 +10767,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2842A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2842/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2842/",
+        "reportDate": "2025-06-04"
       },
       "curves": {
         "230": [
@@ -10608,7 +10819,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/756/"
+        "url": "https://www.cybenetics.com/evaluations/psus/756/",
+        "reportDate": "2019-05-07"
       },
       "curves": {
         "230": [
@@ -10659,7 +10871,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1740A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1740/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1740/",
+        "reportDate": "2020-10-23"
       },
       "curves": {
         "230": [
@@ -10710,7 +10923,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2166A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2166/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2166/",
+        "reportDate": "2023-04-06"
       },
       "curves": {
         "230": [
@@ -10761,7 +10975,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2554A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2554/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2554/",
+        "reportDate": "2024-08-29"
       },
       "curves": {
         "230": [
@@ -10795,7 +11010,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2317A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2317/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2317/",
+        "reportDate": "2024-01-03"
       },
       "curves": {
         "230": [
@@ -10846,7 +11062,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2101A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2101/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2101/",
+        "reportDate": "2022-12-19"
       },
       "curves": {
         "230": [
@@ -10897,7 +11114,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2980A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2980/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2980/",
+        "reportDate": "2025-09-22"
       },
       "curves": {
         "230": [
@@ -10948,7 +11166,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2976A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2976/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2976/",
+        "reportDate": "2025-09-19"
       },
       "curves": {
         "230": [
@@ -10999,7 +11218,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2981A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2981/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2981/",
+        "reportDate": "2025-09-25"
       },
       "curves": {
         "230": [
@@ -11050,7 +11270,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3456A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3456/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3456/",
+        "reportDate": "2026-10-20"
       },
       "curves": {
         "230": [
@@ -11101,7 +11322,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3388A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3388/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3388/",
+        "reportDate": "2026-08-19"
       },
       "curves": {
         "230": [
@@ -11152,7 +11374,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2798A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2798/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2798/",
+        "reportDate": "2025-04-30"
       },
       "curves": {
         "230": [
@@ -11203,7 +11426,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3009A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3009/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3009/",
+        "reportDate": "2025-10-24"
       },
       "curves": {
         "230": [
@@ -11254,7 +11478,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3460A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3460/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3460/",
+        "reportDate": "2026-10-19"
       },
       "curves": {
         "230": [
@@ -11305,7 +11530,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3354A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3354/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3354/",
+        "reportDate": "2026-07-07"
       },
       "curves": {
         "230": [
@@ -11356,7 +11582,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2467A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2467/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2467/",
+        "reportDate": "2024-05-21"
       },
       "curves": {
         "230": [
@@ -11407,7 +11634,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2557A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2557/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2557/",
+        "reportDate": "2024-09-03"
       },
       "curves": {
         "230": [
@@ -11458,7 +11686,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2474A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2474/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2474/",
+        "reportDate": "2024-06-12"
       },
       "curves": {
         "230": [
@@ -11509,7 +11738,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2470A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2470/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2470/",
+        "reportDate": "2024-06-11"
       },
       "curves": {
         "230": [
@@ -11560,7 +11790,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3130A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3130/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3130/",
+        "reportDate": "2026-01-17"
       },
       "curves": {
         "230": [
@@ -11611,7 +11842,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3353A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3353/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3353/",
+        "reportDate": "2026-07-03"
       },
       "curves": {
         "230": [
@@ -11662,7 +11894,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2861A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2861/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2861/",
+        "reportDate": "2025-06-24"
       },
       "curves": {
         "230": [
@@ -11713,7 +11946,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2262A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2262/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2262/",
+        "reportDate": "2023-11-30"
       },
       "curves": {
         "230": [
@@ -11764,7 +11998,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2257A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2257/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2257/",
+        "reportDate": "2023-11-29"
       },
       "curves": {
         "230": [
@@ -11815,7 +12050,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2250A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2250/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2250/",
+        "reportDate": "2023-10-04"
       },
       "curves": {
         "230": [
@@ -11866,7 +12102,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2247A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2247/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2247/",
+        "reportDate": "2023-09-28"
       },
       "curves": {
         "230": [
@@ -11917,7 +12154,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2255A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2255/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2255/",
+        "reportDate": "2023-10-06"
       },
       "curves": {
         "230": [
@@ -11968,7 +12206,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/467/"
+        "url": "https://www.cybenetics.com/evaluations/psus/467/",
+        "reportDate": "2018-08-23"
       },
       "curves": {
         "230": [
@@ -12019,7 +12258,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3216A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3216/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3216/",
+        "reportDate": "2026-03-17"
       },
       "curves": {
         "230": [
@@ -12070,7 +12310,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3218A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3218/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3218/",
+        "reportDate": "2026-03-23"
       },
       "curves": {
         "230": [
@@ -12121,7 +12362,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3217A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3217/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3217/",
+        "reportDate": "2026-03-17"
       },
       "curves": {
         "230": [
@@ -12172,7 +12414,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3053A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3053/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3053/",
+        "reportDate": "2025-11-29"
       },
       "curves": {
         "230": [
@@ -12223,7 +12466,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3057A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3057/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3057/",
+        "reportDate": "2025-12-05"
       },
       "curves": {
         "230": [
@@ -12274,7 +12518,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1743A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1743/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1743/",
+        "reportDate": "2020-10-27"
       },
       "curves": {
         "230": [
@@ -12325,7 +12570,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1914A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1914/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1914/",
+        "reportDate": "2021-10-04"
       },
       "curves": {
         "230": [
@@ -12376,7 +12622,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1800A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1800/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1800/",
+        "reportDate": "2021-02-26"
       },
       "curves": {
         "230": [
@@ -12427,7 +12674,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1915A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1915/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1915/",
+        "reportDate": "2021-10-04"
       },
       "curves": {
         "230": [
@@ -12478,7 +12726,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2008A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2008/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2008/",
+        "reportDate": "2022-04-28"
       },
       "curves": {
         "230": [
@@ -12529,7 +12778,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2007A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2007/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2007/",
+        "reportDate": "2022-04-21"
       },
       "curves": {
         "230": [
@@ -12580,7 +12830,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2006A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2006/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2006/",
+        "reportDate": "2022-04-19"
       },
       "curves": {
         "230": [
@@ -12631,7 +12882,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3048A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3048/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3048/",
+        "reportDate": "2025-11-22"
       },
       "curves": {
         "230": [
@@ -12682,7 +12934,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3037A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3037/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3037/",
+        "reportDate": "2025-11-14"
       },
       "curves": {
         "230": [
@@ -12733,7 +12986,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2627A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2627/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2627/",
+        "reportDate": "2024-10-31"
       },
       "curves": {
         "230": [
@@ -12784,7 +13038,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2528A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2528/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2528/",
+        "reportDate": "2024-08-09"
       },
       "curves": {
         "230": [
@@ -12835,7 +13090,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2880A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2880/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2880/",
+        "reportDate": "2025-07-11"
       },
       "curves": {
         "230": [
@@ -12886,7 +13142,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2530A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2530/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2530/",
+        "reportDate": "2024-08-07"
       },
       "curves": {
         "230": [
@@ -12937,7 +13194,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2400A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2400/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2400/",
+        "reportDate": "2024-03-29"
       },
       "curves": {
         "230": [
@@ -12988,7 +13246,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2454A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2454/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2454/",
+        "reportDate": "2024-05-24"
       },
       "curves": {
         "230": [
@@ -13039,7 +13298,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2458A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2458/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2458/",
+        "reportDate": "2024-05-29"
       },
       "curves": {
         "230": [
@@ -13090,7 +13350,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2697A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2697/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2697/",
+        "reportDate": "2024-12-30"
       },
       "curves": {
         "230": [
@@ -13141,7 +13402,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2748A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2748/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2748/",
+        "reportDate": "2025-02-20"
       },
       "curves": {
         "230": [
@@ -13192,7 +13454,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2692A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2692/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2692/",
+        "reportDate": "2024-12-24"
       },
       "curves": {
         "230": [
@@ -13243,7 +13506,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2747A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2747/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2747/",
+        "reportDate": "2025-02-17"
       },
       "curves": {
         "230": [
@@ -13294,7 +13558,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3423A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3423/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3423/",
+        "reportDate": "2026-09-23"
       },
       "curves": {
         "230": [
@@ -13345,7 +13610,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2688A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2688/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2688/",
+        "reportDate": "2024-12-20"
       },
       "curves": {
         "230": [
@@ -13396,7 +13662,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3422A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3422/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3422/",
+        "reportDate": "2026-09-17"
       },
       "curves": {
         "230": [
@@ -13447,7 +13714,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3427A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3427/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3427/",
+        "reportDate": "2026-10-09"
       },
       "curves": {
         "230": [
@@ -13498,7 +13766,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": null,
-        "url": "https://www.cybenetics.com/evaluations/psus/361/"
+        "url": "https://www.cybenetics.com/evaluations/psus/361/",
+        "reportDate": "2018-04-22"
       },
       "curves": {
         "230": [
@@ -13549,7 +13818,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2926A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2926/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2926/",
+        "reportDate": "2025-08-09"
       },
       "curves": {
         "230": [
@@ -13600,7 +13870,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2921A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2921/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2921/",
+        "reportDate": "2025-08-07"
       },
       "curves": {
         "230": [
@@ -13651,7 +13922,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3111A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3111/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3111/",
+        "reportDate": "2026-02-24"
       },
       "curves": {
         "230": [
@@ -13702,7 +13974,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3110A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3110/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3110/",
+        "reportDate": "2026-02-19"
       },
       "curves": {
         "230": [
@@ -13753,7 +14026,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1861A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1861/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1861/",
+        "reportDate": "2021-06-18"
       },
       "curves": {
         "230": [
@@ -13804,7 +14078,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2081A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2081/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2081/",
+        "reportDate": "2022-10-27"
       },
       "curves": {
         "230": [
@@ -13855,7 +14130,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3049A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3049/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3049/",
+        "reportDate": "2025-11-25"
       },
       "curves": {
         "230": [
@@ -13906,7 +14182,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3167A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3167/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3167/",
+        "reportDate": "2026-01-29"
       },
       "curves": {
         "230": [
@@ -13957,7 +14234,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3159A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3159/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3159/",
+        "reportDate": "2026-01-27"
       },
       "curves": {
         "230": [
@@ -14008,7 +14286,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1694A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1694/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1694/",
+        "reportDate": "2020-07-30"
       },
       "curves": {
         "230": [
@@ -14059,7 +14338,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2812A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2812/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2812/",
+        "reportDate": "2025-05-10"
       },
       "curves": {
         "230": [
@@ -14110,7 +14390,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2808A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2808/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2808/",
+        "reportDate": "2025-05-08"
       },
       "curves": {
         "230": [
@@ -14161,7 +14442,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2813A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2813/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2813/",
+        "reportDate": "2025-05-10"
       },
       "curves": {
         "230": [
@@ -14212,7 +14494,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1695A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1695/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1695/",
+        "reportDate": "2020-07-29"
       },
       "curves": {
         "230": [
@@ -14263,7 +14546,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2119A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2119/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2119/",
+        "reportDate": "2023-01-25"
       },
       "curves": {
         "230": [
@@ -14310,7 +14594,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2123A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2123/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2123/",
+        "reportDate": "2023-01-27"
       },
       "curves": {
         "230": [
@@ -14361,7 +14646,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2126A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2126/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2126/",
+        "reportDate": "2023-02-02"
       },
       "curves": {
         "230": [
@@ -14412,7 +14698,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2307A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2307/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2307/",
+        "reportDate": "2023-12-13"
       },
       "curves": {
         "230": [
@@ -14463,7 +14750,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2427A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2427/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2427/",
+        "reportDate": "2024-04-25"
       },
       "curves": {
         "230": [
@@ -14514,7 +14802,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2304A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2304/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2304/",
+        "reportDate": "2023-12-11"
       },
       "curves": {
         "230": [
@@ -14565,7 +14854,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2423A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2423/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2423/",
+        "reportDate": "2024-04-22"
       },
       "curves": {
         "230": [
@@ -14616,7 +14906,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2311A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2311/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2311/",
+        "reportDate": "2023-12-21"
       },
       "curves": {
         "230": [
@@ -14667,7 +14958,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2430A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2430/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2430/",
+        "reportDate": "2024-04-29"
       },
       "curves": {
         "230": [
@@ -14718,7 +15010,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2308A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2308/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2308/",
+        "reportDate": "2023-12-18"
       },
       "curves": {
         "230": [
@@ -14769,7 +15062,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2426A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2426/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2426/",
+        "reportDate": "2024-04-24"
       },
       "curves": {
         "230": [
@@ -14820,7 +15114,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2409A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2409/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2409/",
+        "reportDate": "2024-04-08"
       },
       "curves": {
         "230": [
@@ -14871,7 +15166,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2805A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2805/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2805/",
+        "reportDate": "2025-05-07"
       },
       "curves": {
         "230": [
@@ -14922,7 +15218,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3121A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3121/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3121/",
+        "reportDate": "2026-02-18"
       },
       "curves": {
         "230": [
@@ -14973,7 +15270,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3120A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3120/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3120/",
+        "reportDate": "2026-02-16"
       },
       "curves": {
         "230": [
@@ -15024,7 +15322,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2449A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2449/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2449/",
+        "reportDate": "2024-05-20"
       },
       "curves": {
         "230": [
@@ -15075,7 +15374,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2422A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2422/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2422/",
+        "reportDate": "2024-04-19"
       },
       "curves": {
         "230": [
@@ -15126,7 +15426,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2811A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2811/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2811/",
+        "reportDate": "2025-05-09"
       },
       "curves": {
         "230": [
@@ -15177,7 +15478,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2356A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2356/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2356/",
+        "reportDate": "2024-02-14"
       },
       "curves": {
         "230": [
@@ -15228,7 +15530,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2810A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2810/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2810/",
+        "reportDate": "2025-05-09"
       },
       "curves": {
         "230": [
@@ -15279,7 +15582,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2336A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2336/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2336/",
+        "reportDate": "2024-01-25"
       },
       "curves": {
         "230": [
@@ -15330,7 +15634,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2806A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2806/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2806/",
+        "reportDate": "2025-03-08"
       },
       "curves": {
         "230": [
@@ -15381,7 +15686,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2036A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2036/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2036/",
+        "reportDate": "2022-07-05"
       },
       "curves": {
         "230": [
@@ -15432,7 +15738,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2067A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2067/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2067/",
+        "reportDate": "2022-09-22"
       },
       "curves": {
         "230": [
@@ -15483,7 +15790,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2035A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2035/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2035/",
+        "reportDate": "2022-06-30"
       },
       "curves": {
         "230": [
@@ -15534,7 +15842,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2700A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2700/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2700/",
+        "reportDate": "2025-01-07"
       },
       "curves": {
         "230": [
@@ -15585,7 +15894,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1965A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1965/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1965/",
+        "reportDate": "2022-01-21"
       },
       "curves": {
         "230": [
@@ -15636,7 +15946,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2337A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2337/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2337/",
+        "reportDate": "2024-01-25"
       },
       "curves": {
         "230": [
@@ -15687,7 +15998,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2701A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2701/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2701/",
+        "reportDate": "2025-01-08"
       },
       "curves": {
         "230": [
@@ -15721,7 +16033,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3023A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3023/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3023/",
+        "reportDate": "2025-11-05"
       },
       "curves": {
         "230": [
@@ -15755,7 +16068,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1959A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1959/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1959/",
+        "reportDate": "2022-01-07"
       },
       "curves": {
         "230": [
@@ -15806,7 +16120,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1979A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1979/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1979/",
+        "reportDate": "2022-02-17"
       },
       "curves": {
         "230": [
@@ -15857,7 +16172,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1951A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1951/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1951/",
+        "reportDate": "2021-12-17"
       },
       "curves": {
         "230": [
@@ -15908,7 +16224,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS1978A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1978/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1978/",
+        "reportDate": "2022-02-16"
       },
       "curves": {
         "230": [
@@ -15959,7 +16276,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2404A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2404/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2404/",
+        "reportDate": "2024-04-05"
       },
       "curves": {
         "230": [
@@ -16010,7 +16328,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2705A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2705/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2705/",
+        "reportDate": "2025-01-10"
       },
       "curves": {
         "230": [
@@ -16061,7 +16380,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3118A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3119/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3119/",
+        "reportDate": "2026-02-16"
       },
       "curves": {
         "230": [
@@ -16112,7 +16432,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3107A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3107/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3107/",
+        "reportDate": "2026-02-12"
       },
       "curves": {
         "230": [
@@ -16163,7 +16484,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3058A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3058/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3058/",
+        "reportDate": "2025-12-02"
       },
       "curves": {
         "230": [
@@ -16214,7 +16536,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3060A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3060/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3060/",
+        "reportDate": "2025-12-12"
       },
       "curves": {
         "230": [
@@ -16265,7 +16588,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2448A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2448/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2448/",
+        "reportDate": "2024-05-21"
       },
       "curves": {
         "230": [
@@ -16316,7 +16640,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2447A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2447/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2447/",
+        "reportDate": "2024-05-17"
       },
       "curves": {
         "230": [
@@ -16367,7 +16692,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2451A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2451/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2451/",
+        "reportDate": "2024-05-21"
       },
       "curves": {
         "230": [
@@ -16418,7 +16744,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2899A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2899/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2899/",
+        "reportDate": "2025-07-22"
       },
       "curves": {
         "230": [
@@ -16469,7 +16796,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2753A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2753/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2753/",
+        "reportDate": "2025-02-26"
       },
       "curves": {
         "230": [
@@ -16520,7 +16848,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2239A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2239/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2239/",
+        "reportDate": "2023-09-18"
       },
       "curves": {
         "230": [
@@ -16571,7 +16900,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3022A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3022/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3022/",
+        "reportDate": "2025-11-05"
       },
       "curves": {
         "230": [
@@ -16622,7 +16952,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2333A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2333/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2333/",
+        "reportDate": "2024-01-20"
       },
       "curves": {
         "230": [
@@ -16673,7 +17004,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2749A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2749/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2749/",
+        "reportDate": "2025-02-19"
       },
       "curves": {
         "230": [
@@ -16724,7 +17056,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2331A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2331/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2331/",
+        "reportDate": "2024-01-17"
       },
       "curves": {
         "230": [
@@ -16775,7 +17108,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3202A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3202/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3202/",
+        "reportDate": "2026-03-27"
       },
       "curves": {
         "230": [
@@ -16826,7 +17160,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS3021A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3021/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3021/",
+        "reportDate": "2025-11-01"
       },
       "curves": {
         "230": [
@@ -16877,7 +17212,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3205A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3205/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3205/",
+        "reportDate": "2026-03-19"
       },
       "curves": {
         "230": [
@@ -16928,7 +17264,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3355A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3355/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3355/",
+        "reportDate": "2026-07-09"
       },
       "curves": {
         "230": [
@@ -16979,7 +17316,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1872A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1872/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1872/",
+        "reportDate": "2021-07-16"
       },
       "curves": {
         "230": [
@@ -17030,7 +17368,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2521A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2521/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2521/",
+        "reportDate": "2024-07-29"
       },
       "curves": {
         "230": [
@@ -17081,7 +17420,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2169A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2169/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2169/",
+        "reportDate": "2023-04-11"
       },
       "curves": {
         "230": [
@@ -17132,7 +17472,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2266A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2266/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2266/",
+        "reportDate": "2023-10-23"
       },
       "curves": {
         "230": [
@@ -17183,7 +17524,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2051A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2051/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2051/",
+        "reportDate": "2022-08-04"
       },
       "curves": {
         "230": [
@@ -17234,7 +17576,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2263A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2263/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2263/",
+        "reportDate": "2023-10-18"
       },
       "curves": {
         "230": [
@@ -17285,7 +17628,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2111A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2111/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2111/",
+        "reportDate": "2023-01-13"
       },
       "curves": {
         "230": [
@@ -17336,7 +17680,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2149A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2149/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2149/",
+        "reportDate": "2023-03-09"
       },
       "curves": {
         "230": [
@@ -17387,7 +17732,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2120A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2120/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2120/",
+        "reportDate": "2023-01-25"
       },
       "curves": {
         "230": [
@@ -17438,7 +17784,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2116A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2116/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2116/",
+        "reportDate": "2023-01-20"
       },
       "curves": {
         "230": [
@@ -17489,7 +17836,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2495A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2495/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2495/",
+        "reportDate": "2024-07-01"
       },
       "curves": {
         "230": [
@@ -17540,7 +17888,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2490A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2490/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2490/",
+        "reportDate": "2024-06-25"
       },
       "curves": {
         "230": [
@@ -17591,7 +17940,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2589A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2589/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2589/",
+        "reportDate": "2024-11-15"
       },
       "curves": {
         "230": [
@@ -17642,7 +17992,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2588A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2588/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2588/",
+        "reportDate": "2024-11-13"
       },
       "curves": {
         "230": [
@@ -17693,7 +18044,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2587A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2587/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2587/",
+        "reportDate": "2024-11-11"
       },
       "curves": {
         "230": [
@@ -17744,7 +18096,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2586A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2586/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2586/",
+        "reportDate": "2024-11-08"
       },
       "curves": {
         "230": [
@@ -17795,7 +18148,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2865A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2865/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2865/",
+        "reportDate": "2025-06-26"
       },
       "curves": {
         "230": [
@@ -17846,7 +18200,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2859A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2859/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2859/",
+        "reportDate": "2025-06-23"
       },
       "curves": {
         "230": [
@@ -17897,7 +18252,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2854A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2854/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2854/",
+        "reportDate": "2025-06-19"
       },
       "curves": {
         "230": [
@@ -17948,7 +18304,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2383A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2383/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2383/",
+        "reportDate": "2024-03-08"
       },
       "curves": {
         "230": [
@@ -17999,7 +18356,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2378A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2378/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2378/",
+        "reportDate": "2024-03-05"
       },
       "curves": {
         "230": [
@@ -18050,7 +18408,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2392A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2392/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2392/",
+        "reportDate": "2024-03-15"
       },
       "curves": {
         "230": [
@@ -18101,7 +18460,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2388A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2388/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2388/",
+        "reportDate": "2024-03-13"
       },
       "curves": {
         "230": [
@@ -18152,7 +18512,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3137A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3137/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3137/",
+        "reportDate": "2026-01-21"
       },
       "curves": {
         "230": [
@@ -18203,7 +18564,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3156A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3156/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3156/",
+        "reportDate": "2026-01-27"
       },
       "curves": {
         "230": [
@@ -18254,7 +18616,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3140A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3140/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3140/",
+        "reportDate": "2026-01-23"
       },
       "curves": {
         "230": [
@@ -18305,7 +18668,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2380A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2380/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2380/",
+        "reportDate": "2024-03-07"
       },
       "curves": {
         "230": [
@@ -18356,7 +18720,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2390A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2390/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2390/",
+        "reportDate": "2024-03-15"
       },
       "curves": {
         "230": [
@@ -18407,7 +18772,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2386A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2386/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2386/",
+        "reportDate": "2024-03-12"
       },
       "curves": {
         "230": [
@@ -18458,7 +18824,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1722A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1722/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1722/",
+        "reportDate": "2020-09-29"
       },
       "curves": {
         "230": [
@@ -18509,7 +18876,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "22PS2079A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2079/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2079/",
+        "reportDate": "2023-09-18"
       },
       "curves": {
         "230": [
@@ -18560,7 +18928,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2358A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2358/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2358/",
+        "reportDate": "2024-02-15"
       },
       "curves": {
         "230": [
@@ -18611,7 +18980,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "21PS1928A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1928/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1928/",
+        "reportDate": "2021-11-01"
       },
       "curves": {
         "230": [
@@ -18644,7 +19014,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "23PS2232A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2232/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2232/",
+        "reportDate": "2023-09-05"
       },
       "curves": {
         "230": [
@@ -18677,7 +19048,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2354A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2354/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2354/",
+        "reportDate": "2024-02-12"
       },
       "curves": {
         "230": [
@@ -18711,7 +19083,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2815A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2815/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2815/",
+        "reportDate": "2025-05-14"
       },
       "curves": {
         "230": [
@@ -18745,7 +19118,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "20PS1661A",
-        "url": "https://www.cybenetics.com/evaluations/psus/1661/"
+        "url": "https://www.cybenetics.com/evaluations/psus/1661/",
+        "reportDate": "2020-06-03"
       },
       "curves": {
         "230": [
@@ -18796,7 +19170,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "24PS2494A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2494/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2494/",
+        "reportDate": "2024-07-02"
       },
       "curves": {
         "230": [
@@ -18847,7 +19222,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3410A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3410/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3410/",
+        "reportDate": "2026-09-11"
       },
       "curves": {
         "230": [
@@ -18880,7 +19256,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "25PS2996A",
-        "url": "https://www.cybenetics.com/evaluations/psus/2996/"
+        "url": "https://www.cybenetics.com/evaluations/psus/2996/",
+        "reportDate": "2025-10-16"
       },
       "curves": {
         "230": [
@@ -18931,7 +19308,8 @@
       "source": {
         "name": "Cybenetics",
         "reportId": "26PS3181A",
-        "url": "https://www.cybenetics.com/evaluations/psus/3181/"
+        "url": "https://www.cybenetics.com/evaluations/psus/3181/",
+        "reportDate": "2026-02-27"
       },
       "curves": {
         "230": [

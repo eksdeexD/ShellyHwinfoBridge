@@ -2,7 +2,10 @@ using System.Globalization;
 
 namespace CybeneticsImport;
 
-/// <summary>The command-line front end: single import, plus the <c>batch</c>, <c>merge</c> and <c>download</c> verbs.</summary>
+/// <summary>
+/// The command-line front end: single import, plus the <c>batch</c>, <c>merge</c>, <c>download</c> and
+/// <c>backfill-dates</c> verbs.
+/// </summary>
 public static class ImportCommand
 {
     /// <summary>Exit code for success.</summary>
@@ -23,6 +26,11 @@ public static class ImportCommand
                                                                                 merge entries into the database; each
                                                                                 --remove deletes that existing entry
           CybeneticsImport download --catalog <csv> --reports <dir>             fetch missing report PDFs (see README)
+          CybeneticsImport backfill-dates --pages <dir> --into <psu-database.json> [--dry-run]
+                                                                                fill source.reportDate of existing
+                                                                                entries from saved evaluation pages
+                                                                                (matched on source.reportId); nothing
+                                                                                else changes
 
         Single import: builds one psu-database.json entry from Cybenetics report(s).
 
@@ -38,6 +46,7 @@ public static class ImportCommand
           --id <id>  --brand <text>  --series <text>  --model <text>  [--revision <text>]  (--revision "" = none)
           --wattage <W>  --rating80plus <White|Bronze|Silver|Gold|Platinum|Titanium|None>
           [--ratingCybenetics <text>]  [--reportId <id>]  --url <report page URL>
+          [--reportDate <yyyy-MM-dd or "Jul 16, 2021">]  (taken from a saved page's "Testing Date" unless given)
           (--reportId may be omitted for older reports without one; the URL is always required)
 
         Output:
@@ -54,7 +63,7 @@ public static class ImportCommand
         ["voltage", "light-load-header", "load-header", "section-end", "voltage-marker", "light-load-row", "load-row", "ignore-line", "dc-tolerance"];
 
     private static readonly string[] MetadataNames =
-        ["id", "brand", "series", "model", "revision", "wattage", "rating80plus", "ratingcybenetics", "reportid", "url"];
+        ["id", "brand", "series", "model", "revision", "wattage", "rating80plus", "ratingcybenetics", "reportid", "url", "reportdate"];
 
     /// <summary>Runs the tool.</summary>
     /// <param name="args">The arguments.</param>
@@ -84,6 +93,8 @@ public static class ImportCommand
                     return MergeCommand.Run(OptionSet.Parse(args[1..], ["entries", "into", "date", "remove"], []), stderr, DateTime.Today);
                 case "download":
                     return DownloadCommand.Run(OptionSet.Parse(args[1..], ["catalog", "reports"], []), stderr);
+                case "backfill-dates":
+                    return BackfillDatesCommand.Run(OptionSet.Parse(args[1..], ["pages", "into"], ["dry-run"]), stderr);
                 case "import":
                     return RunImport(args[1..], stdout, stderr, readLines);
                 default:

@@ -35,6 +35,8 @@ public sealed class HtmlReportParserTests : IDisposable
         Assert.Equal("99PS9872A", metadata.ReportId);
         Assert.Equal("https://reports.example/evaluations/psus/9872/", metadata.Url);
         Assert.Equal("Jan 1, 2026", metadata.TestingDate);
+        Assert.Equal("2026-01-01", metadata.ReportDate);
+        Assert.Equal("2026-01-01", metadata.ToValues()["reportdate"]);
         Assert.Equal("examplebrand-fictional-fx-700-atx-v3-1", metadata.ToValues()["id"]);
     }
 
@@ -51,9 +53,97 @@ public sealed class HtmlReportParserTests : IDisposable
         Assert.Equal("examplebrand-fictional-fx-700-atx-v3-1", entry.Id);
         Assert.Equal(("Examplebrand", "Fictional FX-700", "ATX v3.1", 700), (entry.Brand, entry.Model, entry.Revision, entry.Wattage));
         Assert.Equal(("Cybenetics", "99PS9872A", "https://reports.example/evaluations/psus/9872/"), (entry.Source!.Name, entry.Source.ReportId, entry.Source.Url));
+        Assert.Equal("2026-01-01", entry.Source.ReportDate);
+        Assert.Contains(
+            "  \"source\": {\n    \"name\": \"Cybenetics\",\n    \"reportId\": \"99PS9872A\",\n"
+            + "    \"url\": \"https://reports.example/evaluations/psus/9872/\",\n    \"reportDate\": \"2026-01-01\"\n  },\n",
+            stdout.ToString(),
+            StringComparison.Ordinal);
         var seed = PsuDatabaseLoader.LoadEmbedded().Psus.Single(p => p.Id == "seasonic-prime-fanless-tx-700");
         Assert.Equal(seed.Curves!["230"], entry.Curves!["230"]);
         Assert.Equal(seed.Curves["115"], entry.Curves["115"]);
+    }
+
+    [Theory]
+    [InlineData("Jul 16, 2021", "2021-07-16")]
+    [InlineData("Sep 3, 2024", "2024-09-03")]
+    [InlineData("Dec 31, 2019", "2019-12-31")]
+    [InlineData("  Jul  7,  2021 ", "2021-07-07")]
+    [InlineData("July 16, 2021", "2021-07-16")]
+    [InlineData("2021-07-16", "2021-07-16")]
+    [InlineData("Feb 29, 2024", "2024-02-29")]
+    public void ConvertsThePrintedDateToIso(string printed, string expected)
+    {
+        Assert.True(HtmlReportParser.TryParseReportDate(printed, out var iso));
+        Assert.Equal(expected, iso);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("-")]
+    [InlineData("16/07/2021")]
+    [InlineData("Feb 29, 2023")]
+    [InlineData("Jul 2021")]
+    public void RejectsDatesItCannotRead(string? printed)
+    {
+        Assert.False(HtmlReportParser.TryParseReportDate(printed, out var iso));
+        Assert.Null(iso);
+    }
+
+    [Fact]
+    public void TheReportDateIsTheTestingDateNotTheReceiptOrIssueDate()
+    {
+        // The layout of a real page (21PS1872A): a certificate issue date at the top, then three dates in the
+        // "Cybenetics Testing Information" table.
+        const string html = """
+            <html><body>
+            <ul class="dates"><li>Test Result Report ID: 21PS1872A</li><li>Certificate Issue Date: <span>Jul 20, 2021</span></li></ul>
+            <table>
+            <tr class="subheader"><td colspan="2">Cybenetics Testing Information</td></tr>
+            <tr><td>Lab ID</td><td>SS70001872</td></tr>
+            <tr><td>Date of receipt</td><td>Jul 7, 2021</td></tr>
+            <tr><td>Testing Date</td><td>Jul 16, 2021</td></tr>
+            <tr><td>Report Issued Date</td><td>Jul 20, 2021</td></tr>
+            </table>
+            </body></html>
+            """;
+
+        var metadata = HtmlReportParser.ReadMetadata(html);
+
+        Assert.Equal("Jul 16, 2021", metadata.TestingDate);
+        Assert.Equal("2021-07-16", metadata.ReportDate);
+        Assert.Equal("21PS1872A", metadata.ReportId);
+        Assert.Null(HtmlReportParser.ReadMetadata(html.Replace("Testing Date", "Test day", StringComparison.Ordinal)).ReportDate);
+    }
+
+    [Fact]
+    public void AGivenReportDateWinsAndABadOneIsAUsageError()
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        string[] args = ["import", "--html", FixturePath, "--series", "Fictional FX", "--rating80plus", "titanium", "--reportDate"];
+
+        Assert.Equal(ImportCommand.Ok, ImportCommand.Run([.. args, "Mar 5, 2026"], stdout, stderr));
+        Assert.Equal("2026-03-05", JsonSerializer.Deserialize<PsuEntry>(stdout.ToString(), PsuDatabaseJson.Options)!.Source!.ReportDate);
+
+        Assert.Equal(ImportCommand.Usage, ImportCommand.Run([.. args, "05.03.2026"], stdout, stderr));
+        Assert.Contains("--reportDate", stderr.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnEntryWithoutADateHasNoReportDateKey()
+    {
+        var entry = EntryWriter.Build(
+            new EntryMetadata { Id = "x", Brand = "B", Series = "S", Model = "M", Wattage = 650, Rating80Plus = "Gold", Url = "https://reports.example/1/" },
+            new Dictionary<int, IReadOnlyList<(double Ac, double Dc)>> { [230] = [(30.0, 20.0), (100.0, 85.0)] });
+
+        var json = EntryWriter.Format(entry);
+
+        Assert.Null(entry.Source!.ReportDate);
+        Assert.Contains("    \"url\": \"https://reports.example/1/\"\n  },\n", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("reportDate", json, StringComparison.Ordinal);
+        Assert.Empty(EntryWriter.Validate(entry));
     }
 
     [Fact]
@@ -223,6 +313,7 @@ public sealed class HtmlReportParserTests : IDisposable
         var entry = JsonSerializer.Deserialize<PsuEntry>(File.ReadAllText(Path.Combine(output, "examplebrand-fx-700.json")), PsuDatabaseJson.Options)!;
         Assert.Equal(("Examplebrand", "Fictional FX-700", "ATX v3.1", 700), (entry.Brand, entry.Model, entry.Revision, entry.Wattage));
         Assert.Equal("https://reports.example/evaluations/psus/9872/", entry.Source!.Url);
+        Assert.Equal("2026-01-01", entry.Source.ReportDate);
         Assert.Equal(15, entry.Curves!["115"].Count);
         Assert.StartsWith("examplebrand-fx-700,99PS9872A,ok,15,15,0,", File.ReadAllLines(Path.Combine(output, BatchCommand.SummaryFileName))[1], StringComparison.Ordinal);
     }

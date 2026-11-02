@@ -56,6 +56,11 @@ model suffix (`Prime TX-1600 (ATX v3.0)` becomes model `Prime TX-1600`, revision
 is derived from brand, model and revision. Command-line (or catalogue) values win. The page does not name the
 80 Plus or Cybenetics ratings in text (they are badge images), and not the series, so pass those.
 
+The report date (`source.reportDate`, yyyy-MM-dd) is the page's `Testing Date` row ("Jul 16, 2021" becomes
+`2021-07-16`). A page carries other dates too: `Certificate Issue Date` at the top, and `Date of receipt` and
+`Report Issued Date` beside the testing date; those are not used. `--reportDate` (yyyy-MM-dd or "Jul 16, 2021")
+overrides it, and gives PDF imports a date; without one the entry has no `reportDate`.
+
 How it reads the tables (HtmlAgilityPack): in every table with a `DC/AC (Watts)` header, a test is two rows: the
 first (label cell `10%`…`110%` or `20W`…`80W` spanning both rows, currents, **DC** watts, efficiency) and the
 second (voltages, **AC** watts, `115.2V`). Older pages (2020) number the tests (`Test #` 1–11 and 1–4); those are
@@ -97,6 +102,18 @@ dotnet run --project tools/cybenetics-import -- merge --entries work\entries --i
 Every `*.json` in `--entries` is merged: an entry with an existing id replaces it, the list is sorted by brand and
 model, and `updated` is set to today (`--date yyyy-MM-dd` overrides). The result is validated with the app's
 database validator first; on any error nothing is written. Then run `dotnet test`.
+
+## Backfilling report dates
+
+```powershell
+dotnet run --project tools/cybenetics-import -- backfill-dates --pages work\reports\processed --into psu-database.json [--dry-run]
+```
+
+Fills `source.reportDate` of existing entries from saved evaluation pages (`*.htm`, `*.html`). A page matches an
+entry when it is named `<reportId>.htm`/`.html` or when the report id printed on it equals `source.reportId`;
+entries without a report id match on the report URL. Entries that already have a date, have no matching page, or
+whose pages give no date, different dates or another report URL are left untouched; the summary lists them.
+Nothing else changes (not `updated` either); the file must be in the layout `merge` writes.
 
 ## Downloading reports
 

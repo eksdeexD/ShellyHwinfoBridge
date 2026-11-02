@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ShellyHwinfoBridge.Core.Curves;
 
 namespace ShellyHwinfoBridge.Core.Database;
@@ -95,4 +96,12 @@ public sealed class PsuSource
 
     /// <summary>Gets or sets the URL of the original report (required).</summary>
     public string Url { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the report date: the "Testing Date" printed in the Cybenetics report, as ISO yyyy-MM-dd.
+    /// Optional (<c>null</c> when unknown) and then left out of the JSON. Databases without it still load, and
+    /// 1.0.0 clients, which do not know the field, skip it like any unknown field.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReportDate { get; set; }
 }

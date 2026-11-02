@@ -242,6 +242,102 @@ public sealed class BatchMergeDownloadTests : IDisposable
     private static string Row(string id, string reportId, string pdfUrl) =>
         $"{id},B,S,M,,650,Gold,,{reportId},https://e.com/{id}/,{pdfUrl},1,";
 
+    [Fact]
+    public void BackfillFillsReportDatesFromSavedPagesAndChangesNothingElse()
+    {
+        PsuEntry With(string id, string? reportId, int number, string? date = null)
+        {
+            var entry = Entry(id, "Brand", "Model " + id);
+            entry.Source = new PsuSource { Name = "Cybenetics", ReportId = reportId, Url = $"https://reports.example/evaluations/psus/{number}/", ReportDate = date };
+            return entry;
+        }
+
+        var original = new PsuDatabase
+        {
+            SchemaVersion = 1,
+            Updated = "2026-10-31",
+            Psus =
+            [
+                With("by-file-name", "21PS0001A", 1),
+                With("by-printed-id", "21PS0002A", 2),
+                With("by-url", null, 3),
+                With("already-set", "21PS0004A", 4, "2020-01-01"),
+                With("no-page", "21PS0005A", 5),
+                With("no-date", "21PS0006A", 6),
+                With("conflict", "21PS0007A", 7),
+                With("two-pages-agree", "21PS0008A", 8),
+            ],
+        };
+        var database = Path.Combine(_dir, "psu-database.json");
+        var before = MergeCommand.Format(original);
+        File.WriteAllText(database, before);
+        var pages = Sub("pages");
+        File.WriteAllText(Path.Combine(pages, "21PS0001A.html"), Page("21PS0001A", 1, "Jul 16, 2021"));
+        File.WriteAllText(Path.Combine(pages, "Brand Model by-printed-id.htm"), Page("21PS0002A", 2, "Sep 3, 2024"));
+        File.WriteAllText(Path.Combine(pages, "Brand Model by-url.htm"), Page(null, 3, "Jan 5, 2019"));
+        File.WriteAllText(Path.Combine(pages, "21PS0004A.html"), Page("21PS0004A", 4, "Mar 1, 2022"));
+        File.WriteAllText(Path.Combine(pages, "21PS0006A.html"), Page("21PS0006A", 6, null));
+        File.WriteAllText(Path.Combine(pages, "21PS0007A.html"), Page("21PS0007A", 7, "Feb 1, 2023"));
+        File.WriteAllText(Path.Combine(pages, "conflict copy.htm"), Page("21PS0007A", 7, "Feb 2, 2023"));
+        File.WriteAllText(Path.Combine(pages, "21PS0008A.html"), Page("21PS0008A", 8, "Apr 4, 2025"));
+        File.WriteAllText(Path.Combine(pages, "two-pages-agree.htm"), Page("21PS0008A", 8, "Apr 4, 2025"));
+        File.WriteAllText(Path.Combine(pages, "notes.txt"), "not a page");
+
+        var (dryExit, dryLog) = RunWithLog("backfill-dates", "--pages", pages, "--into", database, "--dry-run");
+        Assert.Equal(ImportCommand.Ok, dryExit);
+        Assert.Equal(before, File.ReadAllText(database));
+        Assert.Contains("4 filled, 1 already set, 1 no page, 1 no date found, 1 conflicting dates", dryLog, StringComparison.Ordinal);
+
+        var (exit, log) = RunWithLog("backfill-dates", "--pages", pages, "--into", database);
+
+        Assert.True(exit == ImportCommand.Ok, log);
+        Assert.Contains("9 pages read, 8 entries: 4 filled, 1 already set, 1 no page, 1 no date found, 1 conflicting dates.", log, StringComparison.Ordinal);
+        Assert.Contains("NoPage: 21PS0005A Model no-page", log, StringComparison.Ordinal);
+        Assert.Contains("NoDate: 21PS0006A Model no-date", log, StringComparison.Ordinal);
+        Assert.Contains("Conflict: 21PS0007A Model conflict", log, StringComparison.Ordinal);
+        var text = File.ReadAllText(database);
+        var result = PsuDatabaseJson.Deserialize(text);
+        Assert.Equal(
+            ["2021-07-16", "2024-09-03", "2019-01-05", "2020-01-01", null, null, null, "2025-04-04"],
+            result.Psus.Select(p => p.Source!.ReportDate));
+        Assert.Equal(MergeCommand.Format(result), text);
+
+        // Apart from the dates, the file is byte for byte what it was (updated included).
+        foreach (var entry in result.Psus.Zip(original.Psus))
+        {
+            entry.First.Source!.ReportDate = entry.Second.Source!.ReportDate;
+        }
+
+        Assert.Equal(before, MergeCommand.Format(result));
+        Assert.Equal("2026-10-31", result.Updated);
+    }
+
+    [Fact]
+    public void BackfillRefusesAPageWhoseUrlNamesAnotherReport()
+    {
+        var entry = Entry("unit", "Brand", "Model");
+        entry.Source = new PsuSource { Name = "Cybenetics", ReportId = "21PS0001A", Url = "https://reports.example/evaluations/psus/1/" };
+        var database = new PsuDatabase { SchemaVersion = 1, Psus = [entry] };
+
+        var results = BackfillDatesCommand.Backfill(database, [("21PS0001A.html", HtmlReportParser.ReadMetadata(Page("21PS0001A", 99, "Jul 16, 2021")))]);
+
+        Assert.Equal(BackfillStatus.Conflict, Assert.Single(results).Status);
+        Assert.Null(entry.Source.ReportDate);
+    }
+
+    // A minimal saved evaluation page: report id, report URL (via a PDF link) and the testing information table.
+    private static string Page(string? reportId, int number, string? testingDate) => $"""
+        <html><body>
+        <a href="https://reports.example/evaluations/psus/{number}/pdf/">PDF</a>
+        <ul class="dates"><li>Test Result Report ID: {reportId}</li><li>Certificate Issue Date: <span>Dec 24, 2026</span></li></ul>
+        <table>
+        <tr><td>Date of receipt</td><td>Jan 1, 2000</td></tr>
+        {(testingDate is null ? string.Empty : $"<tr><td>Testing Date</td><td>{testingDate}</td></tr>")}
+        <tr><td>Report Issued Date</td><td>Dec 24, 2026</td></tr>
+        </table>
+        </body></html>
+        """;
+
     private static PsuEntry Entry(string id, string brand, string model) => EntryWriter.Build(
         new EntryMetadata
         {
