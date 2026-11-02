@@ -75,7 +75,7 @@ dotnet publish src/ShellyHwinfoBridge/ShellyHwinfoBridge.csproj -c Release -o pu
 
 The publish step produces a self-contained, single-file x64 `ShellyHwinfoBridge.exe`; the release workflow builds
 the installer from it with Inno Setup. [`tools/cybenetics-import`](tools/cybenetics-import/README.md) is a
-maintainer tool that turns a Cybenetics report PDF into a database entry.
+maintainer tool that turns a saved Cybenetics report page into a database entry.
 
 ## PSU data attribution
 
